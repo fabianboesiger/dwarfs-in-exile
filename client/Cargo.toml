@@ -1,0 +1,31 @@
+[package]
+version = "0.1.0"
+name = "client"
+repository = "https://github.com/seed-rs/seed-quickstart"
+authors = ["Fabian Bösiger <fabian.boesiger@schindler.com>"]
+description = "App Description"
+categories = ["category"]
+license = "MIT"
+readme = "./README.md"
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.18"
+
+[dependencies]
+seed = "0.8.0"
+shared = { path = "../shared" }
+serde = { version = "1.0.137", features = ["derive"] }
+serde_json = "1.0.81"
+rmp-serde = "1.1.0"
+
+[profile.release]
+lto = true
+opt-level = 'z'
+codegen-units = 1
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ['-Os']
