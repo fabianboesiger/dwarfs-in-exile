@@ -1,3 +1,4 @@
+use askama::Template;
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
@@ -115,4 +116,12 @@ pub async fn ws_handler(
         );
 
     })
+}
+
+#[derive(Template, Default)]
+#[template(path = "game.html")]
+pub struct GameTemplate {}
+
+pub async fn get_game() -> GameTemplate {
+    GameTemplate::default()
 }

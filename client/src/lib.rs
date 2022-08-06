@@ -2,7 +2,7 @@ use seed::{prelude::*, *};
 use shared::{Event, Game};
 use std::rc::Rc;
 
-const WS_URL: &str = "ws://127.0.0.1:3000/ws";
+const WS_URL: &str = "ws://127.0.0.1:3000/game/ws";
 
 // ------ ------
 //     Model

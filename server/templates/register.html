@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+    <form method="POST">
+        <h2>Register</h2>
+        <div>
+            <label for="username">Username</label>
+            <input id="username" type="text" name="username" value="{{ username }}">
+            {% for err in username_error %}
+                <span class="error">{{ err }}</span>
+            {% endfor %}
+        </div>
+
+        <div>
+            <label for="email">E-Mail</label>
+            <input id="email" type="email" name="email" value="{{ email }}">
+            {% for err in email_error %}
+                <span class="error">{{ err }}</span>
+            {% endfor %}
+        </div>
+        
+        <div>
+            <label for="password">Password</label>
+            <input id="password" type="password" name="password">
+            {% for err in password_error %}
+                <span class="error">{{ err }}</span>
+            {% endfor %}
+        </div>
+        
+        <div>
+            <label for="password-repeat">Repeat Password</label>
+            <input id="password-repeat" name="password_repeat" type="password">
+            {% for err in password_repeat_error %}
+                <span class="error">{{ err }}</span>
+            {% endfor %}
+        </div>
+        
+        <input type="submit">
+
+        <a href="/login">Log in to an existing account.</a>
+    </form>
+{% endblock %}

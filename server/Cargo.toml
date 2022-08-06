@@ -20,3 +20,9 @@ validator = { version = "0.15.0", features = ["derive"] }
 async-trait = "0.1"
 http-body = "0.4.3"
 thiserror = "1.0"
+sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "sqlite"] }
+dotenv = "0.15"
+askama_axum = { git = "https://github.com/djc/askama" }
+askama = { git = "https://github.com/djc/askama", features = ["with-axum"] }
+axum-flash = "0.4"
+base64 = "0.13"
