@@ -24,5 +24,4 @@ sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "sqlite"] }
 dotenv = "0.15"
 askama_axum = { git = "https://github.com/djc/askama" }
 askama = { git = "https://github.com/djc/askama", features = ["with-axum"] }
-axum-flash = "0.4"
-base64 = "0.13"
+bcrypt = "0.13.0"

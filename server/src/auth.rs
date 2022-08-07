@@ -1,29 +1,18 @@
 pub mod register;
+pub mod login;
 
-use askama::{Template, DynTemplate};
-use axum::{
-    extract::{
-        FromRequest, RequestParts,
-    },
-    http::{StatusCode, self},
-    response::{IntoResponse, Response, Redirect},
-    Extension, Form, BoxError,
-};
-use headers::HeaderValue;
-use serde::{Deserialize, de::DeserializeOwned};
-use validator::{Validate, ValidationErrors};
-use axum_sessions::async_session::Session;
+use std::borrow::Cow;
+
+use askama::DynTemplate;
 use async_trait::async_trait;
-use thiserror::Error;
-
-use crate::ServerError;
-use axum_flash::{IncomingFlashes, Flash, Key};
-
-#[derive(Debug, Deserialize)]
-pub struct Login {
-    username: String,
-    password: String,
-}
+use axum::{
+    extract::{FromRequest, RequestParts},
+    http::{self, StatusCode},
+    response::{IntoResponse, Response},
+    BoxError, Form,
+};
+use serde::de::DeserializeOwned;
+use validator::{Validate, ValidationError, ValidationErrors};
 
 // https://github.com/tokio-rs/axum/blob/main/examples/validator/src/main.rs
 #[derive(Debug, Clone, Copy, Default)]
@@ -44,27 +33,38 @@ where
     type Rejection = Response;
 
     async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
-        let Form(value) = Form::<T>::from_request(req).await.unwrap();
+        let Form(value) = Form::<T>::from_request(req)
+            .await
+            .map_err(|err| err.into_response())?;
 
-        println!("got form request");
-        
         if let Err(errors) = value.validate() {
-            println!("had validation errors");
-            let template = value.to_template(errors);
-            Err(match template.dyn_render() {
-                Ok(body) => {
-                    let headers = [(
-                        http::header::CONTENT_TYPE,
-                        http::HeaderValue::from_static(template.mime_type()),
-                    )];
-        
-                    (headers, body).into_response()
-                }
-                Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-            })
+            Err(form_errors(value, errors))
         } else {
-            println!("all ok!");
             Ok(ValidatedForm(value))
         }
+    }
+}
+
+pub fn form_error<F: ToTemplate>(form: F, code: &'static str, message: &'static str) -> Response {
+    let mut error = ValidationError::new(code);
+    error.message = Some(Cow::Borrowed(message));
+    let mut errors = ValidationErrors::new();
+    errors.add("username", error);
+
+    form_errors(form, errors)
+}
+
+pub fn form_errors<F: ToTemplate>(form: F, errors: ValidationErrors) -> Response {
+    let template = form.to_template(errors);
+    match template.dyn_render() {
+        Ok(body) => {
+            let headers = [(
+                http::header::CONTENT_TYPE,
+                http::HeaderValue::from_static(template.mime_type()),
+            )];
+
+            (headers, body).into_response()
+        }
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     }
 }

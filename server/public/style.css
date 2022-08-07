@@ -21,3 +21,8 @@ input {
 .error {
     color: red;
 }
+
+nav {
+    position: sticky;
+    top: 0;
+}

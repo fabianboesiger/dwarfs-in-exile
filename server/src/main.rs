@@ -1,94 +1,30 @@
-mod game;
 mod auth;
+mod db;
+mod error;
+mod game;
+mod index;
+
+use error::*;
 
 use axum::{
     http::StatusCode,
-    response::{IntoResponse, Response},
     routing::{get, get_service},
-    Router, Extension
+    Extension, Router,
 };
-use sqlx::{SqlitePool, sqlite::SqliteConnectOptions, ConnectOptions, Pool};
-use std::{net::SocketAddr, path::PathBuf, str::FromStr};
+use axum_sessions::{async_session::MemoryStore, SessionLayer};
+use std::{net::SocketAddr, path::PathBuf};
 use tower_http::{
     services::ServeDir,
     trace::{DefaultMakeSpan, TraceLayer},
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use axum_sessions::{
-    async_session::{MemoryStore, Session},
-    SessionLayer,
-};
-use thiserror::Error;
-
-#[derive(Debug, Error)]
-pub enum ServerError {
-    #[error(transparent)]
-    ValidationError(#[from] validator::ValidationErrors),
-    #[error(transparent)]
-    AxumFormRejection(#[from] axum::extract::rejection::FormRejection),
-}
-
-impl IntoResponse for ServerError {
-    fn into_response(self) -> Response {
-        match self {
-            ServerError::ValidationError(_) => {
-                let message = format!("Input validation error: [{}]", self).replace('\n', ", ");
-                (StatusCode::BAD_REQUEST, message)
-            }
-            ServerError::AxumFormRejection(_) => (StatusCode::BAD_REQUEST, self.to_string()),
-        }
-        .into_response()
-    }
-}
-
-async fn db_setup() -> Result<SqlitePool, Box<dyn std::error::Error>> {
-    let options = SqliteConnectOptions::from_str(&std::env::var("DATABASE_URL")?)?
-        .create_if_missing(true);
-
-    let pool = SqlitePool::connect_with(options).await?;
-
-    let mut transaction = pool.begin().await?;
-
-    sqlx::query(r#"
-        CREATE TABLE IF NOT EXISTS users (
-            username TEXT PRIMARY KEY,
-            password TEXT NOT NULL
-        )
-    "#)
-    .execute(&mut transaction)
-    .await?;
-
-    sqlx::query(r#"
-        CREATE TABLE IF NOT EXISTS sessions (
-            id TEXT PRIMARY KEY,
-            username TEXT REFERENCES users(usernames),
-            expires INTEGER NOT NULL
-        )
-    "#)
-    .execute(&mut transaction)
-    .await?;
-
-    sqlx::query(r#"
-        CREATE TABLE IF NOT EXISTS worlds (
-            name TEXT PRIMARY KEY,
-            data BLOB
-        )
-    "#)
-    .execute(&mut transaction)
-    .await?;
-
-    transaction.commit().await?;
-
-    Ok(pool)
-}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv::dotenv().ok();
 
-    db_setup().await?;
+    let pool = db::setup().await?;
 
-    /*
     tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::new(
             std::env::var("RUST_LOG")
@@ -96,7 +32,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ))
         .with(tracing_subscriber::fmt::layer())
         .init();
-    */
 
     let assets_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("public");
 
@@ -105,7 +40,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let session_layer = SessionLayer::new(store, secret);
 
     let game_state = game::GameState::new().await;
-    
 
     // build our application with some routes
     let app = Router::new()
@@ -118,22 +52,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     )
                 }),
         )
+        .route("/", get(index::get_index))
         .route("/game", get(game::get_game))
         .route("/game/ws", get(game::ws_handler))
-        .route("/register", get(auth::register::get_register).post(auth::register::post_register))
+        .route(
+            "/register",
+            get(auth::register::get_register).post(auth::register::post_register),
+        )
+        .route(
+            "/login",
+            get(auth::login::get_login).post(auth::login::post_login),
+        )
         .layer(Extension(game_state))
-        .layer(session_layer);
-        /*
+        .layer(Extension(pool.clone()))
+        .layer(session_layer)
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(DefaultMakeSpan::default().include_headers(true)),
         );
-        */
 
     // run it with hyper
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     tracing::debug!("listening on {}", addr);
-    
+
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await

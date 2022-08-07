@@ -1,5 +1,5 @@
 use seed::{prelude::*, *};
-use shared::{Event, Game};
+use shared::{Event, State};
 use std::rc::Rc;
 
 const WS_URL: &str = "ws://127.0.0.1:3000/game/ws";
@@ -11,7 +11,7 @@ const WS_URL: &str = "ws://127.0.0.1:3000/game/ws";
 pub struct Model {
     web_socket: WebSocket,
     web_socket_reconnector: Option<StreamHandle>,
-    game: Game,
+    state: State,
 }
 
 // ------ ------
@@ -22,7 +22,7 @@ fn init(_: Url, orders: &mut impl Orders<Msg>) -> Model {
     Model {
         web_socket: create_websocket(orders),
         web_socket_reconnector: None,
-        game: Game::default()
+        state: State::default(),
     }
 }
 
@@ -38,7 +38,7 @@ pub enum Msg {
     ReconnectWebSocket(usize),
     SendGameEvent(Event),
     ReceiveGameEvent(Event),
-    GameState(Game),
+    GameState(State),
 }
 
 fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
@@ -88,10 +88,10 @@ fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
             model.web_socket.send_bytes(&serialized).unwrap();
         }
         Msg::ReceiveGameEvent(event) => {
-            model.game.update(event);
+            model.state.update(event);
         }
         Msg::GameState(game) => {
-            model.game = game;
+            model.state = game;
         }
     }
 }
@@ -110,13 +110,7 @@ fn create_websocket(orders: &impl Orders<Msg>) -> WebSocket {
 
 fn decode_message(message: WebSocketMessage, msg_sender: Rc<dyn Fn(Option<Msg>)>) {
     if message.contains_text() {
-        /*
-        let msg = message
-            .json::<shared::Event>()
-            .expect("Failed to decode WebSocket text message");
-
-        msg_sender(Some(Msg::ReceiveGameEvent(msg)));
-        */
+        unreachable!()
     } else {
         spawn_local(async move {
             let bytes = message
@@ -128,7 +122,7 @@ fn decode_message(message: WebSocketMessage, msg_sender: Rc<dyn Fn(Option<Msg>)>
             match msg {
                 shared::Res::Event(event) => {
                     msg_sender(Some(Msg::ReceiveGameEvent(event)));
-                },
+                }
                 shared::Res::Sync(game) => {
                     msg_sender(Some(Msg::GameState(game)));
                 }
@@ -145,13 +139,10 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
     vec![
         h1!["WebSocket example"],
         button![
-            ev(Ev::Click, {
-                move |_| Msg::SendGameEvent(Event::Increment)
-            }),
+            ev(Ev::Click, move |_| Msg::SendGameEvent(Event::Increment)),
             "Send Game Event"
         ],
-        p![model.game.cnt],
-        hr![],
+        p![model.state.cnt],
     ]
 }
 
