@@ -1,5 +1,5 @@
-pub mod register;
 pub mod login;
+pub mod register;
 
 use std::borrow::Cow;
 

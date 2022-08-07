@@ -18,9 +18,9 @@ use super::{form_error, ToTemplate, ValidatedForm};
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct LoginForm {
-    #[validate(length(min = 1, message = "The username must not be empty"))]
+    //#[validate(length(min = 1, message = "The username must not be empty"))]
     username: String,
-    #[validate(length(min = 8, message = "Password must contain at least 8 characters"))]
+    //#[validate(length(min = 8, message = "Password must contain at least 8 characters"))]
     password: String,
 }
 
@@ -80,7 +80,7 @@ pub async fn post_login(
             let verify = tokio::task::spawn_blocking(move || verify(&password, &hash).unwrap())
                 .await
                 .unwrap();
-    
+
             if verify {
                 session.expire_in(Duration::from_secs(60 * 60 * 24 * 7));
 

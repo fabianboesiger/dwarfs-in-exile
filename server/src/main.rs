@@ -34,12 +34,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     let assets_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("public");
+    println!("{:?}", assets_dir);
 
     let store = MemoryStore::new();
     let secret = b"7w!z%C*F-JaNdRgUjXn2r5u8x/A?D(G+KbPeShVmYp3s6v9y$B&E)H@McQfTjWnZ";
     let session_layer = SessionLayer::new(store, secret);
 
-    let game_state = game::GameState::new().await;
+    let game_state = game::GameState::new(pool.clone()).await;
 
     // build our application with some routes
     let app = Router::new()

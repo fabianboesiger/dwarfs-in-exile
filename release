@@ -8,6 +8,3 @@ cd ..
 cd server
 cargo build --release
 cd ..
-
-mkdir -p target/release/public
-cp -r server/public target/release/public

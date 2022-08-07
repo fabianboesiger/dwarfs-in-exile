@@ -1,5 +1,5 @@
 use seed::{prelude::*, *};
-use shared::{Event, State};
+use shared::{Event, EventData, State, UserId};
 use std::rc::Rc;
 
 const WS_URL: &str = "ws://127.0.0.1:3000/game/ws";
@@ -11,7 +11,7 @@ const WS_URL: &str = "ws://127.0.0.1:3000/game/ws";
 pub struct Model {
     web_socket: WebSocket,
     web_socket_reconnector: Option<StreamHandle>,
-    state: State,
+    state: Option<(UserId, State)>,
 }
 
 // ------ ------
@@ -22,7 +22,7 @@ fn init(_: Url, orders: &mut impl Orders<Msg>) -> Model {
     Model {
         web_socket: create_websocket(orders),
         web_socket_reconnector: None,
-        state: State::default(),
+        state: None,
     }
 }
 
@@ -37,8 +37,8 @@ pub enum Msg {
     WebSocketFailed,
     ReconnectWebSocket(usize),
     SendGameEvent(Event),
-    ReceiveGameEvent(Event),
-    GameState(State),
+    ReceiveGameEvent(EventData),
+    InitGameState(UserId, State),
 }
 
 fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
@@ -88,10 +88,12 @@ fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
             model.web_socket.send_bytes(&serialized).unwrap();
         }
         Msg::ReceiveGameEvent(event) => {
-            model.state.update(event);
+            if let Some((_, state)) = &mut model.state {
+                state.update(event);
+            }
         }
-        Msg::GameState(game) => {
-            model.state = game;
+        Msg::InitGameState(user_id, state) => {
+            model.state = Some((user_id, state));
         }
     }
 }
@@ -123,8 +125,8 @@ fn decode_message(message: WebSocketMessage, msg_sender: Rc<dyn Fn(Option<Msg>)>
                 shared::Res::Event(event) => {
                     msg_sender(Some(Msg::ReceiveGameEvent(event)));
                 }
-                shared::Res::Sync(game) => {
-                    msg_sender(Some(Msg::GameState(game)));
+                shared::Res::Sync(user_id, game) => {
+                    msg_sender(Some(Msg::InitGameState(user_id, game)));
                 }
             }
         });
@@ -136,14 +138,25 @@ fn decode_message(message: WebSocketMessage, msg_sender: Rc<dyn Fn(Option<Msg>)>
 // ------ ------
 
 fn view(model: &Model) -> Vec<Node<Msg>> {
-    vec![
-        h1!["WebSocket example"],
-        button![
-            ev(Ev::Click, move |_| Msg::SendGameEvent(Event::Increment)),
-            "Send Game Event"
-        ],
-        p![model.state.cnt],
-    ]
+    if let Some((user_id, state)) = &model.state {
+        vec![
+            h1!["WebSocket example"],
+            button![
+                ev(Ev::Click, move |_| Msg::SendGameEvent(Event::Increment)),
+                "Increment Counter"
+            ],
+            p![state.cnt],
+            button![
+                ev(Ev::Click, move |_| Msg::SendGameEvent(
+                    Event::IncrementPrivate
+                )),
+                "Increment Private Counter"
+            ],
+            p![state.cnt_private.get(user_id)],
+        ]
+    } else {
+        vec![p!["Loading ..."]]
+    }
 }
 
 // ------ ------
