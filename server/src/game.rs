@@ -7,10 +7,10 @@ use axum::{
 };
 use axum_sessions::async_session::Session;
 use futures_util::{sink::SinkExt, stream::StreamExt};
-use shared::{EventData, UserId};
+use shared::{EventData, UserId, SyncData, Event};
 use sqlx::SqlitePool;
-use std::sync::Arc;
-use tokio::sync::{broadcast, mpsc, RwLock};
+use std::{sync::Arc, time::Duration};
+use tokio::{sync::{broadcast, mpsc, RwLock}, time};
 
 use crate::ServerError;
 
@@ -57,6 +57,8 @@ impl GameState {
         let (req_sender, mut req_receiver) = mpsc::unbounded_channel::<EventData>();
         let (res_sender, _res_receiver) = broadcast::channel::<EventData>(128);
 
+        let req_sender_clone = req_sender.clone();
+
         let game = RwLock::new(GameState::load_game(&pool).await.unwrap_or_default());
         let game_state = Arc::new(GameStateImpl {
             state: game,
@@ -64,6 +66,19 @@ impl GameState {
             req_sender,
         });
         let game_state_clone = game_state.clone();
+
+        tokio::spawn(async move {
+            let mut interval = time::interval(Duration::from_secs(1));
+
+            loop {
+                interval.tick().await;
+
+                req_sender_clone.send(EventData {
+                    event: Event::Tick,
+                    user_id: None,
+                }).unwrap();
+            }
+        });
 
         tokio::spawn(async move {
             let GameStateImpl {
@@ -118,10 +133,13 @@ pub async fn ws_handler(
 
     if let Some((user_id,)) = result {
         Ok(ws.on_upgrade(move |socket: WebSocket| async move {
-            let (game, sender, mut receiver) = game_state.new_connection(user_id).await;
+            let (state, sender, mut receiver) = game_state.new_connection(user_id).await;
             let (mut sink, mut stream) = socket.split();
     
-            let msg = rmp_serde::to_vec(&shared::Res::Sync(user_id, game)).unwrap();
+            let msg = rmp_serde::to_vec(&shared::Res::Sync(SyncData {
+                user_id,
+                state
+            })).unwrap();
             if sink.send(Message::Binary(msg)).await.is_err() {
                 return;
             }
@@ -135,7 +153,7 @@ pub async fn ws_handler(
                                 let req: shared::Req = rmp_serde::from_slice(&msg).unwrap();
                                 match req {
                                     shared::Req::Event(event) => {
-                                        if sender.send(EventData {event, user_id }).is_err() {
+                                        if sender.send(EventData {event, user_id: Some(user_id) }).is_err() {
                                             break;
                                         }
                                     }
@@ -160,9 +178,12 @@ pub async fn ws_handler(
                             // If a broadcast message is discarded that wasn't seen yet by this receiver,
                             // request a full game state update.
                             Err(broadcast::error::RecvError::Lagged(_)) => {
-                                let (game, _, new_receiver) = game_state.new_connection(user_id).await;
+                                let (state, _, new_receiver) = game_state.new_connection(user_id).await;
                                 receiver = new_receiver;
-                                let msg = rmp_serde::to_vec(&shared::Res::Sync(user_id, game)).unwrap();
+                                let msg = rmp_serde::to_vec(&shared::Res::Sync(SyncData {
+                                    user_id,
+                                    state
+                                })).unwrap();
                                 if sink.send(Message::Binary(msg)).await.is_err() {
                                     break;
                                 }

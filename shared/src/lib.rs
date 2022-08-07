@@ -77,7 +77,7 @@ where
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EventData {
     pub event: Event,
-    pub user_id: UserId,
+    pub user_id: Option<UserId>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -87,8 +87,14 @@ pub enum Req {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum Res {
-    Sync(UserId, State),
+    Sync(SyncData),
     Event(EventData),
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct SyncData {
+    pub user_id: UserId,
+    pub state: State,
 }
 
 // MODIFY EVENTS AND STATE BELOW
@@ -108,7 +114,10 @@ impl State {
                 self.cnt += 1;
             }
             Event::IncrementPrivate => {
-                *self.cnt_private.entry(user_id).or_default() += 1;
+                *self.cnt_private.entry(user_id.unwrap()).or_default() += 1;
+            },
+            Event::Tick => {
+                self.cnt += 1;
             }
         }
     }
@@ -129,6 +138,7 @@ impl State {
 pub enum Event {
     Increment,
     IncrementPrivate,
+    Tick,
 }
 
 impl EventData {
@@ -137,7 +147,7 @@ impl EventData {
         let user_id = *user_id;
 
         match event {
-            Event::IncrementPrivate if user_id != receiver => false,
+            Event::IncrementPrivate if user_id.unwrap() != receiver => false,
             _ => true,
         }
     }

@@ -1,15 +1,14 @@
 #!/bin/bash
 cd client
 cargo make build
-mkdir -p ../server/public
-cp -r pkg ../server/public/pkg
 cd ..
 
 cd server
 cargo build
 cd ..
 
-mkdir -p target/debug/public
-cp -r server/public target/debug/public
+mkdir -p server/public
+/bin/cp -rf client/pkg server/public
+
 cd target/debug
 ./server

@@ -1,5 +1,5 @@
 use seed::{prelude::*, *};
-use shared::{Event, EventData, State, UserId};
+use shared::{Event, EventData, SyncData};
 use std::rc::Rc;
 
 const WS_URL: &str = "ws://127.0.0.1:3000/game/ws";
@@ -11,7 +11,7 @@ const WS_URL: &str = "ws://127.0.0.1:3000/game/ws";
 pub struct Model {
     web_socket: WebSocket,
     web_socket_reconnector: Option<StreamHandle>,
-    state: Option<(UserId, State)>,
+    state: Option<SyncData>,
 }
 
 // ------ ------
@@ -38,7 +38,7 @@ pub enum Msg {
     ReconnectWebSocket(usize),
     SendGameEvent(Event),
     ReceiveGameEvent(EventData),
-    InitGameState(UserId, State),
+    InitGameState(SyncData),
 }
 
 fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
@@ -51,16 +51,11 @@ fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
             model.web_socket_reconnector = None;
             model
                 .web_socket
-                .close(None, Some("user clicked Close button"))
+                .close(None, Some("user clicked close button"))
                 .unwrap();
         }
         Msg::WebSocketClosed(close_event) => {
-            log!("==================");
-            log!("WebSocket connection was closed:");
-            log!("Clean:", close_event.was_clean());
-            log!("Code:", close_event.code());
-            log!("Reason:", close_event.reason());
-            log!("==================");
+            log!("WebSocket connection was closed, reason:", close_event.reason());
 
             // Chrome doesn't invoke `on_error` when the connection is lost.
             if !close_event.was_clean() && model.web_socket_reconnector.is_none() {
@@ -82,18 +77,16 @@ fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
             model.web_socket = create_websocket(orders);
         }
         Msg::SendGameEvent(event) => {
-            println!("sent data {:?}", event);
-
             let serialized = rmp_serde::to_vec(&shared::Req::Event(event)).unwrap();
             model.web_socket.send_bytes(&serialized).unwrap();
         }
         Msg::ReceiveGameEvent(event) => {
-            if let Some((_, state)) = &mut model.state {
+            if let Some(SyncData { state, .. }) = &mut model.state {
                 state.update(event);
             }
         }
-        Msg::InitGameState(user_id, state) => {
-            model.state = Some((user_id, state));
+        Msg::InitGameState(sync_data) => {
+            model.state = Some(sync_data);
         }
     }
 }
@@ -125,8 +118,8 @@ fn decode_message(message: WebSocketMessage, msg_sender: Rc<dyn Fn(Option<Msg>)>
                 shared::Res::Event(event) => {
                     msg_sender(Some(Msg::ReceiveGameEvent(event)));
                 }
-                shared::Res::Sync(user_id, game) => {
-                    msg_sender(Some(Msg::InitGameState(user_id, game)));
+                shared::Res::Sync(sync) => {
+                    msg_sender(Some(Msg::InitGameState(sync)));
                 }
             }
         });
@@ -138,7 +131,7 @@ fn decode_message(message: WebSocketMessage, msg_sender: Rc<dyn Fn(Option<Msg>)>
 // ------ ------
 
 fn view(model: &Model) -> Vec<Node<Msg>> {
-    if let Some((user_id, state)) = &model.state {
+    if let Some(SyncData { user_id, state }) = &model.state {
         vec![
             h1!["WebSocket example"],
             button![
