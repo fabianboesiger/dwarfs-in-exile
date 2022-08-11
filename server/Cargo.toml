@@ -25,3 +25,4 @@ dotenv = "0.15"
 askama_axum = { git = "https://github.com/djc/askama" }
 askama = { git = "https://github.com/djc/askama", features = ["with-axum"] }
 bcrypt = "0.13.0"
+rand = {version = "0.8", features = ["small_rng"] }

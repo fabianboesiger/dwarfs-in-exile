@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::ServerError;
+use crate::{game::GameState, ServerError};
 use askama::{DynTemplate, Template};
 use askama_axum::Response;
 use axum::{
@@ -8,7 +8,7 @@ use axum::{
     Extension,
 };
 use axum_sessions::async_session::Session;
-use bcrypt::{hash, DEFAULT_COST};
+use bcrypt::hash;
 use serde::Deserialize;
 use shared::UserId;
 use sqlx::SqlitePool;
@@ -22,7 +22,7 @@ pub struct RegisterForm {
     username: String,
     #[validate(email(message = "The email address must be valid"))]
     email: String,
-    #[validate(length(min = 8, message = "Password must contain at least 8 characters"))]
+    #[validate(length(min = 4, message = "Password must contain at least 4 characters"))]
     password: String,
     #[validate(must_match(other = "password", message = "The passwords must match"))]
     password_repeat: String,
@@ -84,31 +84,36 @@ pub async fn post_register(
     ValidatedForm(register): ValidatedForm<RegisterForm>,
     Extension(mut session): Extension<Session>,
     Extension(pool): Extension<SqlitePool>,
+    Extension(game_state): Extension<GameState>,
 ) -> Result<(Extension<Session>, Response), ServerError> {
     let password = register.password.clone();
-    let hashed = tokio::task::spawn_blocking(move || hash(&password, DEFAULT_COST).unwrap())
+    let hashed = tokio::task::spawn_blocking(move || hash(&password, 4).unwrap())
         .await
         .unwrap();
 
     let result: Result<(UserId,), _> = sqlx::query_as(
         r#"
-            INSERT INTO users (username, password)
-            VALUES ($1, $2)
+            INSERT INTO users (username, email, password)
+            VALUES ($1, $2, $3)
             RETURNING user_id
         "#,
     )
     .bind(&register.username)
+    .bind(&register.email)
     .bind(&hashed)
     .fetch_one(&pool)
     .await;
 
     match result {
         Ok((user_id,)) => {
+            // Add a player to the game state.
+            game_state.add_player(user_id, register.username);
+
             session.expire_in(Duration::from_secs(60 * 60 * 24 * 7));
 
             sqlx::query(
                 r#"
-                    INSERT OR IGNORE INTO sessions (session_id, user_id, expires)
+                    INSERT OR REPLACE INTO sessions (session_id, user_id, expires)
                     VALUES ($1, $2, $3)
                 "#,
             )

@@ -1,3 +1,74 @@
+:root {
+    --red-light: #ba3c38;
+    --red-medium: #8c130e;
+    --red-dark: #4c0618;
+    --green-light: #0e8c45;
+    --green-medium: #045943;
+    --green-dark: #043c59;
+    --blue-light: #525acc;
+    --blue-medium: #212aa6;
+    --blue-dark: #2d0e8c;
+    --brown-light: #cdaf7f;
+    --brown-medium: #ba8a38;
+    --brown-dark: #8c5e0e;
+    --gray-medium: #a0aaba;
+    --gray-dark: #6e658c;
+
+    --text: var(--red-dark);
+    --background: var(--brown-light);
+    --text-size: 16px;
+}
+
+html {
+    background: var(--background);
+    color: var(--text);
+    font-size: var(--text-size);
+}
+
+
+body {
+    margin: 0;
+}
+
+head {
+    background: var(--text);
+}
+
+main {
+    background: var(--background);
+    color: var(--text);
+    margin: auto;
+    max-width: 1024px;
+    padding-left: 16px;
+    padding-right: 16px;
+}
+
+nav {
+    position: sticky;
+    top: 0;
+    background: var(--background);
+    text-align: center;
+}
+
+nav button, nav button:hover, nav button:focus {
+    border: none;
+    background: none;
+    font-size: var(--text-size);
+    color: var(--text);
+}
+
+nav button.selected {
+    font-weight: bold;
+}
+
+h1 {
+    text-align: center;
+}
+
+h2 {
+    position: relative;
+}
+
 form {
     max-width: 512px;
     margin: auto;
@@ -12,17 +83,118 @@ label {
     width: 100%;
 }
 
-input {
+input, .button {
+    display: block;
     box-sizing: border-box;
     width: 100%;
     padding: 8px;
+    border: none;
+    background: none;
+    border-bottom: 2px dashed var(--text);
+    color: var(--text);
+    font-size: var(--text-size);
+    font-family: serif;
+}
+
+input[type=submit], .button {
+    border: 2px solid var(--text);
+    color: var(--text);
+    margin-top: 1em;
+    margin-bottom: 1em;
+    text-decoration: none;
+    text-align: center;
+}
+
+input[type=submit]:hover, .button:hover {
+    border: 2px solid var(--text);
+    background-color: var(--text);
+    color: var(--background);
+}
+
+
+a {
+    color: var(--blue-medium);
 }
 
 .error {
-    color: red;
+    color: var(--red-medium);
 }
 
-nav {
-    position: sticky;
-    top: 0;
+.map {
+    border-collapse: collapse;
+}
+.map .tile {
+    border: 1px dashed var(--background);
+    box-sizing: border-box;
+    text-align: center;
+}
+.map tr:first-child .tile {
+    border-top: 0;
+}
+.map tr:last-child .tile {
+    border-bottom: 0;
+}
+.map .tile:first-child {
+    border-left: 0;
+}
+.map .tile:last-child {
+    border-right: 0;
+}
+.map .forest {
+    background: var(--green-medium);
+}
+.map .water {
+    background: var(--blue-medium);
+}
+.map .grassland {
+    background: var(--green-light);
+}
+.map .beach {
+    background: var(--brown-medium);
+}
+.map .mountain {
+    background: var(--gray-medium);
+}
+
+.exilant {
+    border: 2px solid var(--text);
+}
+
+fieldset {
+    border: none;
+    margin: 0;
+    padding: 0;
+}
+
+fieldset button {
+    display: inline-block;
+    width: auto;
+    padding: 4px;
+    margin: 0;
+    margin-right: 4px;
+}
+
+.controls {
+    border-collapse: collapse;
+}
+
+.controls td {
+    box-sizing: border-box;
+    width: 32px;
+    height: 32px;
+}
+
+.controls button {
+    width: 100%;
+    height: 100%;
+    padding: 0;
+}
+
+.controls td.button-wrapper {
+    border: 2px solid var(--text);
+}
+
+.controls button {
+    background: none;
+    border: none;
 }

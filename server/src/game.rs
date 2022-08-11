@@ -7,10 +7,14 @@ use axum::{
 };
 use axum_sessions::async_session::Session;
 use futures_util::{sink::SinkExt, stream::StreamExt};
-use shared::{EventData, UserId, SyncData, Event};
+use rand::{rngs::SmallRng, Rng, SeedableRng};
+use shared::{Event, EventData, SyncData, UserId};
 use sqlx::SqlitePool;
 use std::{sync::Arc, time::Duration};
-use tokio::{sync::{broadcast, mpsc, RwLock}, time};
+use tokio::{
+    sync::{broadcast, mpsc, RwLock},
+    time,
+};
 
 use crate::ServerError;
 
@@ -60,6 +64,7 @@ impl GameState {
         let req_sender_clone = req_sender.clone();
 
         let game = RwLock::new(GameState::load_game(&pool).await.unwrap_or_default());
+        //let game = RwLock::new(State::default());
         let game_state = Arc::new(GameStateImpl {
             state: game,
             res_sender,
@@ -69,14 +74,17 @@ impl GameState {
 
         tokio::spawn(async move {
             let mut interval = time::interval(Duration::from_secs(1));
+            let mut rng = SmallRng::from_entropy();
 
             loop {
                 interval.tick().await;
 
-                req_sender_clone.send(EventData {
-                    event: Event::Tick,
-                    user_id: None,
-                }).unwrap();
+                req_sender_clone
+                    .send(EventData {
+                        event: Event::Tick(rng.gen()),
+                        user_id: None,
+                    })
+                    .unwrap();
             }
         });
 
@@ -87,11 +95,31 @@ impl GameState {
                 ..
             } = &*game_state_clone;
 
-            while let Some(event) = req_receiver.recv().await {
+            let mut rng = SmallRng::from_entropy();
+
+            while let Some(EventData { event, user_id }) = req_receiver.recv().await {
                 let mut game = game.write().await;
-                res_sender.send(event.clone()).ok();
-                game.update(event);
-                GameState::store_game(&pool, &*game).await;
+
+                let event = match event {
+                    Event::RandReq(event) => Some(Event::RandRes(rng.gen(), event)),
+                    // Valid only as server-sent events.
+                    Event::Tick(_)
+                    | Event::AddPlayer(_, _)
+                    | Event::EditPlayer(_, _)
+                    | Event::RemovePlayer(_)
+                        if user_id.is_some() =>
+                    {
+                        None
+                    }
+                    event => Some(event),
+                }
+                .map(|event| EventData { event, user_id });
+
+                if let Some(event) = event {
+                    res_sender.send(event.clone()).ok();
+                    game.update(event);
+                    GameState::store_game(&pool, &*game).await;
+                }
             }
         });
 
@@ -111,6 +139,16 @@ impl GameState {
             self.0.req_sender.clone(),
             self.0.res_sender.subscribe(),
         )
+    }
+
+    pub fn add_player(&self, user_id: UserId, username: String) {
+        self.0
+            .req_sender
+            .send(EventData {
+                event: Event::AddPlayer(user_id, username),
+                user_id: None,
+            })
+            .unwrap();
     }
 }
 
@@ -149,7 +187,6 @@ pub async fn ws_handler(
                     while let Some(msg) = stream.next().await {
                         if let Ok(msg) = msg {
                             if let Message::Binary(msg) = msg {
-                                println!("client {} sent data", user_id);
                                 let req: shared::Req = rmp_serde::from_slice(&msg).unwrap();
                                 match req {
                                     shared::Req::Event(event) => {

@@ -1,5 +1,7 @@
 pub mod login;
 pub mod register;
+pub mod account;
+pub mod logout;
 
 use std::borrow::Cow;
 
@@ -23,9 +25,9 @@ pub trait ToTemplate {
 }
 
 #[async_trait]
-impl<T, B> FromRequest<B> for ValidatedForm<T>
+impl<F, B> FromRequest<B> for ValidatedForm<F>
 where
-    T: DeserializeOwned + Validate + ToTemplate,
+    F: DeserializeOwned + Validate + ToTemplate,
     B: http_body::Body + Send,
     B::Data: Send,
     B::Error: Into<BoxError>,
@@ -33,14 +35,14 @@ where
     type Rejection = Response;
 
     async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
-        let Form(value) = Form::<T>::from_request(req)
+        let Form(form) = Form::<F>::from_request(req)
             .await
             .map_err(|err| err.into_response())?;
 
-        if let Err(errors) = value.validate() {
-            Err(form_errors(value, errors))
+        if let Err(errors) = form.validate() {
+            Err(form_errors(form, errors))
         } else {
-            Ok(ValidatedForm(value))
+            Ok(ValidatedForm(form))
         }
     }
 }

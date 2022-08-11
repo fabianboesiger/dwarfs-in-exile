@@ -1,6 +1,9 @@
 use seed::{prelude::*, *};
-use shared::{Event, EventData, SyncData};
-use std::rc::Rc;
+use shared::{
+    BuildingType, Direction, Entity, EntityType, Event, EventData, ItemType, Person, RandEvent,
+    Req, Res, SyncData, Task, TaskType, TileType, NpcType,
+};
+use std::{collections::HashMap, rc::Rc};
 
 const WS_URL: &str = "ws://127.0.0.1:3000/game/ws";
 
@@ -8,21 +11,57 @@ const WS_URL: &str = "ws://127.0.0.1:3000/game/ws";
 //     Model
 // ------ ------
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum Page {
+    Overview,
+    Map(Option<(i32, i32)>),
+    Exilants,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct Map {
+    center: (i32, i32),
+    radius: i32,
+    n: i32,
+}
+
+impl Map {
+    fn new(n: i32) -> Self {
+        Map {
+            center: (n / 2, n / 2),
+            radius: n / 2,
+            n,
+        }
+    }
+
+    fn normalize(&mut self) {
+        self.radius = self.radius.max(2).min(self.n / 2);
+        self.center.0 = self.center.0.max(self.radius).min(self.n - 1 - self.radius);
+        self.center.1 = self.center.1.max(self.radius).min(self.n - 1 - self.radius);
+    }
+}
+
 pub struct Model {
     web_socket: WebSocket,
     web_socket_reconnector: Option<StreamHandle>,
     state: Option<SyncData>,
+    page: Page,
+    map: Map,
 }
 
 // ------ ------
 //     Init
 // ------ ------
 
-fn init(_: Url, orders: &mut impl Orders<Msg>) -> Model {
+fn init(_url: Url, orders: &mut impl Orders<Msg>) -> Model {
+    orders.subscribe(|subs::UrlRequested(_, url_request)| url_request.handled());
+
     Model {
         web_socket: create_websocket(orders),
         web_socket_reconnector: None,
         state: None,
+        page: Page::Overview,
+        map: Map::new(1),
     }
 }
 
@@ -39,6 +78,8 @@ pub enum Msg {
     SendGameEvent(Event),
     ReceiveGameEvent(EventData),
     InitGameState(SyncData),
+    ChangePage(Page),
+    ChangeMap(Map),
 }
 
 fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
@@ -55,7 +96,10 @@ fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
                 .unwrap();
         }
         Msg::WebSocketClosed(close_event) => {
-            log!("WebSocket connection was closed, reason:", close_event.reason());
+            log!(
+                "WebSocket connection was closed, reason:",
+                close_event.reason()
+            );
 
             // Chrome doesn't invoke `on_error` when the connection is lost.
             if !close_event.was_clean() && model.web_socket_reconnector.is_none() {
@@ -77,7 +121,7 @@ fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
             model.web_socket = create_websocket(orders);
         }
         Msg::SendGameEvent(event) => {
-            let serialized = rmp_serde::to_vec(&shared::Req::Event(event)).unwrap();
+            let serialized = rmp_serde::to_vec(&Req::Event(event)).unwrap();
             model.web_socket.send_bytes(&serialized).unwrap();
         }
         Msg::ReceiveGameEvent(event) => {
@@ -86,7 +130,20 @@ fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
             }
         }
         Msg::InitGameState(sync_data) => {
+            model.map = Map::new(sync_data.state.map.n);
             model.state = Some(sync_data);
+        }
+        Msg::ChangePage(page) => {
+            if let Page::Map(Some(center)) = &page {
+                model.map.center = *center;
+                model.map.radius = 2;
+                model.map.normalize();
+            };
+            model.page = page;
+        }
+        Msg::ChangeMap(mut map) => {
+            map.normalize();
+            model.map = map;
         }
     }
 }
@@ -113,12 +170,12 @@ fn decode_message(message: WebSocketMessage, msg_sender: Rc<dyn Fn(Option<Msg>)>
                 .await
                 .expect("WebsocketError on binary data");
 
-            let msg: shared::Res = rmp_serde::from_slice(&bytes).unwrap();
+            let msg: Res = rmp_serde::from_slice(&bytes).unwrap();
             match msg {
-                shared::Res::Event(event) => {
+                Res::Event(event) => {
                     msg_sender(Some(Msg::ReceiveGameEvent(event)));
                 }
-                shared::Res::Sync(sync) => {
+                Res::Sync(sync) => {
                     msg_sender(Some(Msg::InitGameState(sync)));
                 }
             }
@@ -131,25 +188,408 @@ fn decode_message(message: WebSocketMessage, msg_sender: Rc<dyn Fn(Option<Msg>)>
 // ------ ------
 
 fn view(model: &Model) -> Vec<Node<Msg>> {
-    if let Some(SyncData { user_id, state }) = &model.state {
+    if let Some(data) = &model.state {
         vec![
-            h1!["WebSocket example"],
-            button![
-                ev(Ev::Click, move |_| Msg::SendGameEvent(Event::Increment)),
-                "Increment Counter"
-            ],
-            p![state.cnt],
-            button![
-                ev(Ev::Click, move |_| Msg::SendGameEvent(
-                    Event::IncrementPrivate
-                )),
-                "Increment Private Counter"
-            ],
-            p![state.cnt_private.get(user_id)],
+            nav(model, data),
+            info(model, data),
+            match model.page {
+                Page::Overview => section![],
+                Page::Map(_) => map_zoomable(data, &model.map),
+                Page::Exilants => exilants(data),
+            },
         ]
     } else {
         vec![p!["Loading ..."]]
     }
+}
+
+fn exilants(data @ SyncData { user_id, state }: &SyncData) -> Node<Msg> {
+    section![if state.entities.len() == 0 {
+        div![
+            p!["You have no exilants at the moment!"],
+            button![
+                C!["button"],
+                ev(Ev::Click, move |_| Msg::SendGameEvent(Event::RandReq(
+                    RandEvent::SpawnPerson
+                ))),
+                "Exile a poor soul to get started"
+            ]
+        ]
+    } else {
+        div![state
+            .entities
+            .iter()
+            .filter_map(|(entity_id, entity)| {
+                if let EntityType::Person(person @ Person { owner, .. }) = &entity.entity_type {
+                    if owner == user_id {
+                        return Some((entity_id, entity, person));
+                    }
+                }
+                None
+            })
+            .map(|(&entity_id, entity, person)| {
+                let center = (entity.x, entity.y);
+
+                div![
+                    C!["exilant"],
+                    h2![format!("{} {}", person.first_name, person.last_name)],
+                    h3!["Environment"],
+                    map(
+                        data,
+                        &{
+                            let mut map = Map {
+                                center,
+                                radius: 2,
+                                n: state.map.n,
+                            };
+                            map.normalize();
+                            map
+                        },
+                        String::from("300px")
+                    ),
+                    button![
+                        ev(Ev::Click, move |_| Msg::ChangePage(Page::Map(Some(center)))),
+                        "View on map"
+                    ],
+                    p!["There is nothing to see here"],
+                    h3!["Tasks"],
+                    ul![person.tasks.iter().map(
+                        |Task {
+                             remaining_time,
+                             task_type,
+                         }| {
+                            li![format!(
+                                "{} ({}s)",
+                                match task_type {
+                                    TaskType::Walking(Direction::North) => "Travelling north".to_owned(),
+                                    TaskType::Walking(Direction::South) => "Travelling south".to_owned(),
+                                    TaskType::Walking(Direction::East) => "Travelling east".to_owned(),
+                                    TaskType::Walking(Direction::West) => "Travelling west".to_owned(),
+                                    TaskType::Gathering => "Gathering".to_owned(),
+                                    TaskType::Woodcutting => "Woodcutting".to_owned(),
+                                    TaskType::Fishing => "Fishing".to_owned(),
+                                    TaskType::Mining => "Mining".to_owned(),
+                                    TaskType::Building(BuildingType::Castle) => "Building a castle".to_owned(),
+                                    TaskType::Fighting(opponent) => {
+                                        if let Some(opponent) = state.entities.get(opponent) {
+                                            match &opponent.entity_type {
+                                                EntityType::Person(person) => format!("Fighting {} {}", person.first_name, person.last_name),
+                                                EntityType::Npc(npc) => match npc.npc_type {
+                                                    NpcType::Boar => "Fighting a boar".to_owned()
+                                                }
+                                                _ => unreachable!()
+                                            }
+                                        } else {
+                                            unreachable!()
+                                        }
+                                    }
+                                },
+                                remaining_time
+                            )]
+                        }
+                    )],
+                    button![
+                        ev(Ev::Click, move |_| Msg::SendGameEvent(Event::PopTask(
+                            entity_id
+                        ))),
+                        "Cancel last task"
+                    ],
+                    fieldset![
+                        legend!["Travel"],
+                        button![
+                            ev(Ev::Click, move |_| Msg::SendGameEvent(Event::PushTask(
+                                entity_id,
+                                TaskType::Walking(Direction::North)
+                            ))),
+                            "North"
+                        ],
+                        button![
+                            ev(Ev::Click, move |_| Msg::SendGameEvent(Event::PushTask(
+                                entity_id,
+                                TaskType::Walking(Direction::South)
+                            ))),
+                            "South"
+                        ],
+                        button![
+                            ev(Ev::Click, move |_| Msg::SendGameEvent(Event::PushTask(
+                                entity_id,
+                                TaskType::Walking(Direction::East)
+                            ))),
+                            "East"
+                        ],
+                        button![
+                            ev(Ev::Click, move |_| Msg::SendGameEvent(Event::PushTask(
+                                entity_id,
+                                TaskType::Walking(Direction::West)
+                            ))),
+                            "West"
+                        ],
+                    ],
+                    fieldset![
+                        legend!["Laboring"],
+                        button![
+                            ev(Ev::Click, move |_| Msg::SendGameEvent(Event::PushTask(
+                                entity_id,
+                                TaskType::Gathering
+                            ))),
+                            "Gathering"
+                        ],
+                        button![
+                            ev(Ev::Click, move |_| Msg::SendGameEvent(Event::PushTask(
+                                entity_id,
+                                TaskType::Fishing
+                            ))),
+                            "Fishing"
+                        ],
+                        button![
+                            ev(Ev::Click, move |_| Msg::SendGameEvent(Event::PushTask(
+                                entity_id,
+                                TaskType::Woodcutting
+                            ))),
+                            "Woodcutting"
+                        ],
+                        button![
+                            ev(Ev::Click, move |_| Msg::SendGameEvent(Event::PushTask(
+                                entity_id,
+                                TaskType::Mining
+                            ))),
+                            "Mining"
+                        ],
+                    ],
+                    fieldset![
+                        legend!["Crafting"],
+                        select![ItemType::all()
+                            .iter()
+                            .map(|item_type| option![format!("{}", item_type)])],
+                        button![
+                            ev(Ev::Click, move |_| Msg::SendGameEvent(Event::PushTask(
+                                entity_id,
+                                TaskType::Mining
+                            ))),
+                            "Craft"
+                        ],
+                    ],
+                    h3!["Inventory"],
+                    ul![person
+                        .inventory
+                        .iter()
+                        .map(|(item_type, qty)| { li![format!("{} ({})", item_type, qty)] })],
+                ]
+            })]
+    }]
+}
+
+fn nav(model: &Model, SyncData { .. }: &SyncData) -> Node<Msg> {
+    nav![
+        button![
+            if let Page::Map { .. } = model.page {
+                C!["selected"]
+            } else {
+                C![]
+            },
+            ev(Ev::Click, move |_| Msg::ChangePage(Page::Map(None))),
+            "Map"
+        ],
+        button![
+            if let Page::Exilants { .. } = model.page {
+                C!["selected"]
+            } else {
+                C![]
+            },
+            ev(Ev::Click, move |_| Msg::ChangePage(Page::Exilants)),
+            "Exilants"
+        ],
+        button![
+            if let Page::Exilants { .. } = model.page {
+                C!["selected"]
+            } else {
+                C![]
+            },
+            ev(Ev::Click, move |_| Msg::ChangePage(Page::Exilants)),
+            "Inventory"
+        ],
+        a![
+            attrs!{At::Href => "/account"},
+            "Account"
+        ]
+    ]
+}
+
+fn info(_model: &Model, SyncData { user_id, state }: &SyncData) -> Node<Msg> {
+    if let Some(player) = state.players.get(user_id) {
+        div![span![player.money], span![player.karma],]
+    } else {
+        div![]
+    }
+}
+
+fn map(
+    SyncData { state, .. }: &SyncData,
+    Map { center, radius, .. }: &Map,
+    viewport: String,
+) -> Node<Msg> {
+    let r = *radius;
+    let (x, y) = *center;
+    let left = (x - r) as usize;
+    let top = (y - r) as usize;
+    let width = (r * 2 + 1) as usize;
+    let height = (r * 2 + 1) as usize;
+
+    let mut map = HashMap::<(i32, i32), Vec<&EntityType>>::new();
+    for Entity { x, y, entity_type } in state.entities.values() {
+        map.entry((*x, *y)).or_default().push(entity_type);
+    }
+
+    for entities in map.values_mut() {
+        entities.sort_by_key(|entity_type| match entity_type {
+            EntityType::Building(_) => 0,
+            EntityType::Person(_) => 1,
+            EntityType::Npc(_) => 2
+        });
+    }
+
+    log!(format!("{:?}", map));
+
+    section![
+        id!["map"],
+        table![
+            C!["map"],
+            state
+                .map
+                .tiles
+                .iter()
+                .enumerate()
+                .skip(top)
+                .take(height)
+                .map(
+                    |(y, row)| tr![row.iter().enumerate().skip(left).take(width).map(
+                        |(x, tile)| td![
+                            style! {
+                                St::Width => format!("calc({} / {})", viewport, width),
+                                St::Height => format!("calc({} / {})", viewport, height),
+                            },
+                            C![
+                                "tile",
+                                match tile.tile_type {
+                                    TileType::Mountain => "mountain",
+                                    TileType::Water => "water",
+                                    TileType::Beach => "beach",
+                                    TileType::Grassland => "grassland",
+                                    TileType::Forest => "forest",
+                                }
+                            ],
+                            map.get(&(x as i32, y as i32))
+                                .unwrap_or(&Vec::new())
+                                .iter()
+                                .map(|entity_type| match entity_type {
+                                    EntityType::Person(_) => "P",
+                                    EntityType::Building(building) =>
+                                        match building.building_type {
+                                            BuildingType::Castle => "C",
+                                        },
+                                    EntityType::Npc(npc) =>
+                                        match npc.npc_type {
+                                            NpcType::Boar => "B",
+                                        },
+                                })
+                        ]
+                    )]
+                )
+        ]
+    ]
+}
+
+fn map_zoomable(data: &SyncData, m @ Map { center, radius, .. }: &Map) -> Node<Msg> {
+    let r = *radius;
+    let (x, y) = *center;
+    let m = *m;
+
+    div![
+        table![
+            C!["controls"],
+            tbody![
+                tr![
+                    td![],
+                    td![
+                        C!["button-wrapper"],
+                        button![
+                            ev(Ev::Click, move |_| Msg::ChangeMap(Map {
+                                center: (x, y - 1),
+                                ..m
+                            })),
+                            "N"
+                        ]
+                    ],
+                    td![],
+                    td![],
+                    td![],
+                    td![],
+                ],
+                tr![
+                    td![
+                        C!["button-wrapper"],
+                        button![
+                            ev(Ev::Click, move |_| Msg::ChangeMap(Map {
+                                center: (x - 1, y),
+                                ..m
+                            })),
+                            "W"
+                        ]
+                    ],
+                    td![],
+                    td![
+                        C!["button-wrapper"],
+                        button![
+                            ev(Ev::Click, move |_| Msg::ChangeMap(Map {
+                                center: (x + 1, y),
+                                ..m
+                            })),
+                            "E"
+                        ]
+                    ],
+                    td![],
+                    td![
+                        C!["button-wrapper"],
+                        button![
+                            ev(Ev::Click, move |_| Msg::ChangeMap(Map {
+                                radius: r - 1,
+                                ..m
+                            })),
+                            "+"
+                        ]
+                    ],
+                    td![
+                        C!["button-wrapper"],
+                        button![
+                            ev(Ev::Click, move |_| Msg::ChangeMap(Map {
+                                radius: r + 1,
+                                ..m
+                            })),
+                            "-"
+                        ]
+                    ],
+                ],
+                tr![
+                    td![],
+                    td![
+                        C!["button-wrapper"],
+                        button![
+                            ev(Ev::Click, move |_| Msg::ChangeMap(Map {
+                                center: (x, y + 1),
+                                ..m
+                            })),
+                            "S"
+                        ]
+                    ],
+                    td![],
+                    td![],
+                    td![],
+                    td![],
+                ]
+            ]
+        ],
+        map(data, &m, String::from("min(100vw, 1024px)")),
+    ]
 }
 
 // ------ ------

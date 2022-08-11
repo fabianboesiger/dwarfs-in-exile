@@ -8,7 +8,7 @@ use error::*;
 
 use axum::{
     http::StatusCode,
-    routing::{get, get_service},
+    routing::{get, get_service, post},
     Extension, Router,
 };
 use axum_sessions::{async_session::MemoryStore, SessionLayer};
@@ -63,6 +63,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/login",
             get(auth::login::get_login).post(auth::login::post_login),
         )
+        .route(
+            "/logout",
+            get(auth::logout::get_logout),
+        )
+        .route(
+            "/account",
+            get(auth::account::get_account),
+        )
+        .route(
+            "/account/username",
+            post(auth::account::post_change_username),
+        )
+        .route(
+            "/account/email",
+            post(auth::account::post_change_email),
+        )
+        .route(
+            "/account/password",
+            post(auth::account::post_change_password),
+        )
+        
         .layer(Extension(game_state))
         .layer(Extension(pool.clone()))
         .layer(session_layer)
@@ -71,7 +92,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .make_span_with(DefaultMakeSpan::default().include_headers(true)),
         );
 
-    // run it with hyper
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     tracing::debug!("listening on {}", addr);
 
