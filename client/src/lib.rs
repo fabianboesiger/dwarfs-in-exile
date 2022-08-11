@@ -13,9 +13,9 @@ const WS_URL: &str = "ws://127.0.0.1:3000/game/ws";
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Page {
-    Overview,
     Map(Option<(i32, i32)>),
     Exilants,
+    Inventory,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -60,7 +60,7 @@ fn init(_url: Url, orders: &mut impl Orders<Msg>) -> Model {
         web_socket: create_websocket(orders),
         web_socket_reconnector: None,
         state: None,
-        page: Page::Overview,
+        page: Page::Map(None),
         map: Map::new(1),
     }
 }
@@ -191,11 +191,10 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
     if let Some(data) = &model.state {
         vec![
             nav(model, data),
-            info(model, data),
             match model.page {
-                Page::Overview => section![],
                 Page::Map(_) => map_zoomable(data, &model.map),
                 Page::Exilants => exilants(data),
+                Page::Inventory => inventory(data),
             },
         ]
     } else {
@@ -356,71 +355,65 @@ fn exilants(data @ SyncData { user_id, state }: &SyncData) -> Node<Msg> {
                             "Mining"
                         ],
                     ],
-                    fieldset![
-                        legend!["Crafting"],
-                        select![ItemType::all()
-                            .iter()
-                            .map(|item_type| option![format!("{}", item_type)])],
-                        button![
-                            ev(Ev::Click, move |_| Msg::SendGameEvent(Event::PushTask(
-                                entity_id,
-                                TaskType::Mining
-                            ))),
-                            "Craft"
-                        ],
-                    ],
+                    /*
                     h3!["Inventory"],
                     ul![person
                         .inventory
                         .iter()
                         .map(|(item_type, qty)| { li![format!("{} ({})", item_type, qty)] })],
+                    */
                 ]
             })]
     }]
 }
 
-fn nav(model: &Model, SyncData { .. }: &SyncData) -> Node<Msg> {
-    nav![
-        button![
-            if let Page::Map { .. } = model.page {
-                C!["selected"]
-            } else {
-                C![]
-            },
-            ev(Ev::Click, move |_| Msg::ChangePage(Page::Map(None))),
-            "Map"
-        ],
-        button![
-            if let Page::Exilants { .. } = model.page {
-                C!["selected"]
-            } else {
-                C![]
-            },
-            ev(Ev::Click, move |_| Msg::ChangePage(Page::Exilants)),
-            "Exilants"
-        ],
-        button![
-            if let Page::Exilants { .. } = model.page {
-                C!["selected"]
-            } else {
-                C![]
-            },
-            ev(Ev::Click, move |_| Msg::ChangePage(Page::Exilants)),
-            "Inventory"
-        ],
-        a![
-            attrs!{At::Href => "/account"},
-            "Account"
-        ]
-    ]
-}
+fn nav(model: &Model, SyncData { state, user_id }: &SyncData) -> Node<Msg> {
+    let player = state.players.get(user_id).unwrap();
 
-fn info(_model: &Model, SyncData { user_id, state }: &SyncData) -> Node<Msg> {
-    if let Some(player) = state.players.get(user_id) {
-        div![span![player.money], span![player.karma],]
-    } else {
-        div![]
-    }
+    nav![
+        div![
+            button![
+                if let Page::Map { .. } = model.page {
+                    C!["selected"]
+                } else {
+                    C![]
+                },
+                ev(Ev::Click, move |_| Msg::ChangePage(Page::Map(None))),
+                //"Map",
+                icon("map-marker")
+            ],
+            button![
+                if let Page::Exilants { .. } = model.page {
+                    C!["selected"]
+                } else {
+                    C![]
+                },
+                ev(Ev::Click, move |_| Msg::ChangePage(Page::Exilants)),
+                //"Exilants",
+                icon("people")
+            ],
+            button![
+                if let Page::Inventory { .. } = model.page {
+                    C!["selected"]
+                } else {
+                    C![]
+                },
+                ev(Ev::Click, move |_| Msg::ChangePage(Page::Inventory)),
+                //"Inventory",
+                icon("rucksack")
+            ],
+            a![
+                attrs!{At::Href => "/account"},
+                //"Account",
+                icon("settings")
+            ]
+        ],
+        div![
+            span![icon("coins"), " ", player.money],
+            span![icon("yin-yang"), " ", player.karma],
+        ]
+        
+    ]
 }
 
 fn map(
@@ -505,6 +498,7 @@ fn map_zoomable(data: &SyncData, m @ Map { center, radius, .. }: &Map) -> Node<M
     let m = *m;
 
     div![
+        map(data, &m, String::from("min(100vw, 1024px)")),
         table![
             C!["controls"],
             tbody![
@@ -588,7 +582,20 @@ fn map_zoomable(data: &SyncData, m @ Map { center, radius, .. }: &Map) -> Node<M
                 ]
             ]
         ],
-        map(data, &m, String::from("min(100vw, 1024px)")),
+    ]
+}
+
+fn inventory(data: &SyncData) -> Node<Msg> {
+    div![
+    ]
+}
+
+fn icon(icon: &'static str) -> Node<Msg> {
+    img![
+        attrs!{
+            At::Src => format!("/icons/icons8-{}-24.png", icon)
+        },
+        icon
     ]
 }
 

@@ -181,60 +181,10 @@ pub struct Player {
     pub username: String,
     pub money: u32,
     pub karma: i32,
-}
-
-pub type EntityId = u64;
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Entity {
-    pub x: i32,
-    pub y: i32,
-    pub entity_type: EntityType,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum EntityType {
-    Person(Person),
-    Building(Building),
-    Npc(Npc)
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
-pub struct Person {
-    pub first_name: String,
-    pub last_name: String,
-    pub health: u32,
-    pub rest: u32,
-    pub hunger: u32,
-    pub tasks: VecDeque<Task>,
     pub inventory: HashMap<ItemType, u32>,
-    pub owner: UserId,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Building {
-    pub owner: UserId,
-    pub remaining_time: Option<u32>,
-    pub building_type: BuildingType,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Npc {
-    pub occupied_by: Option<UserId>,
-    pub npc_type: NpcType,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum NpcType {
-    Boar,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum BuildingType {
-    Castle,
-}
-
-impl Person {
+impl Player {
     pub fn add_to_inventory<F: Fn(&ItemType) -> f64>(
         &mut self,
         rng: &mut SmallRng,
@@ -264,6 +214,91 @@ impl Person {
 
         all_available
     }
+}
+
+pub type EntityId = u64;
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Entity {
+    pub x: i32,
+    pub y: i32,
+    pub entity_type: EntityType,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub enum EntityType {
+    Person(Person),
+    Building(Building),
+    Npc(Npc)
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct Person {
+    pub first_name: String,
+    pub last_name: String,
+    pub health: u32,
+    pub rest: u32,
+    pub hunger: u32,
+    pub tasks: VecDeque<Task>,
+    //pub inventory: HashMap<ItemType, u32>,
+    pub owner: UserId,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Building {
+    pub owner: UserId,
+    pub remaining_time: Option<u32>,
+    pub building_type: BuildingType,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Npc {
+    pub occupied_by: Option<UserId>,
+    pub npc_type: NpcType,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub enum NpcType {
+    Boar,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub enum BuildingType {
+    Castle,
+}
+
+impl Person {
+    /*
+    pub fn add_to_inventory<F: Fn(&ItemType) -> f64>(
+        &mut self,
+        rng: &mut SmallRng,
+        range: std::ops::RangeInclusive<usize>,
+        select: F,
+    ) {
+        let qty = rng.gen_range(range);
+        for _ in 0..qty {
+            let selected = ItemType::all().choose_weighted(rng, &select).unwrap();
+            *self.inventory.entry(*selected).or_default() += 1;
+        }
+    }
+
+    pub fn remove_from_inventory<F: Fn(&ItemType) -> f64>(
+        &mut self,
+        items: &[(ItemType, u32)],
+    ) -> bool {
+        let all_available = items
+            .iter()
+            .all(|(item, qty)| self.inventory.get(item).cloned().unwrap_or_default() >= *qty);
+
+        if all_available {
+            for (item, qty) in items {
+                *self.inventory.entry(*item).or_default() -= qty;
+            }
+        }
+
+        all_available
+    }
+    */
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -325,6 +360,28 @@ impl ItemType {
             ItemType::Flower,
         ]
     }
+
+    pub fn offense(&self) -> u32 {
+        match self {
+            _ => 0
+        }
+    }
+
+    pub fn defense(&self) -> u32 {
+        match self {
+            _ => 0
+        }
+    }
+}
+
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash, PartialEq, Eq)]
+pub enum ItemCategory {
+    UpperBody,
+    LowerBody,
+    Feet,
+    Head,
+    Weapon,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -483,6 +540,7 @@ impl State {
                         username,
                         money: 0,
                         karma: 0,
+                        inventory: HashMap::new()
                     },
                 );
             }
@@ -535,7 +593,7 @@ impl State {
                                             .insert(*entity_id);
                                     }
                                     TaskType::Gathering => {
-                                        person.add_to_inventory(&mut rng, 1..=3, |item_type| {
+                                        self.players.get_mut(&user_id.unwrap()).unwrap().add_to_inventory(&mut rng, 1..=3, |item_type| {
                                             match self
                                                 .map
                                                 .get_tile(entity.x, entity.y)
@@ -565,7 +623,7 @@ impl State {
                                         });
                                     }
                                     TaskType::Woodcutting => {
-                                        person.add_to_inventory(&mut rng, 1..=3, |item_type| {
+                                        self.players.get_mut(&user_id.unwrap()).unwrap().add_to_inventory(&mut rng, 1..=3, |item_type| {
                                             match item_type {
                                                 ItemType::Wood => 20.0,
                                                 ItemType::Apple => 5.0,
@@ -574,7 +632,7 @@ impl State {
                                         });
                                     }
                                     TaskType::Mining => {
-                                        person.add_to_inventory(&mut rng, 1..=3, |item_type| {
+                                        self.players.get_mut(&user_id.unwrap()).unwrap().add_to_inventory(&mut rng, 1..=3, |item_type| {
                                             match item_type {
                                                 ItemType::Coal => 20.0,
                                                 ItemType::Iron => 5.0,
@@ -584,7 +642,7 @@ impl State {
                                         });
                                     }
                                     TaskType::Fishing => {
-                                        person.add_to_inventory(&mut rng, 1..=3, |item_type| {
+                                        self.players.get_mut(&user_id.unwrap()).unwrap().add_to_inventory(&mut rng, 1..=3, |item_type| {
                                             match item_type {
                                                 ItemType::Fish => 5.0,
                                                 ItemType::Crab => 1.0,

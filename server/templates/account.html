@@ -1,50 +1,53 @@
 {% extends "base.html" %}
 {% block content %}
-    <form method="POST" action="/account/username">
+    <div class="form-wrapper">
         <h2>Change Username</h2>
-        <div>
-            <label for="username">Username</label>
-            <input id="username" type="text" name="username" value="{{ username }}">
-            {% for err in username_error %}
-                <span class="error">{{ err }}</span>
-            {% endfor %}
-        </div>
-        <input type="hidden" name="email" value="{{ email }}">
-        <input type="submit" value="Submit">
-    </form>
+        <form method="POST" action="/account/username">
+            <div>
+                <label for="username">Username</label>
+                <input id="username" type="text" name="username" value="{{ username }}">
+                {% for err in username_error %}
+                    <span class="error">{{ err }}</span>
+                {% endfor %}
+            </div>
+            <input type="hidden" name="email" value="{{ email }}">
+            <input type="submit" value="Submit">
+        </form>
 
-    <form method="POST" action="/account/email">
         <h2>Change E-Mail</h2>
-        <div>
-            <label for="email">E-Mail</label>
-            <input id="email" type="email" name="email" value="{{ email }}">
-            {% for err in email_error %}
-                <span class="error">{{ err }}</span>
-            {% endfor %}
-        </div>
-        <input type="hidden" name="username" value="{{ username }}">
-        <input type="submit" value="Submit">
-    </form>
+        <form method="POST" action="/account/email">
+            <div>
+                <label for="email">E-Mail</label>
+                <input id="email" type="email" name="email" value="{{ email }}">
+                {% for err in email_error %}
+                    <span class="error">{{ err }}</span>
+                {% endfor %}
+            </div>
+            <input type="hidden" name="username" value="{{ username }}">
+            <input type="submit" value="Submit">
+        </form>
 
-    <form method="POST" action="/account/password">
         <h2>Change Password</h2>
-        <div>
-            <label for="password">Password</label>
-            <input id="password" type="password" name="password">
-            {% for err in password_error %}
-                <span class="error">{{ err }}</span>
-            {% endfor %}
-        </div>
-        <div>
-            <label for="password-repeat">Repeat Password</label>
-            <input id="password-repeat" name="password_repeat" type="password">
-            {% for err in password_repeat_error %}
-                <span class="error">{{ err }}</span>
-            {% endfor %}
-        </div>
-        <input type="hidden" name="username" value="{{ username }}">
-        <input type="hidden" name="email" value="{{ email }}">
-        <input type="submit" value="Submit">
-    </form>
-    <a class="button" href="/logout">Logout</a>
+        <form method="POST" action="/account/password">
+            <div>
+                <label for="password">Password</label>
+                <input id="password" type="password" name="password">
+                {% for err in password_error %}
+                    <span class="error">{{ err }}</span>
+                {% endfor %}
+            </div>
+            <div>
+                <label for="password-repeat">Repeat Password</label>
+                <input id="password-repeat" name="password_repeat" type="password">
+                {% for err in password_repeat_error %}
+                    <span class="error">{{ err }}</span>
+                {% endfor %}
+            </div>
+            <input type="hidden" name="username" value="{{ username }}">
+            <input type="hidden" name="email" value="{{ email }}">
+            <input type="submit" value="Submit">
+        </form>
+        <a class="button" href="/logout">Logout</a>
+        <a class="button" href="/game">Back</a>
+    </div>
 {% endblock %}

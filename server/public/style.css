@@ -20,41 +20,71 @@
 }
 
 html {
-    background: var(--background);
-    color: var(--text);
+    background: var(--text);
+    color: var(--background);
     font-size: var(--text-size);
 }
-
 
 body {
     margin: 0;
 }
 
-head {
+header, main, footer {
+    padding: 16px;
+}
+
+header {
     background: var(--text);
+    color: var(--background);
 }
 
 main {
     background: var(--background);
     color: var(--text);
+    text-align: center;
+    padding-top: 32px;
+    padding-bottom: 32px;
+}
+
+footer {
+    text-align: center;
+}
+
+#app {
     margin: auto;
     max-width: 1024px;
-    padding-left: 16px;
-    padding-right: 16px;
 }
 
 nav {
     position: sticky;
     top: 0;
-    background: var(--background);
     text-align: center;
+    background: var(--background);
+    color: var(--text);
+    display: flex;
+    justify-content: space-between;
 }
 
-nav button, nav button:hover, nav button:focus {
+nav > * > * {
+    padding-left: 8px;
+    padding-right: 8px;
+    vertical-align: middle;
+}
+nav > :first-child > :first-child {
+    padding-left: 0;
+}
+nav > :last-child > :last-child {
+    padding-right: 0;
+}
+
+nav button, nav button:hover, nav button:focus,
+nav a, nav a:hover, nav a:focus {
     border: none;
     background: none;
-    font-size: var(--text-size);
     color: var(--text);
+    text-decoration: none;
+    font-family: serif;
+    font-size: var(--text-size);
 }
 
 nav button.selected {
@@ -63,15 +93,17 @@ nav button.selected {
 
 h1 {
     text-align: center;
+    margin: 0;
 }
 
 h2 {
     position: relative;
 }
 
-form {
+.form-wrapper {
     max-width: 512px;
     margin: auto;
+    text-align: left;
 }
 
 form > div {
@@ -90,15 +122,20 @@ input, .button {
     padding: 8px;
     border: none;
     background: none;
-    border-bottom: 2px dashed var(--text);
     color: var(--text);
     font-size: var(--text-size);
     font-family: serif;
 }
 
+input[type=text], input[type=password], input[type=email] {
+    border-bottom: 2px dotted var(--text);
+    padding-bottom: 2px;
+    padding-left: 0;
+    padding-right: 0;
+}
+
 input[type=submit], .button {
     border: 2px solid var(--text);
-    color: var(--text);
     margin-top: 1em;
     margin-bottom: 1em;
     text-decoration: none;
@@ -176,6 +213,8 @@ fieldset button {
 
 .controls {
     border-collapse: collapse;
+    margin: auto;
+    margin-top: 8px;
 }
 
 .controls td {

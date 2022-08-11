@@ -1,25 +1,26 @@
 {% extends "base.html" %}
 {% block content %}
-    <form method="POST">
+    <div class="form-wrapper">
         <h2>Login</h2>
-        <div>
-            <label for="username">Username</label>
-            <input id="username" type="text" name="username" value="{{ username }}">
-            {% for err in username_error %}
-                <span class="error">{{ err }}</span>
-            {% endfor %}
-        </div>
-        
-        <div>
-            <label for="password">Password</label>
-            <input id="password" type="password" name="password">
-            {% for err in password_error %}
-                <span class="error">{{ err }}</span>
-            {% endfor %}
-        </div>
-       
-        <input type="submit" value="Submit">
+        <form method="POST">
+            <div>
+                <label for="username">Username</label>
+                <input id="username" type="text" name="username" value="{{ username }}">
+                {% for err in username_error %}
+                    <span class="error">{{ err }}</span>
+                {% endfor %}
+            </div>
 
+            <div>
+                <label for="password">Password</label>
+                <input id="password" type="password" name="password">
+                {% for err in password_error %}
+                    <span class="error">{{ err }}</span>
+                {% endfor %}
+            </div>
+        
+            <input type="submit" value="Submit">
+        </form>
         <a href="/register" class="button">Create a new account</a>
-    </form>
+    </div>
 {% endblock %}
