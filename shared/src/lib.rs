@@ -416,7 +416,7 @@ pub enum TaskType {
     Fishing,
     Mining,
     Building(BuildingType),
-    Fighting(EntityId),
+    FightPerson(EntityId),
 }
 
 impl TaskType {
@@ -428,7 +428,7 @@ impl TaskType {
             TaskType::Fishing => 10 * TICKS_PER_MINUTE,
             TaskType::Mining => 10 * TICKS_PER_MINUTE,
             TaskType::Building(_) => 10 * TICKS_PER_MINUTE,
-            TaskType::Fighting(_) => 10 * TICKS_PER_MINUTE,
+            TaskType::FightPerson(_) => 10 * TICKS_PER_MINUTE,
         }
     }
 }
@@ -610,7 +610,7 @@ impl State {
                             false
                         }
                     },
-                    TaskType::Fighting(_) => {
+                    TaskType::FightPerson(_) => {
                         true
                     }
                 };
@@ -774,8 +774,11 @@ impl State {
                                             }),
                                         });
                                     },
-                                    TaskType::Fighting(opponent) => {
-                                        
+                                    TaskType::FightPerson(opponent_id) => {
+                                        if entity_id < opponent_id {
+                                            let entity = self.entities.get(&entity_id).unwrap();
+                                            let opponent = self.entities.get(&opponent_id).unwrap();
+                                        }
                                     }
                                 }
 
@@ -859,15 +862,12 @@ impl State {
                             EntityType::Person(person) => {
                                 if let Some(task) = person.tasks.front() {
                                     match task.task_type {
-                                        TaskType::Fighting(_) => false,
+                                        TaskType::FightPerson(_) => false,
                                         _ => true
                                     }
                                 } else {
                                     true
                                 }
-                            },
-                            EntityType::Npc(npc) => {
-                                npc.occupied_by.is_none()
                             },
                             _ => false,
                         }
@@ -879,7 +879,7 @@ impl State {
                 if accept_challenge {
                     if let Some(entity) = self.entities.get_mut(&challenger_entity_id) {
                         if let EntityType::Person(person) = &mut entity.entity_type {
-                            let task_type = TaskType::Fighting(challenged_entity_id);
+                            let task_type = TaskType::FightPerson(challenged_entity_id);
                             person.tasks.push_front(Task {
                                 remaining_time: task_type.duration(),
                                 task_type,
@@ -889,7 +889,7 @@ impl State {
                     if let Some(entity) = self.entities.get_mut(&challenged_entity_id) {
                         if let EntityType::Person(person) = &mut entity.entity_type {
 
-                            let task_type = TaskType::Fighting(challenger_entity_id);
+                            let task_type = TaskType::FightPerson(challenger_entity_id);
                             person.tasks.push_front(Task {
                                 remaining_time: task_type.duration(),
                                 task_type,
