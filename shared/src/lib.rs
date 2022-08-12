@@ -35,7 +35,7 @@ pub struct SyncData {
 
 // MODIFY EVENTS AND STATE BELOW
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::{collections::{HashMap, HashSet, VecDeque}, thread::panicking};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Map {
@@ -223,6 +223,24 @@ pub struct Entity {
     pub x: i32,
     pub y: i32,
     pub entity_type: EntityType,
+}
+
+impl Entity {
+    fn get_as_person(&self) -> &Person {
+        if let EntityType::Person(person) = &self.entity_type {
+            person
+        } else {
+            panic!()
+        }
+    }
+
+    fn get_as_person_mut(&mut self) -> &mut Person {
+        if let EntityType::Person(person) = &mut self.entity_type {
+            person
+        } else {
+            panic!()
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -434,15 +452,16 @@ impl Direction {
     }
 }
 
+/*
 macro_rules! check_tasks {
-    ($this:expr, $entity_id:expr, $entity:expr, $person:expr) => {
+    (self:expr, entity_id:expr, entity:expr, person:expr) => {
         loop {
-            if let Some(task) = $person.tasks.front() {
+            if let Some(task) = person.tasks.front() {
                 println!("checking next task: {:?}", task.task_type);
                 let ok = match &task.task_type {
                     TaskType::Walking(direction) => {
                         let (dx, dy) = direction.delta();
-                        if let Some(next_tile) = $this.map.get_tile($entity.x + dx, $entity.y + dy)
+                        if let Some(next_tile) = self.map.get_tile(entity.x + dx, entity.y + dy)
                         {
                             match next_tile.tile_type {
                                 TileType::Water => false,
@@ -453,7 +472,7 @@ macro_rules! check_tasks {
                         }
                     }
                     TaskType::Gathering => {
-                        if let Some(tile) = $this.map.get_tile($entity.x, $entity.y) {
+                        if let Some(tile) = self.map.get_tile(entity.x, entity.y) {
                             match tile.tile_type {
                                 TileType::Water => false,
                                 _ => true,
@@ -463,7 +482,7 @@ macro_rules! check_tasks {
                         }
                     }
                     TaskType::Woodcutting => {
-                        if let Some(tile) = $this.map.get_tile($entity.x, $entity.y) {
+                        if let Some(tile) = self.map.get_tile(entity.x, entity.y) {
                             match tile.tile_type {
                                 TileType::Forest => true,
                                 _ => false,
@@ -473,16 +492,16 @@ macro_rules! check_tasks {
                         }
                     }
                     TaskType::Fishing => vec![
-                        $this.map.get_tile($entity.x + 1, $entity.y),
-                        $this.map.get_tile($entity.x - 1, $entity.y),
-                        $this.map.get_tile($entity.x, $entity.y + 1),
-                        $this.map.get_tile($entity.x, $entity.y - 1),
+                        self.map.get_tile(entity.x + 1, entity.y),
+                        self.map.get_tile(entity.x - 1, entity.y),
+                        self.map.get_tile(entity.x, entity.y + 1),
+                        self.map.get_tile(entity.x, entity.y - 1),
                     ]
                     .iter()
                     .filter_map(|x| *x)
                     .any(|t| t.tile_type == TileType::Water),
                     TaskType::Mining => {
-                        if let Some(tile) = $this.map.get_tile($entity.x, $entity.y) {
+                        if let Some(tile) = self.map.get_tile(entity.x, entity.y) {
                             match tile.tile_type {
                                 TileType::Mountain => true,
                                 _ => false,
@@ -492,7 +511,7 @@ macro_rules! check_tasks {
                         }
                     }
                     TaskType::Building(BuildingType::Castle) => {
-                        if let Some(tile) = $this.map.get_tile($entity.x, $entity.y) {
+                        if let Some(tile) = self.map.get_tile(entity.x, entity.y) {
                             match tile.tile_type {
                                 TileType::Water => false,
                                 _ => true,
@@ -511,7 +530,7 @@ macro_rules! check_tasks {
                 if ok {
                     break;
                 } else {
-                    $person.tasks.pop_front();
+                    person.tasks.pop_front();
                 }
             } else {
                 break;
@@ -519,8 +538,96 @@ macro_rules! check_tasks {
         }
     };
 }
+*/
 
 impl State {
+    pub fn check_tasks(&mut self, entity_id: &EntityId) {
+        loop {
+            let entity = self.entities.get(entity_id).unwrap();
+            let person = entity.get_as_person();
+
+            if let Some(task) = person.tasks.front() {
+                println!("checking next task: {:?}", task.task_type);
+                let ok = match &task.task_type {
+                    TaskType::Walking(direction) => {
+                        let (dx, dy) = direction.delta();
+                        if let Some(next_tile) = self.map.get_tile(entity.x + dx, entity.y + dy)
+                        {
+                            match next_tile.tile_type {
+                                TileType::Water => false,
+                                _ => true,
+                            }
+                        } else {
+                            false
+                        }
+                    }
+                    TaskType::Gathering => {
+                        if let Some(tile) = self.map.get_tile(entity.x, entity.y) {
+                            match tile.tile_type {
+                                TileType::Water => false,
+                                _ => true,
+                            }
+                        } else {
+                            false
+                        }
+                    }
+                    TaskType::Woodcutting => {
+                        if let Some(tile) = self.map.get_tile(entity.x, entity.y) {
+                            match tile.tile_type {
+                                TileType::Forest => true,
+                                _ => false,
+                            }
+                        } else {
+                            false
+                        }
+                    }
+                    TaskType::Fishing => vec![
+                        self.map.get_tile(entity.x + 1, entity.y),
+                        self.map.get_tile(entity.x - 1, entity.y),
+                        self.map.get_tile(entity.x, entity.y + 1),
+                        self.map.get_tile(entity.x, entity.y - 1),
+                    ]
+                    .iter()
+                    .filter_map(|x| *x)
+                    .any(|t| t.tile_type == TileType::Water),
+                    TaskType::Mining => {
+                        if let Some(tile) = self.map.get_tile(entity.x, entity.y) {
+                            match tile.tile_type {
+                                TileType::Mountain => true,
+                                _ => false,
+                            }
+                        } else {
+                            false
+                        }
+                    }
+                    TaskType::Building(BuildingType::Castle) => {
+                        if let Some(tile) = self.map.get_tile(entity.x, entity.y) {
+                            match tile.tile_type {
+                                TileType::Water => false,
+                                _ => true,
+                            }
+                        } else {
+                            false
+                        }
+                    },
+                    TaskType::Fighting(_) => {
+                        true
+                    }
+                };
+
+                println!("task was ok: {:?}", ok);
+
+                if ok {
+                    break;
+                } else {
+                    self.entities.get_mut(entity_id).unwrap().get_as_person_mut().tasks.pop_front();
+                }
+            } else {
+                break;
+            }
+        }
+    }
+
     pub fn update(&mut self, EventData { event, user_id }: EventData) {
         /*
         let check_task = |entity_id: &EntityId| {
@@ -555,12 +662,12 @@ impl State {
 
                 let mut entities_to_add = Vec::<Entity>::new();
                 let mut entities_to_remove = Vec::<EntityId>::new();
-
-                for (entity_id, entity) in &mut self.entities {
-                    match &mut entity.entity_type {
-                        EntityType::Person(person) => {
+                let entity_ids: Vec<EntityId> = self.entities.keys().cloned().collect();
+                for entity_id in entity_ids {
+                    match &self.entities.get(&entity_id).unwrap().entity_type {
+                        EntityType::Person(_) => {
                             let task_done = if let Some(Task { remaining_time, .. }) =
-                                person.tasks.front_mut()
+                                self.entities.get_mut(&entity_id).unwrap().get_as_person_mut().tasks.front_mut()
                             {
                                 if *remaining_time == 0 {
                                     true
@@ -573,15 +680,17 @@ impl State {
                             };
 
                             if task_done {
-                                let Task { task_type, .. } = person.tasks.pop_front().unwrap();
+                                let Task { task_type, .. } = self.entities.get_mut(&entity_id).unwrap().get_as_person_mut().tasks.pop_front().unwrap();
                                 match task_type {
                                     TaskType::Walking(direction) => {
+                                        let entity = self.entities.get_mut(&entity_id).unwrap();
+
                                         let (dx, dy) = direction.delta();
                                         self.map
                                             .get_tile_mut(entity.x, entity.y)
                                             .unwrap()
                                             .entities
-                                            .remove(entity_id);
+                                            .remove(&entity_id);
                                         entity.x =
                                             (entity.x + dx).max(0).min(self.map.n as i32 - 1);
                                         entity.y =
@@ -590,9 +699,11 @@ impl State {
                                             .get_tile_mut(entity.x, entity.y)
                                             .unwrap()
                                             .entities
-                                            .insert(*entity_id);
+                                            .insert(entity_id);
                                     }
                                     TaskType::Gathering => {
+                                        let entity = self.entities.get(&entity_id).unwrap();
+
                                         self.players.get_mut(&user_id.unwrap()).unwrap().add_to_inventory(&mut rng, 1..=3, |item_type| {
                                             match self
                                                 .map
@@ -651,6 +762,8 @@ impl State {
                                         });
                                     }
                                     TaskType::Building(building_type) => {
+                                        let entity = self.entities.get(&entity_id).unwrap();
+
                                         entities_to_add.push(Entity {
                                             x: entity.x,
                                             y: entity.y,
@@ -661,15 +774,17 @@ impl State {
                                             }),
                                         });
                                     },
-                                    TaskType::Fighting(_) => {
+                                    TaskType::Fighting(opponent) => {
                                         
                                     }
                                 }
 
-                                check_tasks!(self, entity_id, entity, person);
+                                
+                                self.check_tasks(&entity_id);
                             }
                         }
                         EntityType::Building(building) => {
+                            /* 
                             let remove_building =
                                 if let Some(remaining_time) = &mut building.remaining_time {
                                     if *remaining_time == 0 {
@@ -685,6 +800,7 @@ impl State {
                             if remove_building {
                                 entities_to_remove.push(*entity_id);
                             }
+                            */
                         }
                         _ => {}
                     }
@@ -725,7 +841,7 @@ impl State {
                             remaining_time: task_type.duration(),
                             task_type,
                         });
-                        check_tasks!(self, entity_id, entity, person);
+                        self.check_tasks(&entity_id);
                     }
                 }
             }
