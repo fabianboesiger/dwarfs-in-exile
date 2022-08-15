@@ -35,7 +35,7 @@ pub struct SyncData {
 
 // MODIFY EVENTS AND STATE BELOW
 
-use std::{collections::{HashMap, HashSet, VecDeque}, thread::panicking};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Map {
@@ -541,17 +541,38 @@ macro_rules! check_tasks {
 */
 
 impl State {
-    pub fn check_tasks(&mut self, entity_id: &EntityId) {
-        loop {
-            let entity = self.entities.get(entity_id).unwrap();
-            let person = entity.get_as_person();
+    pub fn check_task(&self, entity_id: &EntityId, task_type: &TaskType) -> bool {
+        if let Some(entity) = self.entities.get(entity_id) {
+            if let EntityType::Person(person) = &entity.entity_type {
+                println!("checking next task: {:?}", task_type);
+                
+                if let Some(next_task) = person.tasks.front() {
+                    if let TaskType::Walking(_) = next_task.task_type {
+                        if let TaskType::Walking(_) = task_type {
+                            // Ok
+                        } else {
+                            return false;
+                        }
+                    } else {
+                        return false;
+                    }
+                }
 
-            if let Some(task) = person.tasks.front() {
-                println!("checking next task: {:?}", task.task_type);
-                let ok = match &task.task_type {
+                return match &task_type {
                     TaskType::Walking(direction) => {
+                        let mut x = entity.x;
+                        let mut y = entity.y;
+
+                        for next_task in &person.tasks {
+                            if let TaskType::Walking(direction) = &next_task.task_type {
+                                let (dx, dy) = direction.delta();
+                                x += dx;
+                                y += dy;
+                            }
+                        }
+
                         let (dx, dy) = direction.delta();
-                        if let Some(next_tile) = self.map.get_tile(entity.x + dx, entity.y + dy)
+                        if let Some(next_tile) = self.map.get_tile(x + dx, y + dy)
                         {
                             match next_tile.tile_type {
                                 TileType::Water => false,
@@ -614,10 +635,20 @@ impl State {
                         true
                     }
                 };
+            }
+        }
 
-                println!("task was ok: {:?}", ok);
+        false
+    }
 
-                if ok {
+    /*
+    pub fn remove_tasks(&mut self, entity_id: &EntityId) {
+        loop {
+            let entity = self.entities.get(entity_id).unwrap();
+            let person = entity.get_as_person();
+
+            if let Some(task) = person.tasks.front() {
+                if self.check_task(entity_id, &task.task_type) {
                     break;
                 } else {
                     self.entities.get_mut(entity_id).unwrap().get_as_person_mut().tasks.pop_front();
@@ -627,6 +658,7 @@ impl State {
             }
         }
     }
+    */
 
     pub fn update(&mut self, EventData { event, user_id }: EventData) {
         /*
@@ -665,7 +697,9 @@ impl State {
                 let entity_ids: Vec<EntityId> = self.entities.keys().cloned().collect();
                 for entity_id in entity_ids {
                     match &self.entities.get(&entity_id).unwrap().entity_type {
-                        EntityType::Person(_) => {
+                        EntityType::Person(person) => {
+                            let owner = person.owner;
+
                             let task_done = if let Some(Task { remaining_time, .. }) =
                                 self.entities.get_mut(&entity_id).unwrap().get_as_person_mut().tasks.front_mut()
                             {
@@ -702,9 +736,10 @@ impl State {
                                             .insert(entity_id);
                                     }
                                     TaskType::Gathering => {
+                                        println!("{:?} {:?}", entity_id, self.entities);
                                         let entity = self.entities.get(&entity_id).unwrap();
 
-                                        self.players.get_mut(&user_id.unwrap()).unwrap().add_to_inventory(&mut rng, 1..=3, |item_type| {
+                                        self.players.get_mut(&owner).unwrap().add_to_inventory(&mut rng, 1..=3, |item_type| {
                                             match self
                                                 .map
                                                 .get_tile(entity.x, entity.y)
@@ -734,7 +769,7 @@ impl State {
                                         });
                                     }
                                     TaskType::Woodcutting => {
-                                        self.players.get_mut(&user_id.unwrap()).unwrap().add_to_inventory(&mut rng, 1..=3, |item_type| {
+                                        self.players.get_mut(&owner).unwrap().add_to_inventory(&mut rng, 1..=3, |item_type| {
                                             match item_type {
                                                 ItemType::Wood => 20.0,
                                                 ItemType::Apple => 5.0,
@@ -743,7 +778,7 @@ impl State {
                                         });
                                     }
                                     TaskType::Mining => {
-                                        self.players.get_mut(&user_id.unwrap()).unwrap().add_to_inventory(&mut rng, 1..=3, |item_type| {
+                                        self.players.get_mut(&owner).unwrap().add_to_inventory(&mut rng, 1..=3, |item_type| {
                                             match item_type {
                                                 ItemType::Coal => 20.0,
                                                 ItemType::Iron => 5.0,
@@ -753,7 +788,7 @@ impl State {
                                         });
                                     }
                                     TaskType::Fishing => {
-                                        self.players.get_mut(&user_id.unwrap()).unwrap().add_to_inventory(&mut rng, 1..=3, |item_type| {
+                                        self.players.get_mut(&owner).unwrap().add_to_inventory(&mut rng, 1..=3, |item_type| {
                                             match item_type {
                                                 ItemType::Fish => 5.0,
                                                 ItemType::Crab => 1.0,
@@ -768,7 +803,7 @@ impl State {
                                             x: entity.x,
                                             y: entity.y,
                                             entity_type: EntityType::Building(Building {
-                                                owner: user_id.unwrap(),
+                                                owner,
                                                 remaining_time: None,
                                                 building_type,
                                             }),
@@ -783,7 +818,7 @@ impl State {
                                 }
 
                                 
-                                self.check_tasks(&entity_id);
+                                //self.remove_tasks(&entity_id);
                             }
                         }
                         EntityType::Building(building) => {
@@ -838,13 +873,16 @@ impl State {
             }
             Event::RandReq(_) => unreachable!(),
             Event::PushTask(entity_id, task_type) => {
+                let ok = self.check_task(&entity_id, &task_type);
                 if let Some(entity) = self.entities.get_mut(&entity_id) {
                     if let EntityType::Person(person) = &mut entity.entity_type {
-                        person.tasks.push_back(Task {
-                            remaining_time: task_type.duration(),
-                            task_type,
-                        });
-                        self.check_tasks(&entity_id);
+                        if ok {
+                            person.tasks.push_back(Task {
+                                remaining_time: task_type.duration(),
+                                task_type,
+                            });
+                        }
+                        
                     }
                 }
             }

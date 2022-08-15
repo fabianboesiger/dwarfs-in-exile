@@ -41,7 +41,6 @@ header {
 main {
     background: var(--background);
     color: var(--text);
-    text-align: center;
     padding-top: 32px;
     padding-bottom: 32px;
 }
@@ -106,28 +105,51 @@ h2 {
     text-align: left;
 }
 
-form > div {
-    margin-top: 1em;
-    margin-bottom: 1em;
-}
-
 label {
     width: 100%;
 }
 
-input, .button {
-    display: block;
+input, button, .button, select {
+    display: inline-block;
     box-sizing: border-box;
-    width: 100%;
     padding: 8px;
-    border: none;
+    border: 2px solid var(--text);
     background: none;
     color: var(--text);
     font-size: var(--text-size);
     font-family: serif;
 }
 
+input:hover, button:hover .button:hover, select:hover {
+    border: 2px solid var(--text);
+    background-color: var(--text) !important;
+    color: var(--background);
+}
+
+.form-wrapper input, .form-wrapper button, .form-wrapper .button, .form-wrapper select {
+    display: block;
+    width: 100%;
+    margin-top: 1em;
+    margin-bottom: 1em;
+}
+
+label ~ input, label ~ select {
+    margin-top: 0 !important;
+}
+
+input[type=submit], button, .button {
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+input:disabled, button:disabled, select:disabled {
+    color: var(--red-medium);
+    border-color: var(--red-medium);
+}
+/*
 input[type=text], input[type=password], input[type=email] {
+    border: none;
     border-bottom: 2px dotted var(--text);
     padding-bottom: 2px;
     padding-left: 0;
@@ -135,7 +157,6 @@ input[type=text], input[type=password], input[type=email] {
 }
 
 input[type=submit], .button {
-    border: 2px solid var(--text);
     margin-top: 1em;
     margin-bottom: 1em;
     text-decoration: none;
@@ -147,7 +168,7 @@ input[type=submit]:hover, .button:hover {
     background-color: var(--text);
     color: var(--background);
 }
-
+*/
 
 a {
     color: var(--blue-medium);
@@ -195,6 +216,21 @@ a {
 
 .exilant {
     border: 2px solid var(--text);
+    padding: 16px;
+}
+.exilant h2, .exilant h3 {
+    margin: 0;
+}
+.exilant h3 {
+    margin-top: 1em;
+}
+.exilant p:first-child {
+    margin-top: 0;
+}
+.exilant-section {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
 }
 
 fieldset {
@@ -204,9 +240,6 @@ fieldset {
 }
 
 fieldset button {
-    display: inline-block;
-    width: auto;
-    padding: 4px;
     margin: 0;
     margin-right: 4px;
 }
