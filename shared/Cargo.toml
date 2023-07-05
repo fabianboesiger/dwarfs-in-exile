@@ -5,5 +5,4 @@ edition = "2021"
 
 [dependencies]
 serde = { version = "1.0.137", features = ["derive"] }
-noise = "0.7.0"
 rand = { version = "0.8", features = ["small_rng"] }

@@ -1,9 +1,9 @@
 use seed::{prelude::*, *};
 use shared::{
-    BuildingType, Direction, Entity, EntityType, Event, EventData, ItemType, Person, RandEvent,
-    Req, Res, SyncData, Task, TaskType, TileType, NpcType,
+    Event, EventData,
+    Req, Res, SyncData
 };
-use std::{collections::HashMap, rc::Rc};
+use std::rc::Rc;
 
 const WS_URL: &str = "ws://127.0.0.1:3000/game/ws";
 
@@ -13,32 +13,7 @@ const WS_URL: &str = "ws://127.0.0.1:3000/game/ws";
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Page {
-    Map(Option<(i32, i32)>),
-    Exilants,
-    Inventory,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub struct Map {
-    center: (i32, i32),
-    radius: i32,
-    n: i32,
-}
-
-impl Map {
-    fn new(n: i32) -> Self {
-        Map {
-            center: (n / 2, n / 2),
-            radius: n / 2,
-            n,
-        }
-    }
-
-    fn normalize(&mut self) {
-        self.radius = self.radius.max(2).min(self.n / 2);
-        self.center.0 = self.center.0.max(self.radius).min(self.n - 1 - self.radius);
-        self.center.1 = self.center.1.max(self.radius).min(self.n - 1 - self.radius);
-    }
+    Overview
 }
 
 pub struct Model {
@@ -46,7 +21,6 @@ pub struct Model {
     web_socket_reconnector: Option<StreamHandle>,
     state: Option<SyncData>,
     page: Page,
-    map: Map,
 }
 
 // ------ ------
@@ -60,8 +34,7 @@ fn init(_url: Url, orders: &mut impl Orders<Msg>) -> Model {
         web_socket: create_websocket(orders),
         web_socket_reconnector: None,
         state: None,
-        page: Page::Map(None),
-        map: Map::new(1),
+        page: Page::Overview,
     }
 }
 
@@ -79,7 +52,6 @@ pub enum Msg {
     ReceiveGameEvent(EventData),
     InitGameState(SyncData),
     ChangePage(Page),
-    ChangeMap(Map),
 }
 
 fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
@@ -130,20 +102,10 @@ fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
             }
         }
         Msg::InitGameState(sync_data) => {
-            model.map = Map::new(sync_data.state.map.n);
             model.state = Some(sync_data);
         }
         Msg::ChangePage(page) => {
-            if let Page::Map(Some(center)) = &page {
-                model.map.center = *center;
-                model.map.radius = 2;
-                model.map.normalize();
-            };
             model.page = page;
-        }
-        Msg::ChangeMap(mut map) => {
-            map.normalize();
-            model.map = map;
         }
     }
 }
@@ -192,9 +154,7 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
         vec![
             nav(model, data),
             match model.page {
-                Page::Map(_) => map_zoomable(data, &model.map),
-                Page::Exilants => exilants(data),
-                Page::Inventory => inventory(data),
+                Page::Overview => overview(model, data)
             },
         ]
     } else {
@@ -202,252 +162,18 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
     }
 }
 
-fn exilants(data @ SyncData { user_id, state }: &SyncData) -> Node<Msg> {
-    let persons = state
-        .entities
-        .iter()
-        .filter_map(|(entity_id, entity)| {
-            if let EntityType::Person(person @ Person { owner, .. }) = &entity.entity_type {
-                if owner == user_id {
-                    return Some((entity_id, entity, person));
-                }
-            }
-            None
-        });
-    
-    section![if persons.clone().count() == 0 {
-        div![
-            p!["You have no exilants at the moment!"],
-            button![
-                C!["button"],
-                ev(Ev::Click, move |_| Msg::SendGameEvent(Event::RandReq(
-                    RandEvent::SpawnPerson
-                ))),
-                "Exile a poor soul to get started"
-            ]
-        ]
-    } else {
-        div![
-            persons.map(|(&entity_id, entity, person)| {
-                let center = (entity.x, entity.y);
+fn overview(model: &Model, SyncData { state, user_id }: &SyncData) -> Node<Msg> {
+    let player = state.players.get(user_id).unwrap();
 
-                div![
-                    C!["exilant"],
-                    h2![format!("{} {}", person.first_name, person.last_name)],
-                    h3!["Environment"],
-                    div![
-                        C!["exilant-section"],
-                        div![
-                            map(
-                                data,
-                                &{
-                                    let mut map = Map {
-                                        center,
-                                        radius: 2,
-                                        n: state.map.n,
-                                    };
-                                    map.normalize();
-                                    map
-                                },
-                                String::from("200px")
-                            ),
-                        ],
-                        div![
-                            p!["There is nothing to see here."],
-                            button![
-                                ev(Ev::Click, move |_| Msg::ChangePage(Page::Map(Some(center)))),
-                                "View on map"
-                            ],
-                            
-                        ]
-                    ],
-                    h3!["Equipment"],
-                    div![
-                        
-                    ],
-                    h3!["Tasks"],
-                    div![
-                        C!["exilant-section"],
-                        div![
-                            fieldset![
-                                legend!["Travel"],
-                                button![
-                                    if !state.check_task(&entity_id, &TaskType::Walking(Direction::North)) {
-                                        attrs! {
-                                            At::Disabled => ""
-                                        }
-                                    } else {
-                                        attrs! {}
-                                    },
-                                    ev(Ev::Click, move |_| Msg::SendGameEvent(Event::PushTask(
-                                        entity_id,
-                                        TaskType::Walking(Direction::North)
-                                    ))),
-                                    "North"
-                                ],
-                                button![
-                                    if !state.check_task(&entity_id, &TaskType::Walking(Direction::South)) {
-                                        attrs! {
-                                            At::Disabled => ""
-                                        }
-                                    } else {
-                                        attrs! {}
-                                    },
-                                    ev(Ev::Click, move |_| Msg::SendGameEvent(Event::PushTask(
-                                        entity_id,
-                                        TaskType::Walking(Direction::South)
-                                    ))),
-                                    "South"
-                                ],
-                                button![
-                                    if !state.check_task(&entity_id, &TaskType::Walking(Direction::East)) {
-                                        attrs! {
-                                            At::Disabled => ""
-                                        }
-                                    } else {
-                                        attrs! {}
-                                    },
-                                    ev(Ev::Click, move |_| Msg::SendGameEvent(Event::PushTask(
-                                        entity_id,
-                                        TaskType::Walking(Direction::East)
-                                    ))),
-                                    "East"
-                                ],
-                                button![
-                                    if !state.check_task(&entity_id, &TaskType::Walking(Direction::West)) {
-                                        attrs! {
-                                            At::Disabled => ""
-                                        }
-                                    } else {
-                                        attrs! {}
-                                    },
-                                    ev(Ev::Click, move |_| Msg::SendGameEvent(Event::PushTask(
-                                        entity_id,
-                                        TaskType::Walking(Direction::West)
-                                    ))),
-                                    "West"
-                                ],
-                            ],
-                            fieldset![
-                                legend!["Laboring"],
-                                button![
-                                    if !state.check_task(&entity_id, &TaskType::Gathering) {
-                                        attrs! {
-                                            At::Disabled => ""
-                                        }
-                                    } else {
-                                        attrs! {}
-                                    },
-                                    ev(Ev::Click, move |_| Msg::SendGameEvent(Event::PushTask(
-                                        entity_id,
-                                        TaskType::Gathering
-                                    ))),
-                                    "Gathering"
-                                ],
-                                button![
-                                    if !state.check_task(&entity_id, &TaskType::Fishing) {
-                                        attrs! {
-                                            At::Disabled => ""
-                                        }
-                                    } else {
-                                        attrs! {}
-                                    },
-                                    ev(Ev::Click, move |_| Msg::SendGameEvent(Event::PushTask(
-                                        entity_id,
-                                        TaskType::Fishing
-                                    ))),
-                                    "Fishing"
-                                ],
-                                button![
-                                    if !state.check_task(&entity_id, &TaskType::Woodcutting) {
-                                        attrs! {
-                                            At::Disabled => ""
-                                        }
-                                    } else {
-                                        attrs! {}
-                                    },
-                                    ev(Ev::Click, move |_| Msg::SendGameEvent(Event::PushTask(
-                                        entity_id,
-                                        TaskType::Woodcutting
-                                    ))),
-                                    "Woodcutting"
-                                ],
-                                button![
-                                    if !state.check_task(&entity_id, &TaskType::Mining) {
-                                        attrs! {
-                                            At::Disabled => ""
-                                        }
-                                    } else {
-                                        attrs! {}
-                                    },
-                                    ev(Ev::Click, move |_| Msg::SendGameEvent(Event::PushTask(
-                                        entity_id,
-                                        TaskType::Mining
-                                    ))),
-                                    "Mining"
-                                ],
-                            ]
-                        ],
-                        div![
-                            if person.tasks.len() == 0 {
-                                p![format!("{} {} is not doing anything at the moment.", person.first_name, person.last_name)]
-                            } else {
-                                div![
-                                    ul![person.tasks.iter().map(
-                                        |Task {
-                                            remaining_time,
-                                            task_type,
-                                        }| {
-                                            li![format!(
-                                                "{} ({}s)",
-                                                match task_type {
-                                                    TaskType::Walking(Direction::North) => "Travelling north".to_owned(),
-                                                    TaskType::Walking(Direction::South) => "Travelling south".to_owned(),
-                                                    TaskType::Walking(Direction::East) => "Travelling east".to_owned(),
-                                                    TaskType::Walking(Direction::West) => "Travelling west".to_owned(),
-                                                    TaskType::Gathering => "Gathering".to_owned(),
-                                                    TaskType::Woodcutting => "Woodcutting".to_owned(),
-                                                    TaskType::Fishing => "Fishing".to_owned(),
-                                                    TaskType::Mining => "Mining".to_owned(),
-                                                    TaskType::Building(BuildingType::Castle) => "Building a castle".to_owned(),
-                                                    TaskType::FightPerson(opponent) => {
-                                                        if let Some(opponent) = state.entities.get(opponent) {
-                                                            match &opponent.entity_type {
-                                                                EntityType::Person(person) => format!("Fighting {} {}", person.first_name, person.last_name),
-                                                                _ => unreachable!()
-                                                            }
-                                                        } else {
-                                                            unreachable!()
-                                                        }
-                                                    }
-                                                },
-                                                remaining_time
-                                            )]
-                                        }
-                                    )],
-                                    button![
-                                        ev(Ev::Click, move |_| Msg::SendGameEvent(Event::PopTask(
-                                            entity_id
-                                        ))),
-                                        "Cancel last task"
-                                    ],
-                                ]
-                            }
-                            
-                        ]
-                    ],
-                    /*
-                    h3!["Inventory"],
-                    ul![person
-                        .inventory
-                        .iter()
-                        .map(|(item_type, qty)| { li![format!("{} ({})", item_type, qty)] })],
-                    */
-                ]
-            })]
-    }]
+    div![
+        player.notifications
+            .iter()
+            .map(|notification| div![
+                span![&notification.message],
+                span![notification.money]
+            ])
+    ]
 }
-
 
 
 fn nav(model: &Model, SyncData { state, user_id }: &SyncData) -> Node<Msg> {
@@ -456,275 +182,18 @@ fn nav(model: &Model, SyncData { state, user_id }: &SyncData) -> Node<Msg> {
     nav![
         div![
             button![
-                if let Page::Map { .. } = model.page {
+                if let Page::Overview = model.page {
                     C!["selected"]
                 } else {
                     C![]
                 },
-                ev(Ev::Click, move |_| Msg::ChangePage(Page::Map(None))),
-                //"Map",
-                icon("map-marker")
+                ev(Ev::Click, move |_| Msg::ChangePage(Page::Overview)),
+                "Overview",
             ],
-            button![
-                if let Page::Exilants { .. } = model.page {
-                    C!["selected"]
-                } else {
-                    C![]
-                },
-                ev(Ev::Click, move |_| Msg::ChangePage(Page::Exilants)),
-                //"Exilants",
-                icon("people")
-            ],
-            button![
-                if let Page::Inventory { .. } = model.page {
-                    C!["selected"]
-                } else {
-                    C![]
-                },
-                ev(Ev::Click, move |_| Msg::ChangePage(Page::Inventory)),
-                //"Inventory",
-                icon("rucksack")
-            ],
-            a![
-                attrs!{At::Href => "/account"},
-                //"Account",
-                icon("settings")
-            ]
         ],
         div![
-            span![icon("coins"), " ", player.money],
-            span![icon("yin-yang"), " ", player.karma],
+            span!["$", player.money],
         ]
-        
-    ]
-}
-
-fn map(
-    SyncData { state, .. }: &SyncData,
-    Map { center, radius, .. }: &Map,
-    viewport: String,
-) -> Node<Msg> {
-    let r = *radius;
-    let (x, y) = *center;
-    let left = (x - r) as usize;
-    let top = (y - r) as usize;
-    let width = (r * 2 + 1) as usize;
-    let height = (r * 2 + 1) as usize;
-
-    let mut map = HashMap::<(i32, i32), Vec<&EntityType>>::new();
-    for Entity { x, y, entity_type } in state.entities.values() {
-        map.entry((*x, *y)).or_default().push(entity_type);
-    }
-
-    for entities in map.values_mut() {
-        entities.sort_by_key(|entity_type| match entity_type {
-            EntityType::Building(_) => 0,
-            EntityType::Person(_) => 1,
-            EntityType::Npc(_) => 2
-        });
-    }
-
-    log!(format!("{:?}", map));
-
-    section![
-        id!["map"],
-        table![
-            C!["map"],
-            state
-                .map
-                .tiles
-                .iter()
-                .enumerate()
-                .skip(top)
-                .take(height)
-                .map(
-                    |(y, row)| tr![row.iter().enumerate().skip(left).take(width).map(
-                        |(x, tile)| td![
-                            style! {
-                                St::Width => format!("calc({} / {})", viewport, width),
-                                St::Height => format!("calc({} / {})", viewport, height),
-                            },
-                            C![
-                                "tile",
-                                match tile.tile_type {
-                                    TileType::Mountain => "mountain",
-                                    TileType::Water => "water",
-                                    TileType::Beach => "beach",
-                                    TileType::Grassland => "grassland",
-                                    TileType::Forest => "forest",
-                                }
-                            ],
-                            map.get(&(x as i32, y as i32))
-                                .unwrap_or(&Vec::new())
-                                .iter()
-                                .map(|entity_type| match entity_type {
-                                    EntityType::Person(_) => "P",
-                                    EntityType::Building(building) =>
-                                        match building.building_type {
-                                            BuildingType::Castle => "C",
-                                        },
-                                    EntityType::Npc(npc) =>
-                                        match npc.npc_type {
-                                            NpcType::Boar => "B",
-                                        },
-                                })
-                        ]
-                    )]
-                )
-        ]
-    ]
-}
-
-fn map_zoomable(data: &SyncData, m @ Map { center, radius, .. }: &Map) -> Node<Msg> {
-    let r = *radius;
-    let (x, y) = *center;
-    let m = *m;
-
-    div![
-        map(data, &m, String::from("min(100vw, 1024px)")),
-        table![
-            C!["controls"],
-            tbody![
-                tr![
-                    td![],
-                    td![
-                        C!["button-wrapper"],
-                        button![
-                            ev(Ev::Click, move |_| Msg::ChangeMap(Map {
-                                center: (x, y - 1),
-                                ..m
-                            })),
-                            "N"
-                        ]
-                    ],
-                    td![],
-                    td![],
-                    td![],
-                    td![],
-                ],
-                tr![
-                    td![
-                        C!["button-wrapper"],
-                        button![
-                            ev(Ev::Click, move |_| Msg::ChangeMap(Map {
-                                center: (x - 1, y),
-                                ..m
-                            })),
-                            "W"
-                        ]
-                    ],
-                    td![],
-                    td![
-                        C!["button-wrapper"],
-                        button![
-                            ev(Ev::Click, move |_| Msg::ChangeMap(Map {
-                                center: (x + 1, y),
-                                ..m
-                            })),
-                            "E"
-                        ]
-                    ],
-                    td![],
-                    td![
-                        C!["button-wrapper"],
-                        button![
-                            ev(Ev::Click, move |_| Msg::ChangeMap(Map {
-                                radius: r - 1,
-                                ..m
-                            })),
-                            "+"
-                        ]
-                    ],
-                    td![
-                        C!["button-wrapper"],
-                        button![
-                            ev(Ev::Click, move |_| Msg::ChangeMap(Map {
-                                radius: r + 1,
-                                ..m
-                            })),
-                            "-"
-                        ]
-                    ],
-                ],
-                tr![
-                    td![],
-                    td![
-                        C!["button-wrapper"],
-                        button![
-                            ev(Ev::Click, move |_| Msg::ChangeMap(Map {
-                                center: (x, y + 1),
-                                ..m
-                            })),
-                            "S"
-                        ]
-                    ],
-                    td![],
-                    td![],
-                    td![],
-                    td![],
-                ]
-            ]
-        ],
-    ]
-}
-
-fn inventory( SyncData { state, user_id }: &SyncData) -> Node<Msg> {
-    div![
-        ul![state
-            .players
-            .get(&user_id)
-            .unwrap()
-            .inventory
-            .iter()
-            .map(|(item_type, qty)| { li![format!("{} ({})", item_type, qty)] })],
-        div![
-            C!["form-wrapper"],
-            h2!["Crafting"],
-            label![
-                attrs! {
-                    At::For => "type"
-                },
-                "Item"
-            ],
-            select![
-                attrs! {
-                    At::Id => "type"
-                },
-                option![
-                    "test"
-                ]
-            ],
-            label![
-                attrs! {
-                    At::For => "quantity"
-                },
-                "Amount"
-            ],
-            input![
-                attrs! {
-                    At::Id => "quantity"
-                    At::Type => "number"
-                    At::Value => 0
-                }
-            ],
-            button![
-                /*
-                ev(Ev::Click, move |_| Msg::SendGameEvent(Event::PopTask(
-                    
-                ))),
-                */
-                "Craft"
-            ],
-        ]
-    ]
-}
-
-fn icon(icon: &'static str) -> Node<Msg> {
-    img![
-        attrs!{
-            At::Src => format!("/icons/icons8-{}-24.png", icon)
-        },
-        icon
     ]
 }
 
