@@ -1,0 +1,190 @@
+#background {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-image: url("/background.jpg");
+    background-position: center; 
+    background-repeat: no-repeat;
+    background-size: cover;
+    z-index: -1000;
+}
+
+html {
+    font-family: Georgia, 'Times New Roman', Times, serif;
+    font-size: medium;
+}
+
+body {
+    margin: 0;
+}
+
+header {
+    background: white;
+    padding: 8px;
+    z-index: 1500;
+}
+
+header > h1 {
+    margin: 0;
+}
+
+.form-wrapper {
+    max-width: 386px;
+    padding: 16px;
+    margin: auto;
+    margin-top: 16px;
+    margin-bottom: 16px;
+}
+
+form > div {
+    margin-top: 1em;
+    margin-bottom: 1em;
+}
+
+.form-wrapper > h2:first-child {
+    margin-top: 0;
+}
+
+.error {
+    color: darkred;
+}
+
+input, button, select, a.button {
+    width: 100%;
+    box-sizing: border-box;
+    border: none;
+    padding: 8px;
+    background: white;
+    display: inline-block;
+    text-align: center;
+    text-decoration: none;
+    color: black;
+    font-family: Georgia, 'Times New Roman', Times, serif;
+    font-size: medium;
+}
+
+input:disabled, button:disabled, select:disabled {
+    color: gray;
+}
+
+
+input[type=text], input[type=password], input[type=email] {
+    text-align: left;
+    /*border-bottom: 2px solid black;*/
+    background: rgba(255, 255, 255, 0.2);    
+}
+
+
+
+main {
+    padding: 16px;
+}
+
+header {
+    text-align: center;
+}
+
+.dwarf, .building {
+    width: 100%;
+}
+
+.items, .buildings, .dwarfs {
+    display: flex;
+    justify-content: space-evenly;
+    align-items: stretch;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.item {
+    width: 140px;
+    height: 180px;
+    display: inline-block;
+}
+
+.dwarf, .item, .building {
+    padding: 8px;
+}
+
+.dwarf, .item, .building, #chat, .form-wrapper {
+    background: rgba(255, 255, 255, 0.2);    
+    backdrop-filter: blur(16px);
+    box-shadow: 0 0 8px;
+}
+
+.dwarf h3, .dwarf h4, .item h3, .item h4, .building h3, .building h4 {
+    margin: 0;
+}
+
+
+.dwarf-contents, .building-contents {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: space-between;
+    align-items: flex-start;
+    width: 100%;
+}
+
+.item-contents {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    justify-content: space-between;
+    align-items: stretch;
+    height: 100%;
+}
+
+#chat {
+    max-width: 256px;
+    position: fixed;
+    bottom: 0;
+    right: 0;
+    z-index: 2000;
+}
+
+@media only screen and (max-width: 500px) {
+    #chat {
+        max-width: 100vw;
+        width: 100vw;
+    }
+}
+
+.messages {
+    overflow-y: auto;
+    max-height: 256px;
+    line-break: anywhere;
+    padding: 8px;
+}
+
+.messages .username {
+    font-weight: bold;
+}
+
+ul {
+    padding-left: 20px;
+    margin: 4px;
+}
+
+table {
+    width: 100%;
+}
+
+th, td {
+    text-align: left;
+}
+
+nav {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    text-align: center;
+    background: white;
+}
+
+nav button, nav a.button, .occupation button {
+    width: auto;
+}
+

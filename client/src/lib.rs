@@ -1,7 +1,6 @@
 use seed::{prelude::*, *};
 use shared::{
-    Event, EventData,
-    Req, Res, SyncData
+    Building, Bundle, Craftable, Event, EventData, Item, Occupation, Req, Res, Stats, SyncData, ItemType,
 };
 use std::rc::Rc;
 
@@ -13,7 +12,11 @@ const WS_URL: &str = "ws://127.0.0.1:3000/game/ws";
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Page {
-    Overview
+    Dwarfs,
+    Base,
+    Inventory,
+    Quests,
+    Ranking,
 }
 
 pub struct Model {
@@ -21,6 +24,8 @@ pub struct Model {
     web_socket_reconnector: Option<StreamHandle>,
     state: Option<SyncData>,
     page: Page,
+    message: String,
+    chat_visible: bool,
 }
 
 // ------ ------
@@ -34,7 +39,9 @@ fn init(_url: Url, orders: &mut impl Orders<Msg>) -> Model {
         web_socket: create_websocket(orders),
         web_socket_reconnector: None,
         state: None,
-        page: Page::Overview,
+        page: Page::Base,
+        message: String::new(),
+        chat_visible: false,
     }
 }
 
@@ -52,6 +59,9 @@ pub enum Msg {
     ReceiveGameEvent(EventData),
     InitGameState(SyncData),
     ChangePage(Page),
+    ChangeMessage(String),
+    SubmitMessage,
+    ToggleChat,
 }
 
 fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
@@ -107,6 +117,18 @@ fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
         Msg::ChangePage(page) => {
             model.page = page;
         }
+        Msg::ChangeMessage(message) => {
+            model.message = message;
+        }
+        Msg::SubmitMessage => {
+            let serialized =
+                rmp_serde::to_vec(&Req::Event(Event::Message(model.message.clone()))).unwrap();
+            model.web_socket.send_bytes(&serialized).unwrap();
+            model.message.clear();
+        }
+        Msg::ToggleChat => {
+            model.chat_visible = !model.chat_visible;
+        }
     }
 }
 
@@ -152,49 +174,344 @@ fn decode_message(message: WebSocketMessage, msg_sender: Rc<dyn Fn(Option<Msg>)>
 fn view(model: &Model) -> Vec<Node<Msg>> {
     if let Some(data) = &model.state {
         vec![
-            nav(model, data),
-            match model.page {
-                Page::Overview => overview(model, data)
-            },
+            nav(model),
+            main![match model.page {
+                Page::Dwarfs => dwarfs(data),
+                Page::Base => base(data),
+                Page::Inventory => inventory(data),
+                _ => span!["Coming Soon!"],
+            }],
+            chat(model, data),
         ]
     } else {
         vec![p!["Loading ..."]]
     }
 }
 
-fn overview(model: &Model, SyncData { state, user_id }: &SyncData) -> Node<Msg> {
+fn fmt_time(mut time: u64) -> String {
+    if time >= 60 {
+        time /= 60;
+        if time >= 60 {
+            time /= 60;
+            if time >= 24 {
+                time /= 24;
+                if time == 1 {
+                    return format!("{} day", time);
+                } else {
+                    return format!("{} days", time);
+                }
+            }
+            if time == 1 {
+                return format!("{} hour", time);
+            } else {
+                return format!("{} hours", time);
+            }
+        }
+        if time == 1 {
+            return format!("{} minute", time);
+        } else {
+            return format!("{} minutes", time);
+        }
+    }
+    if time == 1 {
+        return format!("{} second", time);
+    } else {
+        return format!("{} seconds", time);
+    }
+}
+
+fn dwarfs(SyncData { state, user_id }: &SyncData) -> Node<Msg> {
     let player = state.players.get(user_id).unwrap();
 
     div![
-        player.notifications
-            .iter()
-            .map(|notification| div![
-                span![&notification.message],
-                span![notification.money]
-            ])
+        C!["dwarfs"],
+        player.dwarfs.iter().map(|(&id, dwarf)| div![
+            C!["dwarf", format!("dwarf-{}", id)],
+            div![C!["dwarf-contents"],
+                div![
+                    h3![&dwarf.name],
+                    span![format!("{} since {}", dwarf.occupation, fmt_time(dwarf.occupation_duration))],
+                ],
+                div![
+                    h4!["Stats"],
+                    stats(&dwarf.stats),
+                ],
+                div![
+                    h4!["Equipment"],
+                    label![
+                        attrs! {At::For => format!("primary-tool-{}", id)},
+                        "Primary Tool"
+                    ],
+                    select![id![format!("primary-tool-{}", id)], vec![option!["Test"]]],
+                    label![
+                        attrs! {At::For => format!("secondary-tool-{}", id)},
+                        "Secondary Tool"
+                    ],
+                    select![id![format!("secondary-tool-{}", id)], vec![option!["Test"]]],
+                    label![
+                        attrs! {At::For => format!("occupation-{}", id)},
+                        "Occupation"
+                    ],
+                ],
+                div![C!["occupation"],
+                    h4!["Work"],
+                    Occupation::all().map(|occupation| {
+                        button![
+                            if occupation == dwarf.occupation {
+                                attrs! {At::Disabled => "true"}
+                            } else {
+                                attrs! {}
+                            },
+                            ev(Ev::Click, move |_| Msg::SendGameEvent(
+                                Event::ChangeOccupation(id, occupation)
+                            )),
+                            format!("{}", occupation),
+                        ]
+                    })
+                ]
+            ]
+             /*
+               button![
+                   if let Occupation::None = dwarf.occupation {
+                       attrs! {At::Disabled => "true"}
+                   } else {
+                       attrs! {}
+                   },
+                   ev(Ev::Click, move |_| Msg::SendGameEvent(
+                       Event::ChangeOccupation(id, Occupation::None)
+                   )),
+                   "None",
+               ],
+               button![
+                   if let Occupation::Mining = dwarf.occupation {
+                       attrs! {At::Disabled => "true"}
+                   } else {
+                       attrs! {}
+                   },
+                   ev(Ev::Click, move |_| Msg::SendGameEvent(
+                       Event::ChangeOccupation(id, Occupation::Mining)
+                   )),
+                   "Mining",
+               ],
+               */
+        ])
     ]
 }
 
-
-fn nav(model: &Model, SyncData { state, user_id }: &SyncData) -> Node<Msg> {
+fn base(SyncData { state, user_id }: &SyncData) -> Node<Msg> {
     let player = state.players.get(user_id).unwrap();
 
-    nav![
-        div![
-            button![
-                if let Page::Overview = model.page {
-                    C!["selected"]
-                } else {
-                    C![]
-                },
-                ev(Ev::Click, move |_| Msg::ChangePage(Page::Overview)),
-                "Overview",
-            ],
-        ],
-        div![
-            span!["$", player.money],
-        ]
+    let buildings: Bundle<Building> = Building::all()
+        .iter()
+        .chain(player.base.buildings.iter())
+        .map(|(building, n)| (*building, *n))
+        .collect();
+
+    div![
+        C!["buildings"],
+        buildings.sorted().into_iter().map(|(building, n)| div![
+            C!["building"],
+            div![C!["building-contents"],
+                div![
+                    h3![format!("{building}")],
+                    span![format!("Level {n}")],
+                ],
+                div![
+                    h4!["Build Options"],
+                    if let Some(requires) = building.requires() {
+                        div![
+                            bundle(&requires),
+                            button![
+                                if player.inventory.items.check_remove(&requires) {
+                                    attrs! {}
+                                } else {
+                                    attrs! {At::Disabled => "true"}
+                                },
+                                ev(Ev::Click, move |_| Msg::SendGameEvent(Event::Build(
+                                    building
+                                ))),
+                                if n == 0 { "Build" } else { "Upgrade" }
+                            ],
+                        ]
+                    } else {
+                        div![]
+                    }
+                ]
+                
+            ]
+        ])
     ]
+}
+
+fn inventory(SyncData { state, user_id }: &SyncData) -> Node<Msg> {
+    let player = state.players.get(user_id).unwrap();
+
+    let items: Bundle<Item> = Item::all()
+        .iter()
+        .chain(player.inventory.items.iter())
+        .map(|(item, n)| (*item, *n))
+        .collect();
+
+    div![
+        C!["items"],
+        items.sorted().into_iter().map(|(item, n)| div![
+            C!["item"],
+            div![C!["item-contents"],
+                div![
+                    span![match item.item_type() {
+                        ItemType::Clothing(_) => "Clothing",
+                        ItemType::Tool(_) => "Tool",
+                        ItemType::Misc => "Item",
+                    }],
+                    h3![format!("{item}")],
+                    span![format!("{n}x")],
+                ],
+                match item.item_type() {
+                    ItemType::Clothing(s) => {
+                        div![
+                            stats(&s)
+                        ]
+                    },
+                    ItemType::Tool(s) => {
+                        div![
+                            stats(&s)
+                        ]
+                    },
+                    ItemType::Misc => {
+                        div![]
+                    }
+                },
+                if let Some(requires) = item.requires() {
+                    div![
+                        bundle(&requires),
+                        button![
+                            if player.inventory.items.check_remove(&requires) {
+                                attrs! {}
+                            } else {
+                                attrs! {At::Disabled => "true"}
+                            },
+                            ev(Ev::Click, move |_| Msg::SendGameEvent(Event::Craft(item))),
+                            "Craft",
+                        ],
+                    ]
+                } else {
+                    div![]
+                },
+            ]
+            
+        ])
+    ]
+}
+
+fn chat(model: &Model, SyncData { state, user_id: _ }: &SyncData) -> Node<Msg> {
+    let message = model.message.clone();
+
+    div![
+        id!["chat"],
+        button![ev(Ev::Click, move |_| Msg::ToggleChat), "Toggle Chat",],
+        if model.chat_visible {
+            div![
+                div![
+                    C!["messages"],
+                    state.chat.messages.iter().map(|(user_id, message)| {
+                        let username = &state.players.get(user_id).unwrap().username;
+
+                        div![
+                            span![C!["username"], format!("{username}")],
+                            span![": "],
+                            span![C!["message"], format!("{message}")]
+                        ]
+                    })
+                ],
+                div![
+                    input![
+                        attrs! {At::Type => "text", At::Value => model.message},
+                        input_ev(Ev::Input, Msg::ChangeMessage)
+                    ],
+                    button![
+                        if message.is_empty() {
+                            attrs! {At::Disabled => "true"}
+                        } else {
+                            attrs! {}
+                        },
+                        ev(Ev::Click, move |_| Msg::SubmitMessage),
+                        "Send",
+                    ],
+                ]
+            ]
+        } else {
+            div![]
+        }
+    ]
+}
+
+fn bundle(requires: &Bundle<Item>) -> Node<Msg> {
+    ul![requires
+        .clone()
+        .sorted()
+        .iter()
+        .map(|(item, n)| { li![format!("{n}x {item}")] })]
+}
+
+fn stats(stats: &Stats) -> Node<Msg> {
+    table![tbody![
+        if stats.strength != 0 { tr![th!["Strength"], td![format!("{:+}", stats.strength)]] } else { tr![] },
+        if stats.endurance != 0 { tr![th!["Endurance"], td![format!("{:+}", stats.endurance)]] } else { tr![] },
+        if stats.agility != 0 { tr![th!["Agility"], td![format!("{:+}", stats.agility)]] } else { tr![] },
+        if stats.intelligence != 0 { tr![th!["Intelligence"], td![format!("{:+}", stats.intelligence)]] } else { tr![] },
+        if stats.charisma != 0 { tr![th!["Charisma"], td![format!("{:+}", stats.charisma)]] } else { tr![] },
+    ]]
+}
+
+fn nav(model: &Model) -> Node<Msg> {
+    nav![div![
+        button![
+            if let Page::Base = model.page {
+                attrs!{At::Disabled => "true"}
+            } else {
+                attrs!{}
+            },
+            ev(Ev::Click, move |_| Msg::ChangePage(Page::Base)),
+            "Base",
+        ],
+        button![
+            if let Page::Dwarfs = model.page {
+                attrs!{At::Disabled => "true"}
+            } else {
+                attrs!{}
+            },
+            ev(Ev::Click, move |_| Msg::ChangePage(Page::Dwarfs)),
+            "Dwarfs",
+        ],
+        button![
+            if let Page::Inventory = model.page {
+                attrs!{At::Disabled => "true"}
+            } else {
+                attrs!{}
+            },
+            ev(Ev::Click, move |_| Msg::ChangePage(Page::Inventory)),
+            "Inventory",
+        ],
+        button![
+            if let Page::Quests = model.page {
+                attrs!{At::Disabled => "true"}
+            } else {
+                attrs!{}
+            },
+            ev(Ev::Click, move |_| Msg::ChangePage(Page::Quests)),
+            "Quests",
+        ],
+        button![
+            if let Page::Ranking = model.page {
+                attrs!{At::Disabled => "true"}
+            } else {
+                attrs!{}
+            },
+            ev(Ev::Click, move |_| Msg::ChangePage(Page::Ranking)),
+            "Ranking",
+        ],
+        a![C!["button"], attrs!{ At::Href => "/account"}, "Account"]
+    ]]
 }
 
 // ------ ------

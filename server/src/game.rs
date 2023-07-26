@@ -73,7 +73,7 @@ impl GameState {
         let game_state_clone = game_state.clone();
 
         tokio::spawn(async move {
-            let mut interval = time::interval(Duration::from_secs(1));
+            let mut interval = time::interval(Duration::from_millis(shared::MILLIS_PER_TICK));
             let mut rng = SmallRng::from_entropy();
 
             loop {
@@ -81,7 +81,8 @@ impl GameState {
 
                 req_sender_clone
                     .send(EventData {
-                        event: Event::Tick(rng.gen()),
+                        event: Event::Tick,
+                        seed: Some(rng.gen()),
                         user_id: None,
                     })
                     .unwrap();
@@ -97,13 +98,15 @@ impl GameState {
 
             let mut rng = SmallRng::from_entropy();
 
-            while let Some(EventData { event, user_id }) = req_receiver.recv().await {
-                let mut game = game.write().await;
-
+            while let Some(EventData {
+                event,
+                seed: _,
+                user_id,
+            }) = req_receiver.recv().await
+            {
                 let event = match event {
-                    Event::RandReq(event) => Some(Event::RandRes(rng.gen(), event)),
                     // Valid only as server-sent events.
-                    Event::Tick(_)
+                    Event::Tick
                     | Event::AddPlayer(_, _)
                     | Event::EditPlayer(_, _)
                     | Event::RemovePlayer(_)
@@ -113,12 +116,16 @@ impl GameState {
                     }
                     event => Some(event),
                 }
-                .map(|event| EventData { event, user_id });
+                .map(|event| EventData {
+                    event,
+                    seed: Some(rng.gen()),
+                    user_id,
+                });
 
                 if let Some(event) = event {
                     res_sender.send(event.clone()).ok();
-                    game.update(event);
-                    GameState::store_game(&pool, &*game).await;
+                    game.write().await.update(event);
+                    GameState::store_game(&pool, &*game.read().await).await;
                 }
             }
         });
@@ -147,6 +154,7 @@ impl GameState {
             .send(EventData {
                 event: Event::AddPlayer(user_id, username),
                 user_id: None,
+                seed: None,
             })
             .unwrap();
     }
@@ -173,7 +181,7 @@ pub async fn ws_handler(
         Ok(ws.on_upgrade(move |socket: WebSocket| async move {
             let (state, sender, mut receiver) = game_state.new_connection(user_id).await;
             let (mut sink, mut stream) = socket.split();
-    
+
             let msg = rmp_serde::to_vec(&shared::Res::Sync(SyncData {
                 user_id,
                 state
@@ -181,7 +189,7 @@ pub async fn ws_handler(
             if sink.send(Message::Binary(msg)).await.is_err() {
                 return;
             }
-    
+
             tokio::select!(
                 _ = async {
                     while let Some(msg) = stream.next().await {
@@ -190,11 +198,11 @@ pub async fn ws_handler(
                                 let req: shared::Req = rmp_serde::from_slice(&msg).unwrap();
                                 match req {
                                     shared::Req::Event(event) => {
-                                        if sender.send(EventData {event, user_id: Some(user_id) }).is_err() {
+                                        if sender.send(EventData {event, seed: None, user_id: Some(user_id) }).is_err() {
                                             break;
                                         }
                                     }
-                                }  
+                                }
                             }
                         } else {
                             break;

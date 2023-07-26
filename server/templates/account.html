@@ -1,5 +1,13 @@
 {% extends "base.html" %}
 {% block content %}
+<main>
+    <div class="form-wrapper">
+        <h2>Account</h2>
+        <p>Hi {{ username }}, thanks for playing the game!</p>
+        <a class="button" href="/game">Back to the Game</a>
+        <a class="button" href="/logout">Logout</a>
+    </div>
+
     <div class="form-wrapper">
         <h2>Change Username</h2>
         <form method="POST" action="/account/username">
@@ -11,9 +19,11 @@
                 {% endfor %}
             </div>
             <input type="hidden" name="email" value="{{ email }}">
-            <input type="submit" value="Submit">
+            <input type="submit" value="Apply Changes">
         </form>
+    </div>
 
+    <div class="form-wrapper">
         <h2>Change E-Mail</h2>
         <form method="POST" action="/account/email">
             <div>
@@ -24,9 +34,11 @@
                 {% endfor %}
             </div>
             <input type="hidden" name="username" value="{{ username }}">
-            <input type="submit" value="Submit">
+            <input type="submit" value="Apply Changes">
         </form>
+    </div>
 
+    <div class="form-wrapper">
         <h2>Change Password</h2>
         <form method="POST" action="/account/password">
             <div>
@@ -45,9 +57,8 @@
             </div>
             <input type="hidden" name="username" value="{{ username }}">
             <input type="hidden" name="email" value="{{ email }}">
-            <input type="submit" value="Submit">
+            <input type="submit" value="Apply Changes">
         </form>
-        <a class="button" href="/logout">Logout</a>
-        <a class="button" href="/game">Back</a>
     </div>
+</main>
 {% endblock %}
