@@ -124,6 +124,47 @@ impl State {
                     }
                 }
             }
+            Event::ChangeEquipment(dwarf_id, item_type, item) => {
+                let player = self.players.get_mut(&user_id.unwrap()).unwrap();
+
+                if let Some(item) = item {
+                    if player
+                        .inventory
+                        .items
+                        .remove_checked(Bundle::new().add(item, 1))
+                    {
+                        let equipment = player
+                            .dwarfs
+                            .get_mut(&dwarf_id)
+                            .unwrap()
+                            .equipment
+                            .get_mut(&item_type)
+                            .unwrap();
+                        let old_item = equipment.replace(item);
+                        if let Some(old_item) = old_item {
+                            player
+                                .inventory
+                                .items
+                                .add_checked(Bundle::new().add(old_item, 1));
+                        }
+                    }
+                } else {
+                    let equipment = player
+                        .dwarfs
+                        .get_mut(&dwarf_id)
+                        .unwrap()
+                        .equipment
+                        .get_mut(&item_type)
+                        .unwrap();
+                    let old_item = equipment.take();
+                    if let Some(old_item) = old_item {
+                        player
+                            .inventory
+                            .items
+                            .add_checked(Bundle::new().add(old_item, 1));
+                    }
+                }
+            }
         }
     }
 
@@ -275,6 +316,15 @@ impl Inventory {
             items: Bundle::new(),
         }
     }
+
+    pub fn by_type(&self, item_type: Option<ItemType>) -> Vec<Item> {
+        self.items
+            .iter()
+            .filter(|(item, n)| item.item_type() == item_type && **n > 0)
+            .map(|(item, _)| item)
+            .copied()
+            .collect()
+    }
 }
 
 #[derive(
@@ -300,44 +350,49 @@ pub enum Item {
     PufferFish,
     Poison,
     PoisonedBow,
+    Parrot,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash, PartialEq, Eq, Sequence)]
 pub enum ItemType {
-    Misc,
-    Tool(Stats),
-    Clothing(Stats),
+    Tool,
+    Clothing,
+    Pet,
 }
 
-impl ItemType {
-    pub fn as_tool(self) -> Stats {
-        if let ItemType::Tool(stats) = self {
-            stats
-        } else {
-            Stats::default()
-        }
-    }
-
-    pub fn as_clothing(self) -> Stats {
-        if let ItemType::Clothing(stats) = self {
-            stats
-        } else {
-            Stats::default()
+impl std::fmt::Display for ItemType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ItemType::Tool => write!(f, "Tool"),
+            ItemType::Clothing => write!(f, "Clothing"),
+            ItemType::Pet => write!(f, "Pet"),
         }
     }
 }
 
 impl Item {
-    pub fn item_type(self) -> ItemType {
+    pub fn item_type(self) -> Option<ItemType> {
         match self {
-            Item::ChainMail => ItemType::Clothing(Stats {
+            Item::ChainMail => Some(ItemType::Clothing),
+            Item::Bow => Some(ItemType::Tool),
+            Item::PoisonedBow => Some(ItemType::Tool),
+            Item::Parrot => Some(ItemType::Pet),
+            _ => None,
+        }
+    }
+
+    pub fn item_stats(self) -> Stats {
+        match self {
+            Item::ChainMail => Stats {
                 endurance: -3,
                 agility: -1,
                 ..Default::default()
-            }),
-            Item::Bow => ItemType::Tool(Stats::default()),
-            Item::PoisonedBow => ItemType::Tool(Stats::default()),
-            _ => ItemType::Misc,
+            },
+            Item::Parrot => Stats {
+                charisma: 2,
+                ..Default::default()
+            },
+            _ => Stats::default(),
         }
     }
 
@@ -360,6 +415,7 @@ impl Item {
     pub fn item_usefulness(self, occupation: Occupation) -> Option<i8> {
         match (self, occupation) {
             (Item::Bow, Occupation::Hunting) => Some(4),
+            (Item::PoisonedBow, Occupation::Hunting) => Some(5),
             _ => None,
         }
     }
@@ -380,50 +436,53 @@ impl Item {
                     expected_ticks_per_drop: 150,
                 }),
                 _ => None,
-            }
+            },
             Occupation::Logging => match self {
                 Item::Wood => Some(ItemProbability {
                     starting_from_tick: 0,
-                    expected_ticks_per_drop: 30
+                    expected_ticks_per_drop: 30,
+                }),
+                Item::Parrot => Some(ItemProbability {
+                    starting_from_tick: 1000,
+                    expected_ticks_per_drop: 500,
                 }),
                 _ => None,
-            }
+            },
             Occupation::Hunting => match self {
                 Item::RawMeat => Some(ItemProbability {
                     starting_from_tick: 0,
-                    expected_ticks_per_drop: 100
+                    expected_ticks_per_drop: 100,
                 }),
                 Item::Leather => Some(ItemProbability {
                     starting_from_tick: 0,
-                    expected_ticks_per_drop: 150
+                    expected_ticks_per_drop: 150,
                 }),
                 Item::Bone => Some(ItemProbability {
                     starting_from_tick: 0,
-                    expected_ticks_per_drop: 120
+                    expected_ticks_per_drop: 120,
                 }),
-                _ => None
-            }
+                _ => None,
+            },
             Occupation::Gathering => match self {
                 Item::Blueberry => Some(ItemProbability {
                     starting_from_tick: 0,
-                    expected_ticks_per_drop: 100
+                    expected_ticks_per_drop: 100,
                 }),
-                _ => None
-            }
+                _ => None,
+            },
             Occupation::Fishing => match self {
                 Item::RawFish => Some(ItemProbability {
                     starting_from_tick: 0,
-                    expected_ticks_per_drop: 80
+                    expected_ticks_per_drop: 80,
                 }),
                 Item::PufferFish => Some(ItemProbability {
                     starting_from_tick: 500,
-                    expected_ticks_per_drop: 500
+                    expected_ticks_per_drop: 500,
                 }),
-                _ => None
-            }
+                _ => None,
+            },
             Occupation::Idling => None,
         }
-        
     }
 }
 pub struct ItemProbability {
@@ -495,6 +554,7 @@ impl std::fmt::Display for Item {
             Item::PufferFish => write!(f, "Puffer Fish"),
             Item::PoisonedBow => write!(f, "Poisoned Bow"),
             Item::Poison => write!(f, "Poison"),
+            Item::Parrot => write!(f, "Parrot"),
         }
     }
 }
@@ -525,8 +585,7 @@ pub struct Dwarf {
     pub occupation: Occupation,
     pub occupation_duration: u64,
     pub stats: Stats,
-    pub clothing: Option<Item>,
-    pub tool: Option<Item>,
+    pub equipment: HashMap<ItemType, Option<Item>>,
 }
 
 impl Dwarf {
@@ -588,8 +647,9 @@ impl Dwarf {
             occupation: Occupation::Idling,
             occupation_duration: 0,
             stats: Stats::random(seed),
-            clothing: None,
-            tool: None,
+            equipment: enum_iterator::all()
+                .map(|item_type| (item_type, None))
+                .collect(),
         }
     }
 
@@ -602,33 +662,22 @@ impl Dwarf {
         let mut rng = SmallRng::seed_from_u64(seed);
 
         let mut stats = self.stats.clone();
-        if let Some(tool) = self.tool {
-            stats = stats.sum(tool.item_type().as_tool());
-        }
-        if let Some(clothing) = self.clothing {
-            stats = stats.sum(clothing.item_type().as_clothing());
+        for item in self.equipment.values().flatten() {
+            stats = stats.sum(item.item_stats());
         }
 
         let mut usefulness = 0;
-        usefulness += self
-            .tool
-            .and_then(|item| {
-                item.item_usefulness(self.occupation)
-                    .map(|usefulness| usefulness * stats.cross(item.item_ideal_stats()) / 10)
-            })
-            .unwrap_or(1);
-        usefulness += self
-            .clothing
-            .and_then(|item| {
-                item.item_usefulness(self.occupation)
-                    .map(|usefulness| usefulness * stats.cross(item.item_ideal_stats()) / 10)
-            })
-            .unwrap_or(1);
-        usefulness /= 2;
+        for item in self.equipment.values().flatten() {
+            usefulness += item
+                .item_usefulness(self.occupation)
+                .map(|usefulness| usefulness * stats.cross(item.item_ideal_stats()) / 10)
+                .unwrap_or_default();
+        }
+        usefulness /= self.equipment.len() as i8;
 
-        assert!(1 <= usefulness && usefulness <= 10);
+        assert!(0 <= usefulness && usefulness <= 10);
 
-        for _ in 0..usefulness {
+        for _ in 0..=usefulness {
             for item in enum_iterator::all::<Item>() {
                 if let Some(ItemProbability {
                     starting_from_tick,
@@ -637,9 +686,7 @@ impl Dwarf {
                 {
                     if self.occupation_duration >= starting_from_tick {
                         if rng.gen_ratio(1, expected_ticks_per_drop as u32) {
-                            inventory
-                                .items
-                                .add_checked(Bundle::new().add(item, 1));
+                            inventory.items.add_checked(Bundle::new().add(item, 1));
                         }
                     }
                 }
@@ -737,6 +784,7 @@ pub enum Event {
     ChangeOccupation(DwarfId, Occupation),
     Craft(Item),
     Build(Building),
+    ChangeEquipment(DwarfId, ItemType, Option<Item>),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

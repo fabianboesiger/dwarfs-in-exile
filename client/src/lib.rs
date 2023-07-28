@@ -1,6 +1,7 @@
 use seed::{prelude::*, *};
 use shared::{
-    Building, Bundle, Craftable, Event, EventData, Item, Occupation, Req, Res, Stats, SyncData, ItemType,
+    Building, Bundle, Craftable, Event, EventData, Item, ItemType, Occupation, Req, Res, Stats,
+    SyncData,
 };
 use std::rc::Rc;
 
@@ -17,6 +18,17 @@ pub enum Page {
     Inventory,
     Quests,
     Ranking,
+}
+
+#[derive(Debug, PartialEq, Eq, Default)]
+pub struct InventoryFilter {
+    item_type: Option<ItemType>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum InventoryMode {
+    Crafting,
+    Stats,
 }
 
 pub struct Model {
@@ -179,6 +191,7 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
                 Page::Dwarfs => dwarfs(data),
                 Page::Base => base(data),
                 Page::Inventory => inventory(data),
+                Page::Ranking => ranking(data),
                 _ => span!["Coming Soon!"],
             }],
             chat(model, data),
@@ -186,6 +199,37 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
     } else {
         vec![p!["Loading ..."]]
     }
+}
+
+fn ranking(SyncData { state, user_id: _ }: &SyncData) -> Node<Msg> {
+    let mut players: Vec<_> = state.players.values().collect();
+    players.sort_by(|p1, p2| {
+        p1.base
+            .max
+            .cmp(&p2.base.max)
+            .then(p1.dwarfs.len().cmp(&p2.dwarfs.len()))
+    });
+
+    div![
+        C!["content"],
+        table![
+            tr![
+                th!["Rank"],
+                th!["Username"],
+                th!["Base Level"],
+                th!["Population"]
+            ],
+            players.iter().enumerate().map(|(i, player)| {
+                let rank = i + 1;
+                tr![
+                    td![rank],
+                    td![&player.username],
+                    td![player.base.max],
+                    td![player.dwarfs.len()]
+                ]
+            })
+        ]
+    ]
 }
 
 fn fmt_time(mut time: u64) -> String {
@@ -227,33 +271,65 @@ fn dwarfs(SyncData { state, user_id }: &SyncData) -> Node<Msg> {
         C!["dwarfs"],
         player.dwarfs.iter().map(|(&id, dwarf)| div![
             C!["dwarf", format!("dwarf-{}", id)],
-            div![C!["dwarf-contents"],
+            div![
+                C!["dwarf-contents"],
                 div![
                     h3![&dwarf.name],
-                    span![format!("{} since {}", dwarf.occupation, fmt_time(dwarf.occupation_duration))],
+                    span![format!(
+                        "{} since {}",
+                        dwarf.occupation,
+                        fmt_time(dwarf.occupation_duration)
+                    )],
                 ],
-                div![
-                    h4!["Stats"],
-                    stats(&dwarf.stats),
-                ],
+                div![h4!["Stats"], stats(&dwarf.stats),],
                 div![
                     h4!["Equipment"],
-                    label![
-                        attrs! {At::For => format!("primary-tool-{}", id)},
-                        "Primary Tool"
-                    ],
-                    select![id![format!("primary-tool-{}", id)], vec![option!["Test"]]],
-                    label![
-                        attrs! {At::For => format!("secondary-tool-{}", id)},
-                        "Secondary Tool"
-                    ],
-                    select![id![format!("secondary-tool-{}", id)], vec![option!["Test"]]],
-                    label![
-                        attrs! {At::For => format!("occupation-{}", id)},
-                        "Occupation"
-                    ],
+                    table![enum_iterator::all::<ItemType>().map(|item_type| {
+                        let equipment = dwarf.equipment.get(&item_type).unwrap();
+
+                        tr![
+                            td![label![format!("{item_type}")]],
+                            td![details![
+                                summary![if let Some(item) = equipment {
+                                    format!("{}", item)
+                                } else {
+                                    format!("None")
+                                }],
+                                div![
+                                    if equipment.is_some() {
+                                        button![
+                                            ev(Ev::Click, move |_| Msg::SendGameEvent(
+                                                Event::ChangeEquipment(id, item_type, None)
+                                            )),
+                                            format!("None"),
+                                        ]
+                                    } else {
+                                        Node::Empty
+                                    },
+                                    player
+                                        .inventory
+                                        .by_type(Some(item_type))
+                                        .into_iter()
+                                        .filter(|item| Some(*item) != *equipment)
+                                        .map(|item| {
+                                            button![
+                                                ev(Ev::Click, move |_| Msg::SendGameEvent(
+                                                    Event::ChangeEquipment(
+                                                        id,
+                                                        item_type,
+                                                        Some(item)
+                                                    )
+                                                )),
+                                                format!("{}", item),
+                                            ]
+                                        })
+                                ]
+                            ],],
+                        ]
+                    })]
                 ],
-                div![C!["occupation"],
+                div![
+                    C!["occupation"],
                     h4!["Work"],
                     Occupation::all().map(|occupation| {
                         button![
@@ -269,31 +345,30 @@ fn dwarfs(SyncData { state, user_id }: &SyncData) -> Node<Msg> {
                         ]
                     })
                 ]
-            ]
-             /*
-               button![
-                   if let Occupation::None = dwarf.occupation {
-                       attrs! {At::Disabled => "true"}
-                   } else {
-                       attrs! {}
-                   },
-                   ev(Ev::Click, move |_| Msg::SendGameEvent(
-                       Event::ChangeOccupation(id, Occupation::None)
-                   )),
-                   "None",
-               ],
-               button![
-                   if let Occupation::Mining = dwarf.occupation {
-                       attrs! {At::Disabled => "true"}
-                   } else {
-                       attrs! {}
-                   },
-                   ev(Ev::Click, move |_| Msg::SendGameEvent(
-                       Event::ChangeOccupation(id, Occupation::Mining)
-                   )),
-                   "Mining",
-               ],
-               */
+            ] /*
+              button![
+                  if let Occupation::None = dwarf.occupation {
+                      attrs! {At::Disabled => "true"}
+                  } else {
+                      attrs! {}
+                  },
+                  ev(Ev::Click, move |_| Msg::SendGameEvent(
+                      Event::ChangeOccupation(id, Occupation::None)
+                  )),
+                  "None",
+              ],
+              button![
+                  if let Occupation::Mining = dwarf.occupation {
+                      attrs! {At::Disabled => "true"}
+                  } else {
+                      attrs! {}
+                  },
+                  ev(Ev::Click, move |_| Msg::SendGameEvent(
+                      Event::ChangeOccupation(id, Occupation::Mining)
+                  )),
+                  "Mining",
+              ],
+              */
         ])
     ]
 }
@@ -311,11 +386,9 @@ fn base(SyncData { state, user_id }: &SyncData) -> Node<Msg> {
         C!["buildings"],
         buildings.sorted().into_iter().map(|(building, n)| div![
             C!["building"],
-            div![C!["building-contents"],
-                div![
-                    h3![format!("{building}")],
-                    span![format!("Level {n}")],
-                ],
+            div![
+                C!["building-contents"],
+                div![h3![format!("{building}")], span![format!("Level {n}")],],
                 div![
                     h4!["Build Options"],
                     if let Some(requires) = building.requires() {
@@ -337,7 +410,6 @@ fn base(SyncData { state, user_id }: &SyncData) -> Node<Msg> {
                         div![]
                     }
                 ]
-                
             ]
         ])
     ]
@@ -356,31 +428,30 @@ fn inventory(SyncData { state, user_id }: &SyncData) -> Node<Msg> {
         C!["items"],
         items.sorted().into_iter().map(|(item, n)| div![
             C!["item"],
-            div![C!["item-contents"],
+            div![
+                C!["item-contents"],
                 div![
-                    span![match item.item_type() {
-                        ItemType::Clothing(_) => "Clothing",
-                        ItemType::Tool(_) => "Tool",
-                        ItemType::Misc => "Item",
+                    span![if let Some(item_type) = item.item_type() {
+                        format!("{item_type}")
+                    } else {
+                        format!("Item")
                     }],
                     h3![format!("{item}")],
                     span![format!("{n}x")],
                 ],
+                /*
                 match item.item_type() {
                     ItemType::Clothing(s) => {
-                        div![
-                            stats(&s)
-                        ]
-                    },
+                        div![stats(&s)]
+                    }
                     ItemType::Tool(s) => {
-                        div![
-                            stats(&s)
-                        ]
-                    },
+                        div![stats(&s)]
+                    }
                     ItemType::Misc => {
                         div![]
                     }
                 },
+                */
                 if let Some(requires) = item.requires() {
                     div![
                         bundle(&requires),
@@ -398,7 +469,6 @@ fn inventory(SyncData { state, user_id }: &SyncData) -> Node<Msg> {
                     div![]
                 },
             ]
-            
         ])
     ]
 }
@@ -425,7 +495,7 @@ fn chat(model: &Model, SyncData { state, user_id: _ }: &SyncData) -> Node<Msg> {
                 ],
                 div![
                     input![
-                        attrs! {At::Type => "text", At::Value => model.message},
+                        attrs! {At::Type => "text", At::Value => model.message, At::Placeholder => "Type your message here ..."},
                         input_ev(Ev::Input, Msg::ChangeMessage)
                     ],
                     button![
@@ -455,11 +525,34 @@ fn bundle(requires: &Bundle<Item>) -> Node<Msg> {
 
 fn stats(stats: &Stats) -> Node<Msg> {
     table![tbody![
-        if stats.strength != 0 { tr![th!["Strength"], td![format!("{:+}", stats.strength)]] } else { tr![] },
-        if stats.endurance != 0 { tr![th!["Endurance"], td![format!("{:+}", stats.endurance)]] } else { tr![] },
-        if stats.agility != 0 { tr![th!["Agility"], td![format!("{:+}", stats.agility)]] } else { tr![] },
-        if stats.intelligence != 0 { tr![th!["Intelligence"], td![format!("{:+}", stats.intelligence)]] } else { tr![] },
-        if stats.charisma != 0 { tr![th!["Charisma"], td![format!("{:+}", stats.charisma)]] } else { tr![] },
+        if stats.strength != 0 {
+            tr![th!["Strength"], td![format!("{:+}", stats.strength)]]
+        } else {
+            tr![]
+        },
+        if stats.endurance != 0 {
+            tr![th!["Endurance"], td![format!("{:+}", stats.endurance)]]
+        } else {
+            tr![]
+        },
+        if stats.agility != 0 {
+            tr![th!["Agility"], td![format!("{:+}", stats.agility)]]
+        } else {
+            tr![]
+        },
+        if stats.intelligence != 0 {
+            tr![
+                th!["Intelligence"],
+                td![format!("{:+}", stats.intelligence)]
+            ]
+        } else {
+            tr![]
+        },
+        if stats.charisma != 0 {
+            tr![th!["Charisma"], td![format!("{:+}", stats.charisma)]]
+        } else {
+            tr![]
+        },
     ]]
 }
 
@@ -467,50 +560,50 @@ fn nav(model: &Model) -> Node<Msg> {
     nav![div![
         button![
             if let Page::Base = model.page {
-                attrs!{At::Disabled => "true"}
+                attrs! {At::Disabled => "true"}
             } else {
-                attrs!{}
+                attrs! {}
             },
             ev(Ev::Click, move |_| Msg::ChangePage(Page::Base)),
             "Base",
         ],
         button![
             if let Page::Dwarfs = model.page {
-                attrs!{At::Disabled => "true"}
+                attrs! {At::Disabled => "true"}
             } else {
-                attrs!{}
+                attrs! {}
             },
             ev(Ev::Click, move |_| Msg::ChangePage(Page::Dwarfs)),
             "Dwarfs",
         ],
         button![
             if let Page::Inventory = model.page {
-                attrs!{At::Disabled => "true"}
+                attrs! {At::Disabled => "true"}
             } else {
-                attrs!{}
+                attrs! {}
             },
             ev(Ev::Click, move |_| Msg::ChangePage(Page::Inventory)),
             "Inventory",
         ],
         button![
             if let Page::Quests = model.page {
-                attrs!{At::Disabled => "true"}
+                attrs! {At::Disabled => "true"}
             } else {
-                attrs!{}
+                attrs! {}
             },
             ev(Ev::Click, move |_| Msg::ChangePage(Page::Quests)),
             "Quests",
         ],
         button![
             if let Page::Ranking = model.page {
-                attrs!{At::Disabled => "true"}
+                attrs! {At::Disabled => "true"}
             } else {
-                attrs!{}
+                attrs! {}
             },
             ev(Ev::Click, move |_| Msg::ChangePage(Page::Ranking)),
             "Ranking",
         ],
-        a![C!["button"], attrs!{ At::Href => "/account"}, "Account"]
+        //a![C!["button"], attrs! { At::Href => "/account"}, "Account"]
     ]]
 }
 

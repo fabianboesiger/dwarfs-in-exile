@@ -51,7 +51,7 @@ form > div {
     color: darkred;
 }
 
-input, button, select, a.button {
+input, button, select, a.button, summary {
     width: 100%;
     box-sizing: border-box;
     border: none;
@@ -76,7 +76,9 @@ input[type=text], input[type=password], input[type=email] {
     background: rgba(255, 255, 255, 0.2);    
 }
 
-
+select {
+    text-align: left;
+}
 
 main {
     padding: 16px;
@@ -108,7 +110,7 @@ header {
     padding: 8px;
 }
 
-.dwarf, .item, .building, #chat, .form-wrapper {
+.dwarf, .item, .building, #chat, .form-wrapper, .content {
     background: rgba(255, 255, 255, 0.2);    
     backdrop-filter: blur(16px);
     box-shadow: 0 0 8px;
@@ -188,3 +190,17 @@ nav button, nav a.button, .occupation button {
     width: auto;
 }
 
+details {
+    position: relative;
+}
+
+details > summary {
+    width: 128px;
+}
+
+details > div {
+    z-index: 500;
+    position: absolute;
+    width: 128px;
+    box-shadow: 0 12px 16px -4px;
+}
