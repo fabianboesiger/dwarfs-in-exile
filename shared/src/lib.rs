@@ -10,8 +10,17 @@ use serde::{Deserialize, Serialize};
 pub const MILLIS_PER_TICK: u64 = 1000;
 #[cfg(debug_assertions)]
 pub const MILLIS_PER_TICK: u64 = 100;
+pub const MAX_HEALTH: Health = 86400;
+pub const ONE_DAY: u64 = 60 * 60 * 24;
+pub const ONE_HOUR: u64 = 60 * 60;
+pub const LOOT_CRATE_COST: Money = 1000;
+
+pub type Money = u64;
+pub type Food = u64;
+pub type Health = u64;
 
 pub type UserId = i64;
+pub type Time = u64;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EventData {
@@ -40,7 +49,7 @@ pub struct SyncData {
 // MODIFY EVENTS AND STATE BELOW
 
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     hash::Hash,
     ops::Deref,
 };
@@ -50,6 +59,8 @@ pub struct State {
     pub players: HashMap<UserId, Player>,
     pub next_dwarf_id: DwarfId,
     pub chat: Chat,
+    pub quests: Vec<Quest>,
+    pub time: Time,
 }
 
 impl State {
@@ -60,14 +71,73 @@ impl State {
             seed,
             user_id,
         }: EventData,
-    ) {
+    ) -> Option<()> {
+        self.time += 1;
+
         match event {
             Event::Tick => {
-                // Let the dwarfs work!
+                let mut rng: SmallRng = SmallRng::seed_from_u64(seed.unwrap());
+
                 for (_, player) in &mut self.players {
-                    for (_, dwarf) in &mut player.dwarfs {
-                        dwarf.work(&mut player.inventory, seed.unwrap());
+                    // Let the dwarfs eat!
+                    let mut sorted_by_health = player.dwarfs.values_mut().collect::<Vec<_>>();
+                    sorted_by_health.sort_by_key(|dwarf| dwarf.health);
+                    for dwarf in sorted_by_health {
+                        if player.base.food > 0 {
+                            player.base.food -= 1;
+                            dwarf.incr_health(1);
+                        } else {
+                            dwarf.decr_health(1);
+                        }
                     }
+
+                    // Let the dwarfs work!
+                    for (_, dwarf) in &mut player.dwarfs {
+                        if !dwarf.dead() {
+                            dwarf.work(&mut player.inventory, seed.unwrap());
+                        }
+                    }
+
+                    player.dwarfs.retain(|_, dwarf| !dwarf.dead());
+                }
+
+                // Continue the active quests.
+                for quest in &mut self.quests {
+                    quest.run(&self.players);
+                    if quest.done() {
+                        for (user_id, player) in self.players.iter_mut() {
+                            if let Some(contestant) = quest.contestants.get(user_id) {
+                                player.log.add(
+                                    self.time,
+                                    LogMsg::QuestCompleted(
+                                        contestant.dwarfs.values().copied().collect(),
+                                        quest.quest_type,
+                                    ),
+                                );
+                            }
+                        }
+                    }
+                }
+
+                self.quests.retain(|quest| !quest.done());
+
+                // Add quests.
+                while self.quests.len() < 3 {
+                    let active_quests = self
+                        .quests
+                        .iter()
+                        .map(|q| q.quest_type)
+                        .collect::<HashSet<_>>();
+                    let all_quests = enum_iterator::all::<QuestType>().collect::<HashSet<_>>();
+                    let potential_quests = &all_quests - &active_quests;
+
+                    self.quests.push(Quest::new(
+                        *potential_quests
+                            .into_iter()
+                            .collect::<Vec<_>>()
+                            .choose(&mut rng)
+                            .unwrap(),
+                    ))
                 }
             }
             Event::AddPlayer(user_id, username) => {
@@ -76,7 +146,13 @@ impl State {
                     dwarfs: HashMap::new(),
                     base: Base::new(),
                     inventory: Inventory::new(),
+                    log: Log::default(),
+                    money: 0,
                 };
+
+                for players in self.players.values_mut() {
+                    players.log.add(self.time, LogMsg::NewPlayer(user_id));
+                }
 
                 player.new_dwarf(seed.unwrap(), &mut self.next_dwarf_id);
 
@@ -94,11 +170,11 @@ impl State {
             Event::ChangeOccupation(dwarf_id, occupation) => {
                 let player = self.players.get_mut(&user_id.unwrap()).unwrap();
 
-                player
-                    .dwarfs
-                    .get_mut(&dwarf_id)
-                    .unwrap()
-                    .change_occupation(occupation);
+                let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
+
+                if dwarf.participates_in_quest.is_none() {
+                    dwarf.change_occupation(occupation);
+                }
             }
             Event::Craft(item) => {
                 let player = self.players.get_mut(&user_id.unwrap()).unwrap();
@@ -112,15 +188,12 @@ impl State {
                     }
                 }
             }
-            Event::Build(building) => {
+            Event::UpgradeBase => {
                 let player = self.players.get_mut(&user_id.unwrap()).unwrap();
 
-                if let Some(requires) = building.requires() {
+                if let Some(requires) = player.base.upgrade_cost() {
                     if player.inventory.items.remove_checked(requires) {
-                        player
-                            .base
-                            .buildings
-                            .add_checked(Bundle::new().add(building, 1));
+                        player.base.upgrade();
                     }
                 }
             }
@@ -135,11 +208,9 @@ impl State {
                     {
                         let equipment = player
                             .dwarfs
-                            .get_mut(&dwarf_id)
-                            .unwrap()
+                            .get_mut(&dwarf_id)?
                             .equipment
-                            .get_mut(&item_type)
-                            .unwrap();
+                            .get_mut(&item_type)?;
                         let old_item = equipment.replace(item);
                         if let Some(old_item) = old_item {
                             player
@@ -151,11 +222,10 @@ impl State {
                 } else {
                     let equipment = player
                         .dwarfs
-                        .get_mut(&dwarf_id)
-                        .unwrap()
+                        .get_mut(&dwarf_id)?
                         .equipment
-                        .get_mut(&item_type)
-                        .unwrap();
+                        .get_mut(&item_type)?;
+
                     let old_item = equipment.take();
                     if let Some(old_item) = old_item {
                         player
@@ -165,7 +235,52 @@ impl State {
                     }
                 }
             }
+            Event::OpenLootCrate => {
+                let player = self.players.get_mut(&user_id.unwrap()).unwrap();
+
+                player.open_loot_crate(seed.unwrap());
+            }
+            Event::AssignToQuest(quest_idx, dwarf_idx, dwarf_id) => {
+                let player = self.players.get_mut(&user_id.unwrap()).unwrap();
+                let quest = self.quests.get_mut(quest_idx)?;
+                let contestant = quest.contestants.entry(user_id.unwrap()).or_default();
+
+                if let Some(dwarf_id) = dwarf_id {
+                    let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
+                    if dwarf.participates_in_quest.is_none() {
+                        dwarf.change_occupation(quest.quest_type.occupation());
+                        dwarf.participates_in_quest = Some(quest.quest_type);
+
+                        if dwarf_idx < quest.quest_type.max_dwarfs() {
+                            contestant.dwarfs.insert(dwarf_idx, dwarf_id);
+                        }
+                    }
+                } else {
+                    let old_dwarf_id = contestant.dwarfs.remove(&dwarf_idx);
+
+                    if let Some(old_dwarf_id) = old_dwarf_id {
+                        let dwarf = player.dwarfs.get_mut(&old_dwarf_id)?;
+                        dwarf.change_occupation(Occupation::Idling);
+                        dwarf.participates_in_quest = None;
+                    }
+                }
+            }
+            Event::AddToFoodStorage(item) => {
+                let player = self.players.get_mut(&user_id.unwrap()).unwrap();
+
+                if player
+                    .inventory
+                    .items
+                    .remove_checked(Bundle::new().add(item, 1))
+                {
+                    if let Some(food) = item.item_food() {
+                        player.base.food += food;
+                    }
+                }
+            }
         }
+
+        Some(())
     }
 
     pub fn view(&self, _receiver: UserId) -> Self {
@@ -174,14 +289,14 @@ impl State {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Bundle<T: BundleType>(HashMap<T, u32>);
+pub struct Bundle<T: BundleType>(HashMap<T, u64>);
 
 impl<T: BundleType> Bundle<T> {
     pub fn new() -> Self {
         Bundle(HashMap::new())
     }
 
-    pub fn add(mut self, t: T, n: u32) -> Self {
+    pub fn add(mut self, t: T, n: u64) -> Self {
         let mut map = HashMap::new();
         map.insert(t, n);
         self.add_checked(Bundle(map));
@@ -242,7 +357,7 @@ impl<T: BundleType> Bundle<T> {
 }
 
 impl<T: BundleType + Ord> Bundle<T> {
-    pub fn sorted(self) -> Vec<(T, u32)> {
+    pub fn sorted(self) -> Vec<(T, u64)> {
         let mut vec: Vec<_> = self.0.into_iter().collect();
         vec.sort();
         vec
@@ -250,15 +365,15 @@ impl<T: BundleType + Ord> Bundle<T> {
 }
 
 impl<T: BundleType> Deref for Bundle<T> {
-    type Target = HashMap<T, u32>;
+    type Target = HashMap<T, u64>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl<T: BundleType> FromIterator<(T, u32)> for Bundle<T> {
-    fn from_iter<I: IntoIterator<Item = (T, u32)>>(iter: I) -> Self {
+impl<T: BundleType> FromIterator<(T, u64)> for Bundle<T> {
+    fn from_iter<I: IntoIterator<Item = (T, u64)>>(iter: I) -> Self {
         Bundle(iter.into_iter().collect())
     }
 }
@@ -278,16 +393,35 @@ impl<T: BundleType> Default for Bundle<T> {
 }
 
 pub trait BundleType: Hash + Eq + PartialEq + Copy {
-    fn max(self) -> Option<u32> {
+    fn max(self) -> Option<u64> {
         None
     }
 }
 
 pub trait Craftable: Sequence + BundleType {
     fn requires(self) -> Option<Bundle<Item>>;
-    fn all() -> Bundle<Self> {
-        enum_iterator::all().map(|t| (t, 0)).collect()
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct Log {
+    pub msgs: VecDeque<(Time, LogMsg)>,
+}
+
+impl Log {
+    pub fn add(&mut self, time: Time, msg: LogMsg) {
+        self.msgs.push_back((time, msg));
+        if self.msgs.len() > 100 {
+            self.msgs.pop_front();
+        }
     }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub enum LogMsg {
+    NewPlayer(UserId),
+    NewDwarf(DwarfId),
+    DwarfDied(String),
+    QuestCompleted(Vec<DwarfId>, QuestType),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -296,6 +430,8 @@ pub struct Player {
     pub base: Base,
     pub dwarfs: HashMap<DwarfId, Dwarf>,
     pub inventory: Inventory,
+    pub log: Log,
+    pub money: Money,
 }
 
 impl Player {
@@ -303,17 +439,47 @@ impl Player {
         self.dwarfs.insert(*next_dwarf_id, Dwarf::new(seed));
         *next_dwarf_id += 1;
     }
+
+    pub fn open_loot_crate(&mut self, seed: Seed) {
+        let mut rng: SmallRng = SmallRng::seed_from_u64(seed);
+
+        if self.money >= LOOT_CRATE_COST {
+            self.money -= LOOT_CRATE_COST;
+            let possible_items: Vec<Item> = enum_iterator::all::<Item>()
+                .filter(|item| {
+                    matches!(item.item_rarity(), ItemRarity::Epic | ItemRarity::Legendary)
+                })
+                .collect();
+            let item = *possible_items.choose(&mut rng).unwrap();
+            self.inventory.got_from_loot_crate = Some(item);
+            self.inventory.items.add_checked(Bundle::new().add(item, 1));
+        }
+    }
+
+    pub fn can_prestige(&self) -> bool {
+        self.base.prestige < 10 && self.dwarfs.len() as u64 == self.base.num_dwarfs()
+    }
+
+    pub fn prestige(&mut self) {
+        self.base.prestige += 1;
+        self.base.food = 0;
+        self.dwarfs.clear();
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Inventory {
     pub items: Bundle<Item>,
+    //pub loot_crates: NumLootCrates,
+    pub got_from_loot_crate: Option<Item>,
 }
 
 impl Inventory {
     fn new() -> Self {
         Inventory {
             items: Bundle::new(),
+            //loot_crates: 0,
+            got_from_loot_crate: None,
         }
     }
 
@@ -351,6 +517,19 @@ pub enum Item {
     Poison,
     PoisonedBow,
     Parrot,
+    String,
+    Hemp,
+    Wolf,
+    LeatherArmor,
+    Sword,
+    Longsword,
+    Spear,
+    PoisonedSpear,
+    Cat,
+    Apple,
+    DragonsEgg,
+    Dragon,
+    Donkey,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash, PartialEq, Eq, Sequence)]
@@ -374,9 +553,20 @@ impl Item {
     pub fn item_type(self) -> Option<ItemType> {
         match self {
             Item::ChainMail => Some(ItemType::Clothing),
+            Item::LeatherArmor => Some(ItemType::Clothing),
+
             Item::Bow => Some(ItemType::Tool),
             Item::PoisonedBow => Some(ItemType::Tool),
+            Item::Sword => Some(ItemType::Tool),
+            Item::Longsword => Some(ItemType::Tool),
+            Item::Spear => Some(ItemType::Tool),
+            Item::PoisonedSpear => Some(ItemType::Tool),
+
             Item::Parrot => Some(ItemType::Pet),
+            Item::Wolf => Some(ItemType::Pet),
+            Item::Cat => Some(ItemType::Pet),
+            Item::Dragon => Some(ItemType::Pet),
+            Item::Donkey => Some(ItemType::Pet),
             _ => None,
         }
     }
@@ -388,34 +578,79 @@ impl Item {
                 agility: -1,
                 ..Default::default()
             },
-            Item::Parrot => Stats {
-                charisma: 2,
+            Item::LeatherArmor => Stats {
+                agility: -1,
                 ..Default::default()
             },
             _ => Stats::default(),
         }
     }
 
-    pub fn item_ideal_stats(self) -> Stats {
+    pub fn item_food(self) -> Option<Food> {
         match self {
-            Item::Bow => Stats {
-                strength: 5,
-                agility: 5,
-                ..Default::default()
-            },
-            Item::PoisonedBow => Stats {
-                strength: 5,
-                agility: 5,
-                ..Default::default()
-            },
-            _ => Stats::default(),
+            Item::Apple => Some(5),
+            _ => None,
         }
     }
 
-    pub fn item_usefulness(self, occupation: Occupation) -> Option<i8> {
+    // Stats, usefulness from 1-10
+    pub fn item_usefulness(self, occupation: Occupation) -> Option<(Stats, i8)> {
         match (self, occupation) {
-            (Item::Bow, Occupation::Hunting) => Some(4),
-            (Item::PoisonedBow, Occupation::Hunting) => Some(5),
+            (Item::Bow, Occupation::Hunting | Occupation::Fighting) => Some((
+                Stats {
+                    strength: 3,
+                    agility: 7,
+                    ..Default::default()
+                },
+                4,
+            )),
+            (Item::PoisonedBow, Occupation::Hunting | Occupation::Fighting) => Some((
+                Stats {
+                    strength: 3,
+                    agility: 7,
+                    ..Default::default()
+                },
+                5,
+            )),
+            (Item::Spear, Occupation::Hunting | Occupation::Fighting) => Some((
+                Stats {
+                    strength: 5,
+                    agility: 5,
+                    ..Default::default()
+                },
+                3,
+            )),
+            (Item::PoisonedSpear, Occupation::Hunting | Occupation::Fighting) => Some((
+                Stats {
+                    strength: 5,
+                    agility: 5,
+                    ..Default::default()
+                },
+                4,
+            )),
+            (Item::Sword, Occupation::Hunting | Occupation::Fighting) => Some((
+                Stats {
+                    strength: 7,
+                    agility: 3,
+                    ..Default::default()
+                },
+                6,
+            )),
+            (Item::Longsword, Occupation::Hunting | Occupation::Fighting) => Some((
+                Stats {
+                    strength: 8,
+                    agility: 2,
+                    ..Default::default()
+                },
+                7,
+            )),
+            (Item::Dragon, Occupation::Hunting | Occupation::Fighting) => Some((
+                Stats {
+                    intelligence: 10,
+                    ..Default::default()
+                },
+                7,
+            )),
             _ => None,
         }
     }
@@ -444,7 +679,7 @@ impl Item {
                 }),
                 Item::Parrot => Some(ItemProbability {
                     starting_from_tick: 1000,
-                    expected_ticks_per_drop: 500,
+                    expected_ticks_per_drop: 1500,
                 }),
                 _ => None,
             },
@@ -461,12 +696,28 @@ impl Item {
                     starting_from_tick: 0,
                     expected_ticks_per_drop: 120,
                 }),
+                Item::Wolf => Some(ItemProbability {
+                    starting_from_tick: 2000,
+                    expected_ticks_per_drop: 10000,
+                }),
                 _ => None,
             },
             Occupation::Gathering => match self {
                 Item::Blueberry => Some(ItemProbability {
                     starting_from_tick: 0,
-                    expected_ticks_per_drop: 100,
+                    expected_ticks_per_drop: 200,
+                }),
+                Item::Apple => Some(ItemProbability {
+                    starting_from_tick: 0,
+                    expected_ticks_per_drop: 200,
+                }),
+                Item::Hemp => Some(ItemProbability {
+                    starting_from_tick: 0,
+                    expected_ticks_per_drop: 150,
+                }),
+                Item::Cat => Some(ItemProbability {
+                    starting_from_tick: 2000,
+                    expected_ticks_per_drop: 10000,
                 }),
                 _ => None,
             },
@@ -477,14 +728,89 @@ impl Item {
                 }),
                 Item::PufferFish => Some(ItemProbability {
                     starting_from_tick: 500,
-                    expected_ticks_per_drop: 500,
+                    expected_ticks_per_drop: 700,
                 }),
                 _ => None,
             },
+            Occupation::Fighting => None,
+            Occupation::Exploring => None,
             Occupation::Idling => None,
         }
     }
+
+    pub fn item_rarity_num(self) -> u64 {
+        let mut rarity = None;
+
+        let mut update_rarity = |new_rarity| {
+            if let Some(rarity) = &mut rarity {
+                if new_rarity < *rarity {
+                    *rarity = new_rarity;
+                }
+            } else {
+                rarity = Some(new_rarity);
+            }
+        };
+
+        for occupation in enum_iterator::all::<Occupation>() {
+            if let Some(item_probability) = self.item_probability(occupation) {
+                update_rarity(item_probability.expected_ticks_per_drop);
+            }
+        }
+
+        if let Some(requires) = self.requires() {
+            update_rarity(
+                requires
+                    .iter()
+                    .map(|(item, n)| item.item_rarity_num() * *n)
+                    .sum(),
+            )
+        }
+
+        rarity.unwrap_or(25000)
+    }
+
+    pub fn item_rarity(self) -> ItemRarity {
+        ItemRarity::from(self.item_rarity_num())
+    }
 }
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum ItemRarity {
+    Common,
+    Uncommon,
+    Rare,
+    Epic,
+    Legendary,
+}
+
+impl std::fmt::Display for ItemRarity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ItemRarity::Common => write!(f, "Common"),
+            ItemRarity::Uncommon => write!(f, "Uncommon"),
+            ItemRarity::Rare => write!(f, "Rare"),
+            ItemRarity::Epic => write!(f, "Epic"),
+            ItemRarity::Legendary => write!(f, "Legendary"),
+        }
+    }
+}
+
+impl From<u64> for ItemRarity {
+    fn from(value: u64) -> Self {
+        if value < 200 {
+            ItemRarity::Common
+        } else if value < 1000 {
+            ItemRarity::Uncommon
+        } else if value < 5000 {
+            ItemRarity::Rare
+        } else if value < 25000 {
+            ItemRarity::Epic
+        } else {
+            ItemRarity::Legendary
+        }
+    }
+}
+
 pub struct ItemProbability {
     starting_from_tick: u64,
     expected_ticks_per_drop: u64,
@@ -523,12 +849,16 @@ impl Stats {
     }
 
     pub fn cross(self, other: Self) -> i8 {
-        (self.strength * other.strength / 10
+        let out = (self.strength * other.strength / 10
             + self.endurance * other.endurance / 10
             + self.agility * other.agility / 10
             + self.intelligence * other.intelligence / 10
             + self.charisma * other.charisma / 10)
-            / 5
+            / 5;
+
+        assert!(1 <= out && out <= 10);
+
+        out
     }
 }
 
@@ -555,6 +885,19 @@ impl std::fmt::Display for Item {
             Item::PoisonedBow => write!(f, "Poisoned Bow"),
             Item::Poison => write!(f, "Poison"),
             Item::Parrot => write!(f, "Parrot"),
+            Item::Hemp => write!(f, "Hemp"),
+            Item::String => write!(f, "String"),
+            Item::Wolf => write!(f, "Wolf"),
+            Item::LeatherArmor => write!(f, "Leather Armor"),
+            Item::Sword => write!(f, "Sword"),
+            Item::Longsword => write!(f, "Longsword"),
+            Item::Spear => write!(f, "Spear"),
+            Item::PoisonedSpear => write!(f, "Poisoned Spear"),
+            Item::Cat => write!(f, "Cat"),
+            Item::Apple => write!(f, "Apple"),
+            Item::DragonsEgg => write!(f, "Dragons Egg"),
+            Item::Dragon => write!(f, "Dragon"),
+            Item::Donkey => write!(f, "Donkey"),
         }
     }
 }
@@ -562,16 +905,38 @@ impl std::fmt::Display for Item {
 impl Craftable for Item {
     fn requires(self) -> Option<Bundle<Item>> {
         match self {
-            Item::Iron => Some(Bundle::new().add(Item::IronOre, 1).add(Item::Coal, 3)),
-            Item::Nail => Some(Bundle::new().add(Item::Iron, 2).add(Item::Coal, 3)),
-            Item::Chain => Some(Bundle::new().add(Item::Iron, 5).add(Item::Coal, 3)),
+            Item::Iron => Some(Bundle::new().add(Item::IronOre, 1).add(Item::Coal, 1)),
+            Item::Nail => Some(Bundle::new().add(Item::Iron, 2).add(Item::Coal, 1)),
+            Item::Chain => Some(Bundle::new().add(Item::Iron, 5).add(Item::Coal, 2)),
             Item::ChainMail => Some(Bundle::new().add(Item::Chain, 5)),
             Item::Coal => Some(Bundle::new().add(Item::Wood, 3)),
-            Item::Bow => Some(Bundle::new().add(Item::Wood, 3)),
+            Item::Bow => Some(Bundle::new().add(Item::Wood, 3).add(Item::String, 1)),
             Item::CookedMeat => Some(Bundle::new().add(Item::RawMeat, 1).add(Item::Coal, 1)),
             Item::CookedFish => Some(Bundle::new().add(Item::RawFish, 1).add(Item::Coal, 1)),
             Item::Poison => Some(Bundle::new().add(Item::PufferFish, 1)),
             Item::PoisonedBow => Some(Bundle::new().add(Item::Bow, 1).add(Item::Poison, 1)),
+            Item::String => Some(Bundle::new().add(Item::Hemp, 10)),
+            Item::LeatherArmor => Some(Bundle::new().add(Item::Leather, 3).add(Item::String, 3)),
+            Item::Sword => Some(
+                Bundle::new()
+                    .add(Item::Wood, 1)
+                    .add(Item::Iron, 5)
+                    .add(Item::Coal, 10),
+            ),
+            Item::Longsword => Some(
+                Bundle::new()
+                    .add(Item::Wood, 1)
+                    .add(Item::Iron, 10)
+                    .add(Item::Coal, 10),
+            ),
+            Item::Spear => Some(
+                Bundle::new()
+                    .add(Item::Wood, 3)
+                    .add(Item::Iron, 2)
+                    .add(Item::Coal, 3),
+            ),
+            Item::PoisonedSpear => Some(Bundle::new().add(Item::Spear, 1).add(Item::Poison, 1)),
+            Item::Dragon => Some(Bundle::new().add(Item::DragonsEgg, 1).add(Item::Coal, 100)),
             _ => None,
         }
     }
@@ -582,10 +947,12 @@ impl BundleType for Item {}
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Dwarf {
     pub name: String,
+    pub participates_in_quest: Option<QuestType>,
     pub occupation: Occupation,
     pub occupation_duration: u64,
     pub stats: Stats,
     pub equipment: HashMap<ItemType, Option<Item>>,
+    pub health: Health,
 }
 
 impl Dwarf {
@@ -650,6 +1017,28 @@ impl Dwarf {
             equipment: enum_iterator::all()
                 .map(|item_type| (item_type, None))
                 .collect(),
+            health: MAX_HEALTH,
+            participates_in_quest: None,
+        }
+    }
+
+    pub fn dead(&self) -> bool {
+        self.health == 0
+    }
+
+    pub fn incr_health(&mut self, incr: u64) {
+        if self.health + incr >= MAX_HEALTH {
+            self.health = MAX_HEALTH;
+        } else {
+            self.health += incr;
+        }
+    }
+
+    pub fn decr_health(&mut self, decr: u64) {
+        if let Some(res) = self.health.checked_sub(decr) {
+            self.health = res;
+        } else {
+            self.health = 0;
         }
     }
 
@@ -658,26 +1047,29 @@ impl Dwarf {
         self.occupation_duration = 0;
     }
 
-    pub fn work(&mut self, inventory: &mut Inventory, seed: Seed) {
-        let mut rng = SmallRng::seed_from_u64(seed);
-
+    pub fn effectiveness(&self, occupation: Occupation) -> u64 {
         let mut stats = self.stats.clone();
         for item in self.equipment.values().flatten() {
             stats = stats.sum(item.item_stats());
         }
 
-        let mut usefulness = 0;
+        let mut usefulness = self.equipment.len() as u64;
         for item in self.equipment.values().flatten() {
-            usefulness += item
-                .item_usefulness(self.occupation)
-                .map(|usefulness| usefulness * stats.cross(item.item_ideal_stats()) / 10)
-                .unwrap_or_default();
+            if let Some((ideal_stats, item_usefulness)) = item.item_usefulness(occupation) {
+                usefulness += (item_usefulness * stats.cross(ideal_stats) / 10) as u64;
+            }
         }
-        usefulness /= self.equipment.len() as i8;
+        usefulness /= self.equipment.len() as u64;
 
-        assert!(0 <= usefulness && usefulness <= 10);
+        assert!(1 <= usefulness && usefulness <= 11);
 
-        for _ in 0..=usefulness {
+        usefulness
+    }
+
+    pub fn work(&mut self, inventory: &mut Inventory, seed: Seed) {
+        let mut rng = SmallRng::seed_from_u64(seed);
+
+        for _ in 0..self.effectiveness(self.occupation) {
             for item in enum_iterator::all::<Item>() {
                 if let Some(ItemProbability {
                     starting_from_tick,
@@ -705,6 +1097,8 @@ pub enum Occupation {
     Hunting,
     Gathering,
     Fishing,
+    Fighting,
+    Exploring,
 }
 
 impl std::fmt::Display for Occupation {
@@ -716,6 +1110,8 @@ impl std::fmt::Display for Occupation {
             Occupation::Hunting => write!(f, "Hunting"),
             Occupation::Gathering => write!(f, "Gathering"),
             Occupation::Fishing => write!(f, "Fishing"),
+            Occupation::Fighting => write!(f, "Fighting"),
+            Occupation::Exploring => write!(f, "Exploring"),
         }
     }
 }
@@ -728,19 +1124,94 @@ impl Occupation {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Base {
-    pub max: u32,
-    pub buildings: Bundle<Building>,
+    pub prestige: u64,
+    pub curr_level: u64,
+    pub food: Food,
 }
 
 impl Base {
     pub fn new() -> Base {
         Base {
-            max: 10,
-            buildings: Bundle::new(),
+            prestige: 1,
+            curr_level: 1,
+            food: 0,
+        }
+    }
+
+    pub fn max_level(&self) -> u64 {
+        self.prestige * 10
+    }
+
+    pub fn num_dwarfs(&self) -> u64 {
+        self.curr_level * 2
+    }
+
+    pub fn upgrade_cost(&self) -> Option<Bundle<Item>> {
+        if self.curr_level < self.max_level() {
+            Some(
+                Bundle::new()
+                    .add(Item::Wood, self.curr_level * 100)
+                    .add(Item::Stone, self.curr_level * 100)
+                    .add(Item::Nail, self.curr_level * 10),
+            )
+        } else {
+            None
+        }
+    }
+
+    pub fn upgrade(&mut self) {
+        self.curr_level += 1;
+        assert!(self.curr_level <= self.max_level());
+    }
+
+    pub fn village_type(&self) -> VillageType {
+        match self.prestige {
+            1 => VillageType::Outpost,
+            2 => VillageType::Dwelling,
+            3 => VillageType::Hamlet,
+            4 => VillageType::Village,
+            5 => VillageType::Town,
+            6 => VillageType::LargeTown,
+            7 => VillageType::City,
+            8 => VillageType::LargeCity,
+            9 => VillageType::Metropolis,
+            10 => VillageType::Megalopolis,
+            _ => panic!(),
         }
     }
 }
 
+pub enum VillageType {
+    Outpost,
+    Dwelling,
+    Hamlet,
+    Village,
+    Town,
+    LargeTown,
+    City,
+    LargeCity,
+    Metropolis,
+    Megalopolis,
+}
+
+impl std::fmt::Display for VillageType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            VillageType::Outpost => write!(f, "Outpost"),
+            VillageType::Dwelling => write!(f, "Dwelling"),
+            VillageType::Hamlet => write!(f, "Hamlet"),
+            VillageType::Village => write!(f, "Village"),
+            VillageType::Town => write!(f, "Town"),
+            VillageType::LargeTown => write!(f, "Large Town"),
+            VillageType::City => write!(f, "City"),
+            VillageType::LargeCity => write!(f, "Large City"),
+            VillageType::Metropolis => write!(f, "Metropolis"),
+            VillageType::Megalopolis => write!(f, "Megalopolis"),
+        }
+    }
+}
+
+/*
 #[derive(
     Serialize, Deserialize, Clone, Copy, Debug, Hash, PartialEq, Eq, Sequence, PartialOrd, Ord,
 )]
@@ -770,6 +1241,7 @@ impl Craftable for Building {
 }
 
 impl BundleType for Building {}
+*/
 
 pub type Seed = u64;
 pub type DwarfId = u64;
@@ -783,8 +1255,11 @@ pub enum Event {
     Message(String),
     ChangeOccupation(DwarfId, Occupation),
     Craft(Item),
-    Build(Building),
+    UpgradeBase,
     ChangeEquipment(DwarfId, ItemType, Option<Item>),
+    OpenLootCrate,
+    AssignToQuest(usize, usize, Option<DwarfId>),
+    AddToFoodStorage(Item),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -817,3 +1292,148 @@ impl Chat {
         }
     }
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Quest {
+    pub contestants: HashMap<UserId, Contestant>,
+    pub time_left: u64,
+    pub quest_type: QuestType,
+}
+
+impl Quest {
+    pub fn new(quest_type: QuestType) -> Self {
+        Quest {
+            contestants: HashMap::new(),
+            time_left: quest_type.duration(),
+            quest_type,
+        }
+    }
+
+    pub fn add_contenstant(&mut self, user_id: UserId) {
+        self.contestants.insert(
+            user_id,
+            Contestant {
+                dwarfs: HashMap::new(),
+                achieved_score: 0,
+            },
+        );
+    }
+
+    pub fn run(&mut self, players: &HashMap<UserId, Player>) {
+        if self.time_left > 0 {
+            self.time_left -= 1;
+            for (user_id, contestant) in &mut self.contestants {
+                for dwarf_id in contestant.dwarfs.values() {
+                    contestant.achieved_score += players
+                        .get(user_id)
+                        .unwrap()
+                        .dwarfs
+                        .get(dwarf_id)
+                        .unwrap()
+                        .effectiveness(self.quest_type.occupation());
+                }
+            }
+        }
+    }
+
+    pub fn done(&self) -> bool {
+        self.time_left == 0
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum RewardMode {
+    BestGetsAll(Money),
+    SplitFairly(Money),
+    BestGetsItems(Bundle<Item>),
+    Prestige,
+    NewDwarf(usize),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct Contestant {
+    pub dwarfs: HashMap<usize, DwarfId>,
+    pub achieved_score: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Sequence, Hash)]
+pub enum QuestType {
+    KillTheDragon,
+    ArenaFight,
+    ExploreNewLands,
+    FreeTheVillage,
+    FeastForAGuest,
+    SearchForNewDwarfs,
+    AFishingFriend,
+    ADwarfInDanger,
+}
+
+impl std::fmt::Display for QuestType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            QuestType::ArenaFight => write!(f, "Arena Fight"),
+            QuestType::KillTheDragon => write!(f, "Kill the Dragon"),
+            QuestType::ExploreNewLands => write!(f, "Explore New Lands"),
+            QuestType::FreeTheVillage => write!(f, "Free the Elven Village"),
+            QuestType::FeastForAGuest => write!(f, "A Feast for a Guest"),
+            QuestType::SearchForNewDwarfs => write!(f, "A Dwarf got Lost"),
+            QuestType::AFishingFriend => write!(f, "A Fishing Friend"),
+            QuestType::ADwarfInDanger => write!(f, "A Dwarf in Danger"),
+        }
+    }
+}
+
+impl QuestType {
+    pub fn reward_mode(self) -> RewardMode {
+        match self {
+            Self::KillTheDragon => RewardMode::BestGetsItems(Bundle::new().add(Item::DragonsEgg, 1)),
+            Self::ArenaFight => RewardMode::BestGetsAll(1000),
+            Self::ExploreNewLands => RewardMode::Prestige,
+            Self::FreeTheVillage => RewardMode::SplitFairly(500),
+            Self::FeastForAGuest => RewardMode::NewDwarf(1),
+            Self::SearchForNewDwarfs => RewardMode::NewDwarf(1),
+            Self::AFishingFriend => RewardMode::NewDwarf(1),
+            Self::ADwarfInDanger => RewardMode::NewDwarf(1),
+        }
+    }
+
+    pub fn duration(self) -> u64 {
+        match self {
+            Self::KillTheDragon => ONE_HOUR * 3,
+            Self::ArenaFight => ONE_DAY,
+            Self::ExploreNewLands => ONE_DAY,
+            Self::FreeTheVillage => ONE_HOUR * 3,
+            Self::FeastForAGuest => ONE_HOUR,
+            Self::SearchForNewDwarfs => ONE_HOUR,
+            Self::AFishingFriend => ONE_HOUR,
+            Self::ADwarfInDanger => ONE_HOUR,
+        }
+    }
+
+    pub fn occupation(self) -> Occupation {
+        match self {
+            Self::KillTheDragon => Occupation::Fighting,
+            Self::ArenaFight => Occupation::Fighting,
+            Self::ExploreNewLands => Occupation::Exploring,
+            Self::FreeTheVillage => Occupation::Fighting,
+            Self::FeastForAGuest => Occupation::Hunting,
+            Self::SearchForNewDwarfs => Occupation::Gathering,
+            Self::AFishingFriend => Occupation::Fishing,
+            Self::ADwarfInDanger => Occupation::Fighting,
+        }
+    }
+
+    pub fn max_dwarfs(self) -> usize {
+        match self {
+            Self::KillTheDragon => 3,
+            Self::ArenaFight => 1,
+            Self::ExploreNewLands => 3,
+            Self::FreeTheVillage => 3,
+            Self::FeastForAGuest => 1,
+            Self::SearchForNewDwarfs => 1,
+            Self::AFishingFriend => 1,
+            Self::ADwarfInDanger => 1,
+        }
+    }
+}
+

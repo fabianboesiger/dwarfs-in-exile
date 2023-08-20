@@ -1,7 +1,11 @@
 {% extends "base.html" %}
 {% block content %}
+{% include "nav.html" %}
 <main>
-    <p>Welcome to Dwarfs in Exile!</p>
-    <a href="/game" class="button">Play Now</a>
+    <div class="content">
+        <h2>Off to a New World!</h2>
+        <p>The Dwarfen King has exiled you for the crimes that you have commited. You were brought to the forbidden lands, a place full of dangers. Try to stay alive, build and expand your settlement and find more exilants that join you on your adventures.</p>
+        <a href="/game" class="button">Play Now</a>
+    </div>
 </main>
 {% endblock %}

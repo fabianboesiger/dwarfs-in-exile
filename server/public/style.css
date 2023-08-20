@@ -13,7 +13,7 @@
 
 html {
     font-family: Georgia, 'Times New Roman', Times, serif;
-    font-size: medium;
+    font-size: 14px;
 }
 
 body {
@@ -30,6 +30,11 @@ header > h1 {
     margin: 0;
 }
 
+h1 > a {
+    text-decoration: none;
+    color: black;
+}
+
 .form-wrapper {
     max-width: 386px;
     padding: 16px;
@@ -43,7 +48,7 @@ form > div {
     margin-bottom: 1em;
 }
 
-.form-wrapper > h2:first-child {
+.form-wrapper > h2:first-child, .content > h2:first-child {
     margin-top: 0;
 }
 
@@ -62,7 +67,7 @@ input, button, select, a.button, summary {
     text-decoration: none;
     color: black;
     font-family: Georgia, 'Times New Roman', Times, serif;
-    font-size: medium;
+    font-size: 14px;
 }
 
 input:disabled, button:disabled, select:disabled {
@@ -82,19 +87,22 @@ select {
 
 main {
     padding: 16px;
+    max-width: 1024px;
+    margin: auto;
+    margin-bottom: 32px;
 }
 
 header {
     text-align: center;
 }
 
-.dwarf, .building {
+.dwarf, .quest {
     width: 100%;
 }
 
-.items, .buildings, .dwarfs {
+.items, .dwarfs, .quests {
     display: flex;
-    justify-content: space-evenly;
+    justify-content: left;
     align-items: stretch;
     gap: 16px;
     flex-wrap: wrap;
@@ -106,17 +114,33 @@ header {
     display: inline-block;
 }
 
-.dwarf, .item, .building {
+.dwarf, .item, .quest, .content {
     padding: 8px;
 }
 
-.dwarf, .item, .building, #chat, .form-wrapper, .content {
+.dwarf, .item, .quest, #chat, .form-wrapper, .content {
     background: rgba(255, 255, 255, 0.2);    
     backdrop-filter: blur(16px);
     box-shadow: 0 0 8px;
 }
 
-.dwarf h3, .dwarf h4, .item h3, .item h4, .building h3, .building h4 {
+.item-common {
+    background: rgba(255, 255, 255, 0.2);    
+}
+.item-uncommon {
+    background: rgba(0, 175, 9, 0.2);    
+}
+.item-rare {
+    background: rgba(0, 87, 185, 0.2);    
+}
+.item-epic {
+    background: rgba(192, 0, 199, 0.2);    
+}
+.item-legendary {
+    background: rgba(194, 110, 0, 0.2);    
+}
+
+.dwarf h3, .dwarf h4, .quest h3, .quest h4, .item h3, .item h4, .building h3, .building h4 {
     margin: 0;
 }
 
@@ -152,6 +176,11 @@ header {
         max-width: 100vw;
         width: 100vw;
     }
+}
+
+.history {
+    overflow-y: auto;
+    max-height: 256px;
 }
 
 .messages {
@@ -199,8 +228,8 @@ details > summary {
 }
 
 details > div {
-    z-index: 500;
     position: absolute;
     width: 128px;
     box-shadow: 0 12px 16px -4px;
+    z-index: 500;
 }

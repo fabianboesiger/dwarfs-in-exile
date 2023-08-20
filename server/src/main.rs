@@ -1,3 +1,4 @@
+mod about;
 mod auth;
 mod db;
 mod error;
@@ -53,6 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }),
         )
         .route("/", get(index::get_index))
+        .route("/about", get(about::get_about))
         .route("/game", get(game::get_game))
         .route("/game/ws", get(game::ws_handler))
         .route(

@@ -1,10 +1,11 @@
 {% extends "base.html" %}
 {% block content %}
+{% include "nav.html" %}
 <main>
     <div class="form-wrapper">
         <h2>Account</h2>
         <p>Hi {{ username }}, thanks for playing the game!</p>
-        <a class="button" href="/game">Back to the Game</a>
+        <a class="button" href="/">Back to the Main Page</a>
         <a class="button" href="/logout">Logout</a>
     </div>
 
