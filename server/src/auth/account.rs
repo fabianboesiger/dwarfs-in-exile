@@ -17,20 +17,11 @@ use super::{form_error, ToTemplate, ValidatedForm};
 pub struct ChangeUsernameForm {
     #[validate(length(min = 1, message = "The username must not be empty"))]
     username: String,
-    email: String,
-}
-
-#[derive(Debug, Deserialize, Validate)]
-pub struct ChangeEmailForm {
-    username: String,
-    #[validate(email(message = "The email address must be valid"))]
-    email: String,
 }
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct ChangePasswordForm {
     username: String,
-    email: String,
     #[validate(length(min = 4, message = "Password must contain at least 4 characters"))]
     password: String,
     #[validate(must_match(other = "password", message = "The passwords must match"))]
@@ -41,8 +32,6 @@ pub struct ChangePasswordForm {
 pub struct Account {
     #[validate(length(min = 1, message = "The username must not be empty"))]
     username: String,
-    #[validate(email(message = "The email address must be valid"))]
-    email: String,
     #[validate(length(min = 4, message = "Password must contain at least 4 characters"))]
     password: String,
     #[validate(must_match(other = "password", message = "The passwords must match"))]
@@ -60,27 +49,6 @@ impl ToTemplate for ChangeUsernameForm {
                 .iter()
                 .filter_map(|error| error.message.as_ref().map(|msg| msg.to_string()))
                 .collect(),
-            email: self.email,
-            email_error: Vec::new(),
-            password_error: Vec::new(),
-            password_repeat_error: Vec::new(),
-        })
-    }
-}
-
-impl ToTemplate for ChangeEmailForm {
-    fn to_template(self, errors: ValidationErrors) -> Box<dyn DynTemplate> {
-        Box::new(AccountTemplate {
-            username: self.username,
-            username_error: Vec::new(),
-            email: self.email,
-            email_error: errors
-                .field_errors()
-                .get("email")
-                .unwrap_or(&&Vec::new())
-                .iter()
-                .filter_map(|error| error.message.as_ref().map(|msg| msg.to_string()))
-                .collect(),
             password_error: Vec::new(),
             password_repeat_error: Vec::new(),
         })
@@ -92,8 +60,6 @@ impl ToTemplate for ChangePasswordForm {
         Box::new(AccountTemplate {
             username: self.username,
             username_error: Vec::new(),
-            email: self.email,
-            email_error: Vec::new(),
             password_error: errors
                 .field_errors()
                 .get("password")
@@ -117,8 +83,6 @@ impl ToTemplate for ChangePasswordForm {
 pub struct AccountTemplate {
     username: String,
     username_error: Vec<String>,
-    email: String,
-    email_error: Vec<String>,
     password_error: Vec<String>,
     password_repeat_error: Vec<String>,
 }
@@ -127,9 +91,9 @@ pub async fn get_account(
     Extension(session): Extension<Session>,
     Extension(pool): Extension<SqlitePool>,
 ) -> Result<Response, ServerError> {
-    let result: Option<(String, String)> = sqlx::query_as(
+    let result: Option<(String,)> = sqlx::query_as(
         r#"
-            SELECT username, email
+            SELECT username
             FROM users
             NATURAL JOIN sessions
             WHERE session_id = $1
@@ -139,10 +103,9 @@ pub async fn get_account(
     .fetch_optional(&pool)
     .await?;
 
-    if let Some((username, email)) = result {
+    if let Some((username,)) = result {
         Ok(AccountTemplate {
             username,
-            email,
             ..AccountTemplate::default()
         }
         .into_response())
@@ -178,28 +141,6 @@ pub async fn post_change_username(
         )),
         Ok(_) => Ok(Redirect::to("/account").into_response()),
     }
-}
-
-pub async fn post_change_email(
-    ValidatedForm(change_email): ValidatedForm<ChangeEmailForm>,
-    Extension(session): Extension<Session>,
-    Extension(pool): Extension<SqlitePool>,
-) -> Result<Response, ServerError> {
-    sqlx::query(
-        r#"
-            UPDATE users
-            SET email = $1
-            WHERE user_id = (SELECT user_id
-                FROM sessions
-                WHERE session_id = $2)
-        "#,
-    )
-    .bind(&change_email.email)
-    .bind(&session.id())
-    .execute(&pool)
-    .await?;
-
-    Ok(Redirect::to("/account").into_response())
 }
 
 pub async fn post_change_password(

@@ -8,7 +8,7 @@ use axum::{
 use axum_sessions::async_session::Session;
 use futures_util::{sink::SinkExt, stream::StreamExt};
 use rand::{rngs::SmallRng, Rng, SeedableRng};
-use shared::{Event, EventData, SyncData, UserId};
+use shared::{Event, EventData, SyncData, UserId, SPEED};
 use sqlx::SqlitePool;
 use std::{sync::Arc, time::Duration};
 use tokio::{
@@ -73,7 +73,7 @@ impl GameState {
         let game_state_clone = game_state.clone();
 
         tokio::spawn(async move {
-            let mut interval = time::interval(Duration::from_millis(shared::MILLIS_PER_TICK));
+            let mut interval = time::interval(Duration::from_millis(1000 / SPEED));
             let mut rng = SmallRng::from_entropy();
 
             loop {
@@ -125,7 +125,10 @@ impl GameState {
                 if let Some(event) = event {
                     res_sender.send(event.clone()).ok();
                     game.write().await.update(event);
-                    GameState::store_game(&pool, &*game.read().await).await;
+                    let state = &*game.read().await;
+                    if state.time % SPEED == 0 {
+                        GameState::store_game(&pool, state).await;
+                    }
                 }
             }
         });

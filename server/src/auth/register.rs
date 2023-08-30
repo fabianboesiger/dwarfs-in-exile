@@ -20,8 +20,6 @@ use super::{form_error, ToTemplate, ValidatedForm};
 pub struct RegisterForm {
     #[validate(length(min = 1, message = "The username must not be empty"))]
     username: String,
-    #[validate(email(message = "The email address must be valid"))]
-    email: String,
     #[validate(length(min = 4, message = "Password must contain at least 4 characters"))]
     password: String,
     #[validate(must_match(other = "password", message = "The passwords must match"))]
@@ -35,14 +33,6 @@ impl ToTemplate for RegisterForm {
             username_error: errors
                 .field_errors()
                 .get("username")
-                .unwrap_or(&&Vec::new())
-                .iter()
-                .filter_map(|error| error.message.as_ref().map(|msg| msg.to_string()))
-                .collect(),
-            email: self.email,
-            email_error: errors
-                .field_errors()
-                .get("email")
                 .unwrap_or(&&Vec::new())
                 .iter()
                 .filter_map(|error| error.message.as_ref().map(|msg| msg.to_string()))
@@ -70,8 +60,6 @@ impl ToTemplate for RegisterForm {
 pub struct RegisterTemplate {
     username: String,
     username_error: Vec<String>,
-    email: String,
-    email_error: Vec<String>,
     password_error: Vec<String>,
     password_repeat_error: Vec<String>,
 }
@@ -93,13 +81,12 @@ pub async fn post_register(
 
     let result: Result<(UserId,), _> = sqlx::query_as(
         r#"
-            INSERT INTO users (username, email, password)
-            VALUES ($1, $2, $3)
+            INSERT INTO users (username, password)
+            VALUES ($1, $2)
             RETURNING user_id
         "#,
     )
     .bind(&register.username)
-    .bind(&register.email)
     .bind(&hashed)
     .fetch_one(&pool)
     .await;

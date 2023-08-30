@@ -5,14 +5,16 @@ use rand::{
     Rng, SeedableRng,
 };
 use serde::{Deserialize, Serialize};
+use strum::Display;
 
 #[cfg(not(debug_assertions))]
-pub const MILLIS_PER_TICK: u64 = 1000;
+pub const SPEED: u64 = 1;
 #[cfg(debug_assertions)]
-pub const MILLIS_PER_TICK: u64 = 100;
-pub const MAX_HEALTH: Health = 86400;
-pub const ONE_DAY: u64 = 60 * 60 * 24;
-pub const ONE_HOUR: u64 = 60 * 60;
+pub const SPEED: u64 = 10;
+pub const ONE_MINUTE: u64 = 60;
+pub const ONE_HOUR: u64 = ONE_MINUTE * 60;
+pub const ONE_DAY: u64 = ONE_HOUR * 24;
+pub const MAX_HEALTH: Health = ONE_DAY * 3;
 pub const LOOT_CRATE_COST: Money = 1000;
 
 pub type Money = u64;
@@ -40,7 +42,7 @@ pub enum Res {
     Event(EventData),
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SyncData {
     pub user_id: UserId,
     pub state: State,
@@ -61,6 +63,7 @@ pub struct State {
     pub chat: Chat,
     pub quests: Vec<Quest>,
     pub time: Time,
+    pub king: Option<UserId>,
 }
 
 impl State {
@@ -74,6 +77,11 @@ impl State {
     ) -> Option<()> {
         self.time += 1;
 
+        if let Some(user_id) = user_id {
+            let player = self.players.get_mut(&user_id)?;
+            player.last_online = self.time;
+        }
+
         match event {
             Event::Tick => {
                 let mut rng: SmallRng = SmallRng::seed_from_u64(seed.unwrap());
@@ -83,11 +91,15 @@ impl State {
                     let mut sorted_by_health = player.dwarfs.values_mut().collect::<Vec<_>>();
                     sorted_by_health.sort_by_key(|dwarf| dwarf.health);
                     for dwarf in sorted_by_health {
-                        if player.base.food > 0 {
-                            player.base.food -= 1;
-                            dwarf.incr_health(1);
+                        if dwarf.occupation == Occupation::Idling {
+                            if player.base.food > 0
+                                && dwarf.health <= MAX_HEALTH - MAX_HEALTH / 1000
+                            {
+                                player.base.food -= 1;
+                                dwarf.incr_health(MAX_HEALTH / 1000);
+                            }
                         } else {
-                            dwarf.decr_health(1);
+                            dwarf.decr_health(dwarf.occupation.health_cost_per_second());
                         }
                     }
 
@@ -105,6 +117,7 @@ impl State {
                 for quest in &mut self.quests {
                     quest.run(&self.players);
                     if quest.done() {
+                        /*
                         for (user_id, player) in self.players.iter_mut() {
                             if let Some(contestant) = quest.contestants.get(user_id) {
                                 player.log.add(
@@ -116,13 +129,182 @@ impl State {
                                 );
                             }
                         }
+                        */
+
+                        match quest.quest_type.reward_mode() {
+                            RewardMode::BestGetsAll(money) => {
+                                if let Some(user_id) = quest.best() {
+                                    if let Some(player) = self.players.get_mut(&user_id) {
+                                        if self.king.is_some() {
+                                            player.money += money * 9 / 10;
+                                        } else {
+                                            player.money += money;
+                                        }
+                                        player.log.add(
+                                            self.time,
+                                            LogMsg::QuestCompletedMoney(quest.quest_type, money),
+                                        );
+                                    }
+                                    if let Some(king) = self.king {
+                                        if let Some(player) = self.players.get_mut(&king) {
+                                            player.money += money / 10;
+                                            player.log.add(
+                                                self.time,
+                                                LogMsg::MoneyForKing(money / 10),
+                                            );
+                                        }
+                                    }
+                                    for contestant_id in quest.contestants.keys() {
+                                        if *contestant_id != user_id {
+                                            let player = self.players.get_mut(contestant_id)?;
+                                            player.log.add(
+                                                self.time,
+                                                LogMsg::QuestCompletedMoney(quest.quest_type, 0),
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                            RewardMode::BecomeKing => {
+                                if let Some(user_id) = quest.best() {
+                                    if let Some(player) = self.players.get_mut(&user_id) {
+                                        self.king = Some(user_id);
+                                        player.log.add(
+                                            self.time,
+                                            LogMsg::QuestCompletedKing(quest.quest_type, true),
+                                        );
+                                    }
+                                    for contestant_id in quest.contestants.keys() {
+                                        if *contestant_id != user_id {
+                                            let player = self.players.get_mut(contestant_id)?;
+                                            player.log.add(
+                                                self.time,
+                                                LogMsg::QuestCompletedKing(quest.quest_type, false),
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                            RewardMode::SplitFairly(money) => {
+                                for (user_id, money) in quest.split_by_score(if self.king.is_some() {
+                                    money * 9 / 10
+                                } else {
+                                    money
+                                }) {
+                                    if let Some(player) = self.players.get_mut(&user_id) {
+                                        player.money += money;
+                                        player.log.add(
+                                            self.time,
+                                            LogMsg::QuestCompletedMoney(quest.quest_type, 0),
+                                        );
+                                    }
+                                }
+                                if let Some(king) = self.king {
+                                    if let Some(player) = self.players.get_mut(&king) {
+                                        player.money += money / 10;
+                                        player.log.add(
+                                            self.time,
+                                            LogMsg::MoneyForKing(money / 10),
+                                        );
+                                    }
+                                }
+                            }
+                            RewardMode::BestGetsItems(items) => {
+                                if let Some(user_id) = quest.best() {
+                                    if let Some(player) = self.players.get_mut(&user_id) {
+                                        player.inventory.items.add_checked(items.clone());
+                                        player.log.add(
+                                            self.time,
+                                            LogMsg::QuestCompletedItems(
+                                                quest.quest_type,
+                                                Some(items),
+                                            ),
+                                        );
+                                    }
+                                    for contestant_id in quest.contestants.keys() {
+                                        if *contestant_id != user_id {
+                                            let player = self.players.get_mut(contestant_id)?;
+                                            player.log.add(
+                                                self.time,
+                                                LogMsg::QuestCompletedItems(quest.quest_type, None),
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                            RewardMode::Prestige => {
+                                if let Some(user_id) = quest.chance_by_score(seed.unwrap()) {
+                                    if let Some(player) = self.players.get_mut(&user_id) {
+                                        if player.can_prestige() {
+                                            player.prestige();
+                                        }
+                                        player.log.add(
+                                            self.time,
+                                            LogMsg::QuestCompletedPrestige(quest.quest_type, true),
+                                        );
+                                    }
+                                    for contestant_id in quest.contestants.keys() {
+                                        if *contestant_id != user_id {
+                                            let player = self.players.get_mut(contestant_id)?;
+                                            player.log.add(
+                                                self.time,
+                                                LogMsg::QuestCompletedPrestige(
+                                                    quest.quest_type,
+                                                    false,
+                                                ),
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                            RewardMode::NewDwarf(num_dwarfs) => {
+                                if let Some(user_id) = quest.chance_by_score(seed.unwrap()) {
+                                    if let Some(player) = self.players.get_mut(&user_id) {
+                                        player.log.add(
+                                            self.time,
+                                            LogMsg::QuestCompletedDwarfs(
+                                                quest.quest_type,
+                                                Some(num_dwarfs),
+                                            ),
+                                        );
+                                        for _ in 0..num_dwarfs {
+                                            player
+                                                .new_dwarf(seed.unwrap(), &mut self.next_dwarf_id, self.time);
+                                        }
+                                    }
+                                    for contestant_id in quest.contestants.keys() {
+                                        if *contestant_id != user_id {
+                                            let player = self.players.get_mut(contestant_id)?;
+                                            player.log.add(
+                                                self.time,
+                                                LogMsg::QuestCompletedDwarfs(
+                                                    quest.quest_type,
+                                                    None,
+                                                ),
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        for (contestant_id, contestant) in quest.contestants.iter() {
+                            let player = self.players.get_mut(contestant_id)?;
+                            for dwarf_id in contestant.dwarfs.values() {
+                                player
+                                    .dwarfs
+                                    .get_mut(dwarf_id)?
+                                    .change_occupation(Occupation::Idling);
+                            }
+                        }
                     }
                 }
 
                 self.quests.retain(|quest| !quest.done());
 
                 // Add quests.
-                while self.quests.len() < 3 {
+                let active_players = self.players.iter().filter(|(_, player)| player.is_active(self.time)).count();
+                while self.quests.len() < 3.max(active_players / 3) {
                     let active_quests = self
                         .quests
                         .iter()
@@ -130,6 +312,10 @@ impl State {
                         .collect::<HashSet<_>>();
                     let all_quests = enum_iterator::all::<QuestType>().collect::<HashSet<_>>();
                     let potential_quests = &all_quests - &active_quests;
+
+                    if potential_quests.is_empty() {
+                        break;
+                    }
 
                     self.quests.push(Quest::new(
                         *potential_quests
@@ -141,34 +327,35 @@ impl State {
                 }
             }
             Event::AddPlayer(user_id, username) => {
-                let mut player = Player {
-                    username,
-                    dwarfs: HashMap::new(),
-                    base: Base::new(),
-                    inventory: Inventory::new(),
-                    log: Log::default(),
-                    money: 0,
-                };
+                let mut player = Player::new(username, self.time);
+                player.new_dwarf(seed.unwrap(), &mut self.next_dwarf_id, self.time);
+                self.players.insert(user_id, player);
 
                 for players in self.players.values_mut() {
                     players.log.add(self.time, LogMsg::NewPlayer(user_id));
                 }
-
-                player.new_dwarf(seed.unwrap(), &mut self.next_dwarf_id);
-
-                self.players.insert(user_id, player);
             }
             Event::EditPlayer(user_id, username) => {
-                self.players.get_mut(&user_id).unwrap().username = username;
+                self.players.get_mut(&user_id)?.username = username;
             }
             Event::RemovePlayer(user_id) => {
                 self.players.remove(&user_id);
+            }
+            Event::Restart => {
+                let player = self.players.get_mut(&user_id.unwrap())?;
+                if player.dwarfs.len() == 0 {
+                    let player = self.players.remove(&user_id.unwrap()).unwrap();
+                    let username = player.username;
+                    let mut player = Player::new(username, self.time);
+                    player.new_dwarf(seed.unwrap(), &mut self.next_dwarf_id, self.time);
+                    self.players.insert(user_id.unwrap(), player);
+                }
             }
             Event::Message(message) => {
                 self.chat.add_message(user_id.unwrap(), message);
             }
             Event::ChangeOccupation(dwarf_id, occupation) => {
-                let player = self.players.get_mut(&user_id.unwrap()).unwrap();
+                let player = self.players.get_mut(&user_id.unwrap())?;
 
                 let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
 
@@ -177,7 +364,7 @@ impl State {
                 }
             }
             Event::Craft(item) => {
-                let player = self.players.get_mut(&user_id.unwrap()).unwrap();
+                let player = self.players.get_mut(&user_id.unwrap())?;
 
                 if let Some(requires) = item.requires() {
                     if player.inventory.items.remove_checked(requires) {
@@ -189,7 +376,7 @@ impl State {
                 }
             }
             Event::UpgradeBase => {
-                let player = self.players.get_mut(&user_id.unwrap()).unwrap();
+                let player = self.players.get_mut(&user_id.unwrap())?;
 
                 if let Some(requires) = player.base.upgrade_cost() {
                     if player.inventory.items.remove_checked(requires) {
@@ -198,7 +385,7 @@ impl State {
                 }
             }
             Event::ChangeEquipment(dwarf_id, item_type, item) => {
-                let player = self.players.get_mut(&user_id.unwrap()).unwrap();
+                let player = self.players.get_mut(&user_id.unwrap())?;
 
                 if let Some(item) = item {
                     if player
@@ -236,26 +423,35 @@ impl State {
                 }
             }
             Event::OpenLootCrate => {
-                let player = self.players.get_mut(&user_id.unwrap()).unwrap();
+                let player = self.players.get_mut(&user_id.unwrap())?;
 
-                player.open_loot_crate(seed.unwrap());
+                player.open_loot_crate(seed.unwrap(), self.time);
             }
             Event::AssignToQuest(quest_idx, dwarf_idx, dwarf_id) => {
-                let player = self.players.get_mut(&user_id.unwrap()).unwrap();
-                let quest = self.quests.get_mut(quest_idx)?;
-                let contestant = quest.contestants.entry(user_id.unwrap()).or_default();
+                let player = self.players.get_mut(&user_id.unwrap())?;
 
                 if let Some(dwarf_id) = dwarf_id {
                     let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
-                    if dwarf.participates_in_quest.is_none() {
-                        dwarf.change_occupation(quest.quest_type.occupation());
-                        dwarf.participates_in_quest = Some(quest.quest_type);
 
-                        if dwarf_idx < quest.quest_type.max_dwarfs() {
-                            contestant.dwarfs.insert(dwarf_idx, dwarf_id);
-                        }
+                    if let Some((_, old_quest_idx, old_dwarf_idx)) = dwarf.participates_in_quest {
+                        let old_quest = self.quests.get_mut(old_quest_idx)?;
+                        let old_contestant =
+                            old_quest.contestants.entry(user_id.unwrap()).or_default();
+                        old_contestant.dwarfs.remove(&old_dwarf_idx);
+                    }
+
+                    let quest = self.quests.get_mut(quest_idx)?;
+                    let contestant = quest.contestants.entry(user_id.unwrap()).or_default();
+
+                    dwarf.change_occupation(quest.quest_type.occupation());
+                    dwarf.participates_in_quest = Some((quest.quest_type, quest_idx, dwarf_idx));
+                    if dwarf_idx < quest.quest_type.max_dwarfs() {
+                        contestant.dwarfs.insert(dwarf_idx, dwarf_id);
                     }
                 } else {
+                    let quest = self.quests.get_mut(quest_idx)?;
+                    let contestant = quest.contestants.entry(user_id.unwrap()).or_default();
+
                     let old_dwarf_id = contestant.dwarfs.remove(&dwarf_idx);
 
                     if let Some(old_dwarf_id) = old_dwarf_id {
@@ -266,7 +462,7 @@ impl State {
                 }
             }
             Event::AddToFoodStorage(item) => {
-                let player = self.players.get_mut(&user_id.unwrap()).unwrap();
+                let player = self.players.get_mut(&user_id.unwrap())?;
 
                 if player
                     .inventory
@@ -276,6 +472,13 @@ impl State {
                     if let Some(food) = item.item_food() {
                         player.base.food += food;
                     }
+                }
+            }
+            Event::Prestige => {
+                let player = self.players.get_mut(&user_id.unwrap())?;
+
+                if player.can_prestige() {
+                    player.prestige();
                 }
             }
         }
@@ -356,10 +559,17 @@ impl<T: BundleType> Bundle<T> {
     }
 }
 
-impl<T: BundleType + Ord> Bundle<T> {
-    pub fn sorted(self) -> Vec<(T, u64)> {
+impl Bundle<Item> {
+    pub fn sorted_by_name(self) -> Vec<(Item, u64)> {
         let mut vec: Vec<_> = self.0.into_iter().collect();
-        vec.sort();
+        vec.sort_by_key(|(item, _)| (format!("{}", item), item.item_rarity()));
+        vec
+    }
+
+    pub fn sorted_by_rarity(self) -> Vec<(Item, u64)>
+where {
+        let mut vec: Vec<_> = self.0.into_iter().collect();
+        vec.sort_by_key(|(item, _)| (item.item_rarity(), format!("{}", item)));
         vec
     }
 }
@@ -377,14 +587,6 @@ impl<T: BundleType> FromIterator<(T, u64)> for Bundle<T> {
         Bundle(iter.into_iter().collect())
     }
 }
-
-/*
-impl<'a, T: BundleType + 'a> FromIterator<&'a (T, u32)> for Bundle<T> {
-    fn from_iter<I: IntoIterator<Item = &'a (T, u32)>>(iter: I) -> Self {
-        Bundle(iter.into_iter().cloned().collect())
-    }
-}
-*/
 
 impl<T: BundleType> Default for Bundle<T> {
     fn default() -> Self {
@@ -421,7 +623,14 @@ pub enum LogMsg {
     NewPlayer(UserId),
     NewDwarf(DwarfId),
     DwarfDied(String),
-    QuestCompleted(Vec<DwarfId>, QuestType),
+    QuestCompletedMoney(QuestType, Money),
+    QuestCompletedPrestige(QuestType, bool),
+    QuestCompletedKing(QuestType, bool),
+    QuestCompletedItems(QuestType, Option<Bundle<Item>>),
+    QuestCompletedDwarfs(QuestType, Option<usize>),
+    OpenedLootCrate(Bundle<Item>),
+    MoneyForKing(Money),
+    NotEnoughSpaceForDwarf
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -432,15 +641,43 @@ pub struct Player {
     pub inventory: Inventory,
     pub log: Log,
     pub money: Money,
+    pub last_online: Time,
 }
 
 impl Player {
-    pub fn new_dwarf(&mut self, seed: Seed, next_dwarf_id: &mut DwarfId) {
-        self.dwarfs.insert(*next_dwarf_id, Dwarf::new(seed));
-        *next_dwarf_id += 1;
+    pub fn new(username: String, time: Time) -> Self {
+        Player {
+            username,
+            dwarfs: HashMap::new(),
+            base: Base::new(),
+            inventory: Inventory::new(),
+            log: Log::default(),
+            money: 0,
+            last_online: time,
+        }
     }
 
-    pub fn open_loot_crate(&mut self, seed: Seed) {
+    pub fn is_online(&self, time: Time) -> bool {
+        (time - self.last_online) / SPEED < ONE_MINUTE * 3
+    }
+
+    pub fn is_active(&self, time: Time) -> bool {
+        (time - self.last_online) / SPEED < ONE_DAY
+    }
+
+    pub fn new_dwarf(&mut self, seed: Seed, next_dwarf_id: &mut DwarfId, time: Time) {
+        if self.dwarfs.len() < self.base.num_dwarfs() {
+            self.dwarfs.insert(*next_dwarf_id, Dwarf::new(seed));
+            *next_dwarf_id += 1;
+        } else {
+            self.log.add(
+                time,
+                LogMsg::NotEnoughSpaceForDwarf,
+            );
+        }
+    }
+
+    pub fn open_loot_crate(&mut self, seed: Seed, time: Time) {
         let mut rng: SmallRng = SmallRng::seed_from_u64(seed);
 
         if self.money >= LOOT_CRATE_COST {
@@ -451,35 +688,39 @@ impl Player {
                 })
                 .collect();
             let item = *possible_items.choose(&mut rng).unwrap();
-            self.inventory.got_from_loot_crate = Some(item);
-            self.inventory.items.add_checked(Bundle::new().add(item, 1));
+            let bundle = Bundle::new().add(item, 1);
+            self.log.add(time, LogMsg::OpenedLootCrate(bundle.clone()));
+            self.inventory.items.add_checked(bundle);
         }
     }
 
     pub fn can_prestige(&self) -> bool {
-        self.base.prestige < 10 && self.dwarfs.len() as u64 == self.base.num_dwarfs()
+        self.base.prestige < 10 && self.base.curr_level == self.base.max_level()
     }
 
     pub fn prestige(&mut self) {
         self.base.prestige += 1;
+        self.base.curr_level = 1;
         self.base.food = 0;
-        self.dwarfs.clear();
+        self.inventory.items = Bundle::new();
+        self.dwarfs.retain(|_, dwarf| {
+            matches!(
+                dwarf.participates_in_quest,
+                Some((QuestType::ExploreNewLands, _, _))
+            )
+        });
     }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Inventory {
     pub items: Bundle<Item>,
-    //pub loot_crates: NumLootCrates,
-    pub got_from_loot_crate: Option<Item>,
 }
 
 impl Inventory {
     fn new() -> Self {
         Inventory {
             items: Bundle::new(),
-            //loot_crates: 0,
-            got_from_loot_crate: None,
         }
     }
 
@@ -494,8 +735,20 @@ impl Inventory {
 }
 
 #[derive(
-    Serialize, Deserialize, Clone, Copy, Debug, Hash, PartialEq, Eq, Sequence, PartialOrd, Ord,
+    Serialize,
+    Deserialize,
+    Clone,
+    Copy,
+    Debug,
+    Hash,
+    PartialEq,
+    Eq,
+    Sequence,
+    PartialOrd,
+    Ord,
+    Display,
 )]
+#[strum(serialize_all = "title_case")]
 pub enum Item {
     Wood,
     Coal,
@@ -530,6 +783,41 @@ pub enum Item {
     DragonsEgg,
     Dragon,
     Donkey,
+    Milk,
+    Wheat,
+    Egg,
+    Bread,
+    Flour,
+    BlueberryCake,
+    Potato,
+    BakedPotato,
+    Soup,
+    Carrot,
+    Crossbow,
+    Pickaxe,
+    Axe,
+    Pitchfork,
+    ApplePie,
+    Bird,
+    Sulfur,
+    BlackPowder,
+    Musket,
+    Dynamite,
+    Fabric,
+    Backpack,
+    Helmet,
+    Horse,
+    Map,
+    FishingHat,
+    FishingRod,
+    Overall,
+    Boots,
+}
+
+impl Into<usize> for Item {
+    fn into(self) -> usize {
+        self as usize
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash, PartialEq, Eq, Sequence)]
@@ -554,6 +842,11 @@ impl Item {
         match self {
             Item::ChainMail => Some(ItemType::Clothing),
             Item::LeatherArmor => Some(ItemType::Clothing),
+            Item::Backpack => Some(ItemType::Clothing),
+            Item::Helmet => Some(ItemType::Clothing),
+            Item::FishingHat => Some(ItemType::Clothing),
+            Item::Overall => Some(ItemType::Clothing),
+            Item::Boots => Some(ItemType::Clothing),
 
             Item::Bow => Some(ItemType::Tool),
             Item::PoisonedBow => Some(ItemType::Tool),
@@ -561,17 +854,27 @@ impl Item {
             Item::Longsword => Some(ItemType::Tool),
             Item::Spear => Some(ItemType::Tool),
             Item::PoisonedSpear => Some(ItemType::Tool),
+            Item::Crossbow => Some(ItemType::Tool),
+            Item::Pickaxe => Some(ItemType::Tool),
+            Item::Axe => Some(ItemType::Tool),
+            Item::Pitchfork => Some(ItemType::Tool),
+            Item::Musket => Some(ItemType::Tool),
+            Item::Dynamite => Some(ItemType::Tool),
+            Item::FishingRod => Some(ItemType::Tool),
+            Item::Map => Some(ItemType::Tool),
 
             Item::Parrot => Some(ItemType::Pet),
             Item::Wolf => Some(ItemType::Pet),
             Item::Cat => Some(ItemType::Pet),
             Item::Dragon => Some(ItemType::Pet),
             Item::Donkey => Some(ItemType::Pet),
+            Item::Bird => Some(ItemType::Pet),
+            Item::Horse => Some(ItemType::Pet),
             _ => None,
         }
     }
 
-    pub fn item_stats(self) -> Stats {
+    pub fn provides_stats(self) -> Stats {
         match self {
             Item::ChainMail => Stats {
                 endurance: -3,
@@ -582,76 +885,207 @@ impl Item {
                 agility: -1,
                 ..Default::default()
             },
+            Item::Backpack => Stats {
+                agility: -4,
+                ..Default::default()
+            },
+            Item::Musket => Stats {
+                agility: -4,
+                ..Default::default()
+            },
+            Item::Parrot => Stats {
+                perception: 2,
+                intelligence: 3,
+                ..Default::default()
+            },
+            Item::Bird => Stats {
+                perception: 4,
+                ..Default::default()
+            },
+            Item::Horse => Stats {
+                strength: 4,
+                agility: 4,
+                endurance: 4,
+                ..Default::default()
+            },
+            Item::Boots => Stats { 
+                agility: 4,
+                .. Default::default()
+            },
+            Item::Map => Stats { 
+                intelligence: 2,
+                .. Default::default()
+            },
             _ => Stats::default(),
         }
     }
 
     pub fn item_food(self) -> Option<Food> {
-        match self {
-            Item::Apple => Some(5),
+        /*match self {
+            Item::Apple => Some(3),
+            Item::Blueberry => Some(1),
+            Item::Bread => Some(5),
+            Item::BlueberryCake => Some(10),
+            Item::CookedFish => Some(7),
+            Item::CookedMeat => Some(7),
+            Item::BakedPotato => Some(7),
+            Item::Soup => Some(10),
+            Item::
             _ => None,
+        }*/
+        if matches!(
+            self,
+            Item::Apple
+                | Item::Blueberry
+                | Item::Bread
+                | Item::BlueberryCake
+                | Item::CookedFish
+                | Item::CookedMeat
+                | Item::BakedPotato
+                | Item::Soup
+                | Item::ApplePie
+        ) {
+            let nutrition = self.item_rarity_num() / 100 + self.crafting_depth() * 5;
+            if nutrition > 0 {
+                Some(nutrition)
+            } else {
+                None
+            }
+        } else {
+            None
         }
     }
 
-    // Stats, usefulness from 1-10
-    pub fn item_usefulness(self, occupation: Occupation) -> Option<(Stats, i8)> {
+    // sefulness from 0-10
+    pub fn usefulness_for(self, occupation: Occupation) -> u64 {
         match (self, occupation) {
-            (Item::Bow, Occupation::Hunting | Occupation::Fighting) => Some((
-                Stats {
-                    strength: 3,
-                    agility: 7,
-                    ..Default::default()
-                },
-                4,
-            )),
-            (Item::PoisonedBow, Occupation::Hunting | Occupation::Fighting) => Some((
-                Stats {
-                    strength: 3,
-                    agility: 7,
-                    ..Default::default()
-                },
-                5,
-            )),
-            (Item::Spear, Occupation::Hunting | Occupation::Fighting) => Some((
-                Stats {
-                    strength: 5,
-                    agility: 5,
-                    ..Default::default()
-                },
-                3,
-            )),
-            (Item::PoisonedSpear, Occupation::Hunting | Occupation::Fighting) => Some((
-                Stats {
-                    strength: 5,
-                    agility: 5,
-                    ..Default::default()
-                },
-                4,
-            )),
-            (Item::Sword, Occupation::Hunting | Occupation::Fighting) => Some((
-                Stats {
-                    strength: 7,
-                    agility: 3,
-                    ..Default::default()
-                },
-                6,
-            )),
-            (Item::Longsword, Occupation::Hunting | Occupation::Fighting) => Some((
-                Stats {
-                    strength: 8,
-                    agility: 2,
-                    ..Default::default()
-                },
-                7,
-            )),
-            (Item::Dragon, Occupation::Hunting | Occupation::Fighting) => Some((
-                Stats {
-                    intelligence: 10,
-                    ..Default::default()
-                },
-                7,
-            )),
-            _ => None,
+            (Item::Crossbow, Occupation::Hunting | Occupation::Fighting) => 8,
+            (Item::Bow, Occupation::Hunting | Occupation::Fighting) => 4,
+            (Item::PoisonedBow, Occupation::Hunting | Occupation::Fighting) => 5,
+            (Item::Spear, Occupation::Hunting | Occupation::Fighting) => 3,
+            (Item::PoisonedSpear, Occupation::Hunting | Occupation::Fighting) => 4,
+            (Item::Sword, Occupation::Fighting) => 6,
+            (Item::Longsword, Occupation::Fighting) => 7,
+            (Item::Dragon, Occupation::Hunting) => 2,
+            (Item::Dragon, Occupation::Fighting) => 10,
+            (Item::Donkey, Occupation::Gathering) => 6,
+            (Item::Donkey, Occupation::Farming) => 4,
+            (Item::Axe, Occupation::Logging) => 5,
+            (Item::Axe, Occupation::Fighting) => 3,
+            (Item::Pickaxe, Occupation::Mining) => 5,
+            (Item::Pitchfork, Occupation::Farming) => 5,
+            (Item::ChainMail, Occupation::Fighting) => 8,
+            (Item::LeatherArmor, Occupation::Fighting) => 4,
+            (Item::Bird, Occupation::Mining) => 3,
+            (Item::Musket, Occupation::Hunting) => 8,
+            (Item::Musket, Occupation::Fighting) => 5,
+            (Item::Dynamite, Occupation::Fighting) => 4,
+            (Item::Dynamite, Occupation::Mining) => 8,
+            (Item::Backpack, Occupation::Gathering) => 7,
+            (Item::Helmet, Occupation::Mining | Occupation::Logging) => 4,
+            (Item::Helmet, Occupation::Fighting) => 3,
+            (Item::Horse, Occupation::Fighting) => 5,
+            (Item::Horse, Occupation::Farming | Occupation::Logging) => 7,
+            (Item::Map, Occupation::Gathering | Occupation::Exploring) => 7,
+            (Item::FishingHat, Occupation::Fishing) => 8,
+            (Item::FishingRod, Occupation::Fishing) => 8,
+            (Item::Overall, Occupation::Farming | Occupation::Logging) => 8,
+            (Item::Boots, Occupation::Hunting | Occupation::Gathering | Occupation::Exploring) => 4,
+            _ => 0,
+        }
+    }
+
+    pub fn requires_stats(self) -> Stats {
+        match self {
+            Item::Crossbow => Stats {
+                agility: 2,
+                perception: 8,
+                ..Default::default()
+            },
+            Item::Bow | Item::PoisonedBow => Stats {
+                agility: 4,
+                perception: 6,
+                ..Default::default()
+            },
+            Item::Spear | Item::PoisonedSpear => Stats {
+                strength: 5,
+                agility: 5,
+                ..Default::default()
+            },
+            Item::Sword => Stats {
+                strength: 7,
+                agility: 3,
+                ..Default::default()
+            },
+            Item::Longsword => Stats {
+                strength: 8,
+                agility: 2,
+                ..Default::default()
+            },
+            Item::Dragon => Stats {
+                intelligence: 10,
+                ..Default::default()
+            },
+            Item::Donkey => Stats {
+                intelligence: 5,
+                endurance: 5,
+                ..Default::default()
+            },
+            Item::Axe => Stats {
+                strength: 5,
+                endurance: 5,
+                ..Default::default()
+            },
+            Item::Pickaxe => Stats {
+                strength: 5,
+                agility: 5,
+                ..Default::default()
+            },
+            Item::Pitchfork => Stats {
+                endurance: 5,
+                agility: 5,
+                ..Default::default()
+            },
+            Item::ChainMail => Stats {
+                strength: 5,
+                endurance: 5,
+                ..Default::default()
+            },
+            Item::Bird => Stats {
+                intelligence: 5,
+                agility: 5,
+                ..Default::default()
+            },
+            Item::Dynamite => Stats {
+                intelligence: 8,
+                perception: 2,
+                ..Default::default()
+            },
+            Item::Musket => Stats {
+                intelligence: 2,
+                perception: 0,
+                ..Default::default()
+            },
+            Item::Backpack => Stats {
+                strength: 5,
+                endurance: 5,
+                ..Default::default()
+            },
+            Item::Horse => Stats {
+                agility: 5,
+                intelligence: 5,
+                ..Default::default()
+            },
+            Item::FishingRod => Stats {
+                agility: 5,
+                intelligence: 5,
+                ..Default::default()
+            },
+            Item::Map => Stats {
+                intelligence: 10,
+                ..Default::default()
+            },
+            _ => Stats::default(),
         }
     }
 
@@ -663,12 +1097,16 @@ impl Item {
                     expected_ticks_per_drop: 30,
                 }),
                 Item::IronOre => Some(ItemProbability {
-                    starting_from_tick: 500,
+                    starting_from_tick: 400,
                     expected_ticks_per_drop: 250,
                 }),
                 Item::Coal => Some(ItemProbability {
                     starting_from_tick: 100,
                     expected_ticks_per_drop: 150,
+                }),
+                Item::Sulfur => Some(ItemProbability {
+                    starting_from_tick: 2000,
+                    expected_ticks_per_drop: 1000,
                 }),
                 _ => None,
             },
@@ -676,6 +1114,10 @@ impl Item {
                 Item::Wood => Some(ItemProbability {
                     starting_from_tick: 0,
                     expected_ticks_per_drop: 30,
+                }),
+                Item::Apple => Some(ItemProbability {
+                    starting_from_tick: 0,
+                    expected_ticks_per_drop: 300,
                 }),
                 Item::Parrot => Some(ItemProbability {
                     starting_from_tick: 1000,
@@ -696,16 +1138,12 @@ impl Item {
                     starting_from_tick: 0,
                     expected_ticks_per_drop: 120,
                 }),
-                Item::Wolf => Some(ItemProbability {
-                    starting_from_tick: 2000,
-                    expected_ticks_per_drop: 10000,
-                }),
                 _ => None,
             },
             Occupation::Gathering => match self {
                 Item::Blueberry => Some(ItemProbability {
                     starting_from_tick: 0,
-                    expected_ticks_per_drop: 200,
+                    expected_ticks_per_drop: 100,
                 }),
                 Item::Apple => Some(ItemProbability {
                     starting_from_tick: 0,
@@ -714,10 +1152,6 @@ impl Item {
                 Item::Hemp => Some(ItemProbability {
                     starting_from_tick: 0,
                     expected_ticks_per_drop: 150,
-                }),
-                Item::Cat => Some(ItemProbability {
-                    starting_from_tick: 2000,
-                    expected_ticks_per_drop: 10000,
                 }),
                 _ => None,
             },
@@ -732,8 +1166,51 @@ impl Item {
                 }),
                 _ => None,
             },
-            Occupation::Fighting => None,
-            Occupation::Exploring => None,
+            Occupation::Fighting => match self {
+                Item::Wolf => Some(ItemProbability {
+                    starting_from_tick: 2000,
+                    expected_ticks_per_drop: 10000,
+                }),
+                _ => None
+            },
+            Occupation::Exploring => match self {
+                Item::Cat => Some(ItemProbability {
+                    starting_from_tick: 2000,
+                    expected_ticks_per_drop: 10000,
+                }),
+                Item::Donkey => Some(ItemProbability {
+                    starting_from_tick: 5000,
+                    expected_ticks_per_drop: 20000,
+                }),
+                Item::Horse => Some(ItemProbability {
+                    starting_from_tick: 10000,
+                    expected_ticks_per_drop: 30000,
+                }),
+                _ => None,
+            },
+            Occupation::Farming => match self {
+                Item::Milk => Some(ItemProbability {
+                    starting_from_tick: 0,
+                    expected_ticks_per_drop: 400,
+                }),
+                Item::Egg => Some(ItemProbability {
+                    starting_from_tick: 0,
+                    expected_ticks_per_drop: 300,
+                }),
+                Item::Wheat => Some(ItemProbability {
+                    starting_from_tick: 1000,
+                    expected_ticks_per_drop: 300,
+                }),
+                Item::Potato => Some(ItemProbability {
+                    starting_from_tick: 2000,
+                    expected_ticks_per_drop: 300,
+                }),
+                Item::Carrot => Some(ItemProbability {
+                    starting_from_tick: 2000,
+                    expected_ticks_per_drop: 500,
+                }),
+                _ => None,
+            },
             Occupation::Idling => None,
         }
     }
@@ -769,30 +1246,35 @@ impl Item {
         rarity.unwrap_or(25000)
     }
 
+    pub fn crafting_depth(self) -> u64 {
+        let mut depth = 0;
+
+        let mut update_depth = |new_depth| {
+            depth = depth.max(new_depth);
+        };
+
+        if let Some(requires) = self.requires() {
+            if let Some(max_depth) = requires.iter().map(|(item, _)| item.crafting_depth()).max() {
+                update_depth(max_depth + 1)
+            }
+        }
+
+        depth
+    }
+
     pub fn item_rarity(self) -> ItemRarity {
         ItemRarity::from(self.item_rarity_num())
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Display, PartialOrd, Ord)]
+#[strum(serialize_all = "title_case")]
 pub enum ItemRarity {
     Common,
     Uncommon,
     Rare,
     Epic,
     Legendary,
-}
-
-impl std::fmt::Display for ItemRarity {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ItemRarity::Common => write!(f, "Common"),
-            ItemRarity::Uncommon => write!(f, "Uncommon"),
-            ItemRarity::Rare => write!(f, "Rare"),
-            ItemRarity::Epic => write!(f, "Epic"),
-            ItemRarity::Legendary => write!(f, "Legendary"),
-        }
-    }
 }
 
 impl From<u64> for ItemRarity {
@@ -822,7 +1304,7 @@ pub struct Stats {
     pub endurance: i8,
     pub agility: i8,
     pub intelligence: i8,
-    pub charisma: i8,
+    pub perception: i8,
 }
 
 impl Stats {
@@ -834,7 +1316,7 @@ impl Stats {
             endurance: rng.gen_range(1..=10),
             agility: rng.gen_range(1..=10),
             intelligence: rng.gen_range(1..=10),
-            charisma: rng.gen_range(1..=10),
+            perception: rng.gen_range(1..=10),
         }
     }
 
@@ -844,61 +1326,22 @@ impl Stats {
             endurance: (self.endurance + other.endurance).min(10).max(1),
             agility: (self.agility + other.agility).min(10).max(1),
             intelligence: (self.intelligence + other.intelligence).min(10).max(1),
-            charisma: (self.charisma + other.charisma).min(10).max(1),
+            perception: (self.perception + other.perception).min(10).max(1),
         }
     }
 
-    pub fn cross(self, other: Self) -> i8 {
-        let out = (self.strength * other.strength / 10
-            + self.endurance * other.endurance / 10
-            + self.agility * other.agility / 10
-            + self.intelligence * other.intelligence / 10
-            + self.charisma * other.charisma / 10)
-            / 5;
-
-        assert!(1 <= out && out <= 10);
+    pub fn cross(self, other: Self) -> u64 {
+        let out = self.strength as u64 * other.strength as u64
+            + self.endurance as u64 * other.endurance as u64
+            + self.agility as u64 * other.agility as u64
+            + self.intelligence as u64 * other.intelligence as u64
+            + self.perception as u64 * other.perception as u64;
 
         out
     }
-}
 
-impl std::fmt::Display for Item {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Item::Stone => write!(f, "Stone"),
-            Item::Wood => write!(f, "Wood"),
-            Item::Iron => write!(f, "Iron"),
-            Item::Nail => write!(f, "Nail"),
-            Item::Coal => write!(f, "Coal"),
-            Item::IronOre => write!(f, "Iron Ore"),
-            Item::Chain => write!(f, "Chain"),
-            Item::ChainMail => write!(f, "Chain Mail"),
-            Item::Bow => write!(f, "Bow"),
-            Item::RawMeat => write!(f, "Raw Meat"),
-            Item::CookedMeat => write!(f, "Cooked Meat"),
-            Item::Leather => write!(f, "Leather"),
-            Item::Bone => write!(f, "Bone"),
-            Item::Blueberry => write!(f, "Blueberry"),
-            Item::RawFish => write!(f, "Raw Fish"),
-            Item::CookedFish => write!(f, "Cooked Fish"),
-            Item::PufferFish => write!(f, "Puffer Fish"),
-            Item::PoisonedBow => write!(f, "Poisoned Bow"),
-            Item::Poison => write!(f, "Poison"),
-            Item::Parrot => write!(f, "Parrot"),
-            Item::Hemp => write!(f, "Hemp"),
-            Item::String => write!(f, "String"),
-            Item::Wolf => write!(f, "Wolf"),
-            Item::LeatherArmor => write!(f, "Leather Armor"),
-            Item::Sword => write!(f, "Sword"),
-            Item::Longsword => write!(f, "Longsword"),
-            Item::Spear => write!(f, "Spear"),
-            Item::PoisonedSpear => write!(f, "Poisoned Spear"),
-            Item::Cat => write!(f, "Cat"),
-            Item::Apple => write!(f, "Apple"),
-            Item::DragonsEgg => write!(f, "Dragons Egg"),
-            Item::Dragon => write!(f, "Dragon"),
-            Item::Donkey => write!(f, "Donkey"),
-        }
+    pub fn is_zero(&self) -> bool {
+        *self == Stats::default()
     }
 }
 
@@ -915,28 +1358,119 @@ impl Craftable for Item {
             Item::CookedFish => Some(Bundle::new().add(Item::RawFish, 1).add(Item::Coal, 1)),
             Item::Poison => Some(Bundle::new().add(Item::PufferFish, 1)),
             Item::PoisonedBow => Some(Bundle::new().add(Item::Bow, 1).add(Item::Poison, 1)),
-            Item::String => Some(Bundle::new().add(Item::Hemp, 10)),
-            Item::LeatherArmor => Some(Bundle::new().add(Item::Leather, 3).add(Item::String, 3)),
+            Item::String => Some(Bundle::new().add(Item::Hemp, 5)),
+            Item::LeatherArmor => Some(Bundle::new().add(Item::Leather, 8).add(Item::String, 3)),
             Item::Sword => Some(
                 Bundle::new()
                     .add(Item::Wood, 1)
                     .add(Item::Iron, 5)
-                    .add(Item::Coal, 10),
             ),
             Item::Longsword => Some(
                 Bundle::new()
                     .add(Item::Wood, 1)
                     .add(Item::Iron, 10)
-                    .add(Item::Coal, 10),
             ),
             Item::Spear => Some(
                 Bundle::new()
                     .add(Item::Wood, 3)
                     .add(Item::Iron, 2)
-                    .add(Item::Coal, 3),
             ),
             Item::PoisonedSpear => Some(Bundle::new().add(Item::Spear, 1).add(Item::Poison, 1)),
             Item::Dragon => Some(Bundle::new().add(Item::DragonsEgg, 1).add(Item::Coal, 100)),
+            Item::BakedPotato => Some(Bundle::new().add(Item::Potato, 1).add(Item::Coal, 1)),
+            Item::BlueberryCake => Some(
+                Bundle::new()
+                    .add(Item::Blueberry, 5)
+                    .add(Item::Flour, 3)
+                    .add(Item::Egg, 2)
+                    .add(Item::Milk, 1),
+            ),
+            Item::ApplePie => Some(
+                Bundle::new()
+                    .add(Item::Apple, 5)
+                    .add(Item::Flour, 3)
+                    .add(Item::Egg, 2)
+                    .add(Item::Milk, 1),
+            ),
+            Item::Bread => Some(Bundle::new().add(Item::Flour, 3)),
+            Item::Flour => Some(Bundle::new().add(Item::Wheat, 3)),
+            Item::Soup => Some(Bundle::new().add(Item::Potato, 3).add(Item::Carrot, 3)),
+            Item::Pickaxe => Some(
+                Bundle::new()
+                    .add(Item::Wood, 5)
+                    .add(Item::Iron, 10)
+            ),
+            Item::Axe => Some(
+                Bundle::new()
+                    .add(Item::Wood, 5)
+                    .add(Item::Iron, 10)
+            ),
+            Item::Pitchfork => Some(
+                Bundle::new()
+                    .add(Item::Wood, 5)
+                    .add(Item::Iron, 10)
+            ),
+            Item::Crossbow => Some(
+                Bundle::new()
+                    .add(Item::Wood, 5)
+                    .add(Item::Iron, 10)
+                    .add(Item::Nail, 3)
+            ),
+            Item::BlackPowder => Some(
+                Bundle::new()
+                    .add(Item::Coal, 2)
+                    .add(Item::Sulfur, 1)
+            ),
+            Item::Musket => Some(
+                Bundle::new()
+                    .add(Item::Wood, 10)
+                    .add(Item::Iron, 20)
+                    .add(Item::BlackPowder, 5)
+            ),
+            Item::Dynamite => Some(
+                Bundle::new()
+                    .add(Item::BlackPowder, 10)
+                    .add(Item::Fabric, 1)
+            ),
+            Item::Fabric => Some(
+                Bundle::new()
+                    .add(Item::String, 5)
+            ),
+            Item::Backpack => Some(
+                Bundle::new()
+                    .add(Item::String, 2)
+                    .add(Item::Fabric, 5)
+            ),
+            Item::Helmet => Some(
+                Bundle::new()
+                    .add(Item::Iron, 3)
+                    .add(Item::Leather, 1)
+                    .add(Item::String, 1)
+            ),
+            Item::FishingRod => Some(
+                Bundle::new()
+                    .add(Item::Wood, 3)
+                    .add(Item::String, 3)
+                    .add(Item::Iron, 1)
+            ),
+            Item::FishingHat => Some(
+                Bundle::new()
+                    .add(Item::Fabric, 5)
+            ),
+            Item::Map => Some(
+                Bundle::new()
+                    .add(Item::Fabric, 5)
+            ),
+            Item::Overall => Some(
+                Bundle::new()
+                    .add(Item::Fabric, 5)
+                    .add(Item::String, 5)
+            ),
+            Item::Boots => Some(
+                Bundle::new()
+                    .add(Item::Leather, 5)
+                    .add(Item::String, 2)
+            ),
             _ => None,
         }
     }
@@ -947,7 +1481,7 @@ impl BundleType for Item {}
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Dwarf {
     pub name: String,
-    pub participates_in_quest: Option<QuestType>,
+    pub participates_in_quest: Option<(QuestType, usize, usize)>,
     pub occupation: Occupation,
     pub occupation_duration: u64,
     pub stats: Stats,
@@ -1047,21 +1581,31 @@ impl Dwarf {
         self.occupation_duration = 0;
     }
 
-    pub fn effectiveness(&self, occupation: Occupation) -> u64 {
+    pub fn effective_stats(&self) -> Stats {
         let mut stats = self.stats.clone();
         for item in self.equipment.values().flatten() {
-            stats = stats.sum(item.item_stats());
+            stats = stats.sum(item.provides_stats());
         }
+        stats
+    }
 
-        let mut usefulness = self.equipment.len() as u64;
+    pub fn equipment_usefulness(&self, occupation: Occupation, item: Item) -> u64 {
+        if item.requires_stats().is_zero() {
+            item.usefulness_for(occupation)
+        } else {
+            item.usefulness_for(occupation) * self.effective_stats().cross(item.requires_stats()) / 100
+        }
+    }
+
+    // output 0 - 10
+    pub fn effectiveness(&self, occupation: Occupation) -> u64 {
+        let mut usefulness = 0;
         for item in self.equipment.values().flatten() {
-            if let Some((ideal_stats, item_usefulness)) = item.item_usefulness(occupation) {
-                usefulness += (item_usefulness * stats.cross(ideal_stats) / 10) as u64;
-            }
+            usefulness += self.equipment_usefulness(occupation, *item);
         }
         usefulness /= self.equipment.len() as u64;
 
-        assert!(1 <= usefulness && usefulness <= 11);
+        assert!(usefulness <= 10);
 
         usefulness
     }
@@ -1069,7 +1613,7 @@ impl Dwarf {
     pub fn work(&mut self, inventory: &mut Inventory, seed: Seed) {
         let mut rng = SmallRng::seed_from_u64(seed);
 
-        for _ in 0..self.effectiveness(self.occupation) {
+        for _ in 0..=self.effectiveness(self.occupation) {
             for item in enum_iterator::all::<Item>() {
                 if let Some(ItemProbability {
                     starting_from_tick,
@@ -1089,7 +1633,8 @@ impl Dwarf {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Copy, Sequence, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, Copy, Sequence, PartialEq, Eq, Display)]
+#[strum(serialize_all = "title_case")]
 pub enum Occupation {
     Idling,
     Mining,
@@ -1099,26 +1644,22 @@ pub enum Occupation {
     Fishing,
     Fighting,
     Exploring,
-}
-
-impl std::fmt::Display for Occupation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Occupation::Idling => write!(f, "Idling"),
-            Occupation::Mining => write!(f, "Mining"),
-            Occupation::Logging => write!(f, "Logging"),
-            Occupation::Hunting => write!(f, "Hunting"),
-            Occupation::Gathering => write!(f, "Gathering"),
-            Occupation::Fishing => write!(f, "Fishing"),
-            Occupation::Fighting => write!(f, "Fighting"),
-            Occupation::Exploring => write!(f, "Exploring"),
-        }
-    }
+    Farming,
 }
 
 impl Occupation {
-    pub fn all() -> impl Iterator<Item = Occupation> {
-        enum_iterator::all()
+    pub fn health_cost_per_second(self) -> u64 {
+        match self {
+            Occupation::Idling => 0,
+            Occupation::Mining => 2,
+            Occupation::Logging => 2,
+            Occupation::Hunting => 2,
+            Occupation::Gathering => 1,
+            Occupation::Fishing => 1,
+            Occupation::Fighting => 3,
+            Occupation::Exploring => 1,
+            Occupation::Farming => 1,
+        }
     }
 }
 
@@ -1142,17 +1683,17 @@ impl Base {
         self.prestige * 10
     }
 
-    pub fn num_dwarfs(&self) -> u64 {
-        self.curr_level * 2
+    pub fn num_dwarfs(&self) -> usize {
+        self.curr_level as usize * 2
     }
 
     pub fn upgrade_cost(&self) -> Option<Bundle<Item>> {
         if self.curr_level < self.max_level() {
             Some(
                 Bundle::new()
-                    .add(Item::Wood, self.curr_level * 100)
-                    .add(Item::Stone, self.curr_level * 100)
-                    .add(Item::Nail, self.curr_level * 10),
+                    .add(Item::Wood, self.curr_level * 50)
+                    .add(Item::Stone, self.curr_level * 50)
+                    .add(Item::Nail, self.curr_level * 5),
             )
         } else {
             None
@@ -1181,6 +1722,8 @@ impl Base {
     }
 }
 
+#[derive(Display)]
+#[strum(serialize_all = "title_case")]
 pub enum VillageType {
     Outpost,
     Dwelling,
@@ -1193,55 +1736,6 @@ pub enum VillageType {
     Metropolis,
     Megalopolis,
 }
-
-impl std::fmt::Display for VillageType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            VillageType::Outpost => write!(f, "Outpost"),
-            VillageType::Dwelling => write!(f, "Dwelling"),
-            VillageType::Hamlet => write!(f, "Hamlet"),
-            VillageType::Village => write!(f, "Village"),
-            VillageType::Town => write!(f, "Town"),
-            VillageType::LargeTown => write!(f, "Large Town"),
-            VillageType::City => write!(f, "City"),
-            VillageType::LargeCity => write!(f, "Large City"),
-            VillageType::Metropolis => write!(f, "Metropolis"),
-            VillageType::Megalopolis => write!(f, "Megalopolis"),
-        }
-    }
-}
-
-/*
-#[derive(
-    Serialize, Deserialize, Clone, Copy, Debug, Hash, PartialEq, Eq, Sequence, PartialOrd, Ord,
-)]
-pub enum Building {
-    Huts,
-    Storage,
-    Wall,
-}
-
-impl std::fmt::Display for Building {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Building::Huts => write!(f, "Huts"),
-            Building::Storage => write!(f, "Storage"),
-            Building::Wall => write!(f, "Wall"),
-        }
-    }
-}
-
-impl Craftable for Building {
-    fn requires(self) -> Option<Bundle<Item>> {
-        match self {
-            Building::Huts => Some(Bundle::new().add(Item::Wood, 10)),
-            _ => None,
-        }
-    }
-}
-
-impl BundleType for Building {}
-*/
 
 pub type Seed = u64;
 pub type DwarfId = u64;
@@ -1260,6 +1754,8 @@ pub enum Event {
     OpenLootCrate,
     AssignToQuest(usize, usize, Option<DwarfId>),
     AddToFoodStorage(Item),
+    Prestige,
+    Restart,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -1309,6 +1805,38 @@ impl Quest {
         }
     }
 
+    pub fn best(&self) -> Option<UserId> {
+        let mut best_score = 0;
+        let mut best_user_id = None;
+        for (user_id, contestant) in &self.contestants {
+            if contestant.achieved_score >= best_score {
+                best_user_id = Some(*user_id);
+                best_score = contestant.achieved_score;
+            }
+        }
+        best_user_id
+    }
+
+    pub fn split_by_score(&self, num: u64) -> Vec<(UserId, u64)> {
+        let total_score: u64 = self.contestants.values().map(|c| c.achieved_score).sum();
+        self.contestants
+            .iter()
+            .map(|(user_id, c)| (*user_id, num * c.achieved_score / total_score))
+            .collect()
+    }
+
+    pub fn chance_by_score(&self, seed: Seed) -> Option<UserId> {
+        let mut rng: SmallRng = SmallRng::seed_from_u64(seed);
+        let total_score: u64 = self.contestants.values().map(|c| c.achieved_score).sum();
+        self.contestants
+            .iter()
+            .map(|(user_id, c)| (*user_id, c.achieved_score as f64 / total_score as f64))
+            .collect::<Vec<_>>()
+            .choose_weighted(&mut rng, |elem| elem.1)
+            .ok()
+            .map(|item| item.0)
+    }
+
     pub fn add_contenstant(&mut self, user_id: UserId) {
         self.contestants.insert(
             user_id,
@@ -1330,7 +1858,8 @@ impl Quest {
                         .dwarfs
                         .get(dwarf_id)
                         .unwrap()
-                        .effectiveness(self.quest_type.occupation());
+                        .effectiveness(self.quest_type.occupation())
+                        + 1;
                 }
             }
         }
@@ -1348,6 +1877,7 @@ pub enum RewardMode {
     BestGetsItems(Bundle<Item>),
     Prestige,
     NewDwarf(usize),
+    BecomeKing,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -1366,6 +1896,7 @@ pub enum QuestType {
     SearchForNewDwarfs,
     AFishingFriend,
     ADwarfInDanger,
+    ForTheKing,
 }
 
 impl std::fmt::Display for QuestType {
@@ -1379,6 +1910,7 @@ impl std::fmt::Display for QuestType {
             QuestType::SearchForNewDwarfs => write!(f, "A Dwarf got Lost"),
             QuestType::AFishingFriend => write!(f, "A Fishing Friend"),
             QuestType::ADwarfInDanger => write!(f, "A Dwarf in Danger"),
+            QuestType::ForTheKing => write!(f, "For the King!"),
         }
     }
 }
@@ -1386,28 +1918,35 @@ impl std::fmt::Display for QuestType {
 impl QuestType {
     pub fn reward_mode(self) -> RewardMode {
         match self {
-            Self::KillTheDragon => RewardMode::BestGetsItems(Bundle::new().add(Item::DragonsEgg, 1)),
-            Self::ArenaFight => RewardMode::BestGetsAll(1000),
+            Self::KillTheDragon => {
+                RewardMode::BestGetsItems(Bundle::new().add(Item::DragonsEgg, 1))
+            }
+            Self::ArenaFight => RewardMode::BestGetsAll(2000),
             Self::ExploreNewLands => RewardMode::Prestige,
-            Self::FreeTheVillage => RewardMode::SplitFairly(500),
+            Self::FreeTheVillage => RewardMode::SplitFairly(1000),
             Self::FeastForAGuest => RewardMode::NewDwarf(1),
             Self::SearchForNewDwarfs => RewardMode::NewDwarf(1),
             Self::AFishingFriend => RewardMode::NewDwarf(1),
             Self::ADwarfInDanger => RewardMode::NewDwarf(1),
+            Self::ForTheKing => RewardMode::BecomeKing,
         }
     }
 
     pub fn duration(self) -> u64 {
+        /*
         match self {
             Self::KillTheDragon => ONE_HOUR * 3,
             Self::ArenaFight => ONE_DAY,
             Self::ExploreNewLands => ONE_DAY,
             Self::FreeTheVillage => ONE_HOUR * 3,
-            Self::FeastForAGuest => ONE_HOUR,
-            Self::SearchForNewDwarfs => ONE_HOUR,
-            Self::AFishingFriend => ONE_HOUR,
-            Self::ADwarfInDanger => ONE_HOUR,
+            Self::FeastForAGuest => ONE_HOUR * 3,
+            Self::SearchForNewDwarfs => ONE_HOUR * 3,
+            Self::AFishingFriend => ONE_HOUR * 3,
+            Self::ADwarfInDanger => ONE_HOUR * 3,
+            Self::ForTheKing => ONE_DAY,
         }
+        */
+        ONE_HOUR
     }
 
     pub fn occupation(self) -> Occupation {
@@ -1420,6 +1959,7 @@ impl QuestType {
             Self::SearchForNewDwarfs => Occupation::Gathering,
             Self::AFishingFriend => Occupation::Fishing,
             Self::ADwarfInDanger => Occupation::Fighting,
+            Self::ForTheKing => Occupation::Fighting,
         }
     }
 
@@ -1427,13 +1967,13 @@ impl QuestType {
         match self {
             Self::KillTheDragon => 3,
             Self::ArenaFight => 1,
-            Self::ExploreNewLands => 3,
+            Self::ExploreNewLands => 2,
             Self::FreeTheVillage => 3,
             Self::FeastForAGuest => 1,
             Self::SearchForNewDwarfs => 1,
             Self::AFishingFriend => 1,
             Self::ADwarfInDanger => 1,
+            Self::ForTheKing => 3,
         }
     }
 }
-

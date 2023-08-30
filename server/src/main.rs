@@ -71,7 +71,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/account/username",
             post(auth::account::post_change_username),
         )
-        .route("/account/email", post(auth::account::post_change_email))
+        //.route("/account/email", post(auth::account::post_change_email))
         .route(
             "/account/password",
             post(auth::account::post_change_password),

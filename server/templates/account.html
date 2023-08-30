@@ -5,12 +5,9 @@
     <div class="form-wrapper">
         <h2>Account</h2>
         <p>Hi {{ username }}, thanks for playing the game!</p>
-        <a class="button" href="/">Back to the Main Page</a>
         <a class="button" href="/logout">Logout</a>
-    </div>
-
-    <div class="form-wrapper">
-        <h2>Change Username</h2>
+    
+        <h3>Change Username</h3>
         <form method="POST" action="/account/username">
             <div>
                 <label for="username">Username</label>
@@ -19,28 +16,10 @@
                     <span class="error">{{ err }}</span>
                 {% endfor %}
             </div>
-            <input type="hidden" name="email" value="{{ email }}">
             <input type="submit" value="Apply Changes">
         </form>
-    </div>
-
-    <div class="form-wrapper">
-        <h2>Change E-Mail</h2>
-        <form method="POST" action="/account/email">
-            <div>
-                <label for="email">E-Mail</label>
-                <input id="email" type="email" name="email" value="{{ email }}">
-                {% for err in email_error %}
-                    <span class="error">{{ err }}</span>
-                {% endfor %}
-            </div>
-            <input type="hidden" name="username" value="{{ username }}">
-            <input type="submit" value="Apply Changes">
-        </form>
-    </div>
-
-    <div class="form-wrapper">
-        <h2>Change Password</h2>
+   
+        <h3>Change Password</h3>
         <form method="POST" action="/account/password">
             <div>
                 <label for="password">Password</label>
@@ -57,7 +36,6 @@
                 {% endfor %}
             </div>
             <input type="hidden" name="username" value="{{ username }}">
-            <input type="hidden" name="email" value="{{ email }}">
             <input type="submit" value="Apply Changes">
         </form>
     </div>
