@@ -96,7 +96,7 @@ impl State {
                     let mut sorted_by_health = player.dwarfs.values_mut().collect::<Vec<_>>();
                     sorted_by_health.sort_by_key(|dwarf| dwarf.health);
                     for dwarf in sorted_by_health {
-                        dwarf.decr_health(dwarf.occupation.health_cost_per_second() * 100);
+                        dwarf.decr_health(dwarf.occupation.health_cost_per_second());
                         if dwarf.occupation == Occupation::Idling {
                             if player.base.food > 0
                                 && dwarf.health <= MAX_HEALTH - MAX_HEALTH / 1000
