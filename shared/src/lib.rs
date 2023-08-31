@@ -1049,10 +1049,10 @@ impl Item {
             (Item::Dragon, Occupation::Fighting) => 10,
             (Item::Donkey, Occupation::Gathering) => 6,
             (Item::Donkey, Occupation::Farming) => 4,
-            (Item::Axe, Occupation::Logging) => 5,
+            (Item::Axe, Occupation::Logging) => 6,
             (Item::Axe, Occupation::Fighting) => 3,
-            (Item::Pickaxe, Occupation::Mining) => 5,
-            (Item::Pitchfork, Occupation::Farming) => 5,
+            (Item::Pickaxe, Occupation::Mining) => 6,
+            (Item::Pitchfork, Occupation::Farming) => 6,
             (Item::ChainMail, Occupation::Fighting) => 8,
             (Item::LeatherArmor, Occupation::Fighting) => 4,
             (Item::Bird, Occupation::Mining) => 3,
@@ -1278,7 +1278,7 @@ impl Item {
                 }),
                 Item::Leather => Some(ItemProbability {
                     starting_from_tick: 0,
-                    expected_ticks_per_drop: ONE_MINUTE * 5,
+                    expected_ticks_per_drop: ONE_MINUTE * 4,
                 }),
                 Item::Bone => Some(ItemProbability {
                     starting_from_tick: 0,
@@ -1309,6 +1309,14 @@ impl Item {
                 Item::PufferFish => Some(ItemProbability {
                     starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_HOUR,
+                }),
+                Item::Boots => Some(ItemProbability {
+                    starting_from_tick: 0,
+                    expected_ticks_per_drop: ONE_HOUR * 4,
+                }),
+                Item::Gloves => Some(ItemProbability {
+                    starting_from_tick: 0,
+                    expected_ticks_per_drop: ONE_HOUR * 4,
                 }),
                 _ => None,
             },
@@ -1515,7 +1523,7 @@ impl Craftable for Item {
     fn requires(self) -> Option<Bundle<Item>> {
         match self {
             Item::Iron => Some(Bundle::new().add(Item::IronOre, 1).add(Item::Coal, 1)),
-            Item::Nail => Some(Bundle::new().add(Item::Iron, 2).add(Item::Coal, 1)),
+            Item::Nail => Some(Bundle::new().add(Item::Iron, 1).add(Item::Coal, 1)),
             Item::Chain => Some(Bundle::new().add(Item::Iron, 5).add(Item::Coal, 2)),
             Item::ChainMail => Some(Bundle::new().add(Item::Chain, 5)),
             Item::Coal => Some(Bundle::new().add(Item::Wood, 3)),
