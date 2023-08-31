@@ -851,6 +851,7 @@ pub enum Item {
     BearClawGloves,
     BearClawBoots,
     FishingNet,
+    Bag,
 }
 
 impl Into<usize> for Item {
@@ -914,6 +915,7 @@ impl Item {
             Item::Lantern => Some(ItemType::Tool),
             Item::FishingNet => Some(ItemType::Tool),
             Item::TigerFangDagger => Some(ItemType::Tool),
+            Item::Bag => Some(ItemType::Tool),
 
             Item::Parrot => Some(ItemType::Pet),
             Item::Wolf => Some(ItemType::Pet),
@@ -1059,6 +1061,7 @@ impl Item {
             (Item::Dynamite, Occupation::Fighting) => 4,
             (Item::Dynamite, Occupation::Mining) => 8,
             (Item::Backpack, Occupation::Gathering) => 7,
+            (Item::Bag, Occupation::Gathering) => 5,
             (Item::Helmet, Occupation::Mining | Occupation::Logging) => 4,
             (Item::Helmet, Occupation::Fighting) => 3,
             (Item::RhinoHornHelmet, Occupation::Fighting) => 8,
@@ -1164,6 +1167,11 @@ impl Item {
                 endurance: 5,
                 ..Default::default()
             },
+            Item::Bag => Stats {
+                strength: 5,
+                endurance: 5,
+                ..Default::default()
+            },
             Item::Horse => Stats {
                 agility: 5,
                 intelligence: 5,
@@ -1204,8 +1212,8 @@ impl Item {
                     expected_ticks_per_drop: ONE_MINUTE / 2,
                 }),
                 Item::IronOre => Some(ItemProbability {
-                    starting_from_tick: ONE_MINUTE * 5,
-                    expected_ticks_per_drop: ONE_MINUTE * 5,
+                    starting_from_tick: ONE_MINUTE * 3,
+                    expected_ticks_per_drop: ONE_MINUTE * 3,
                 }),
                 Item::Coal => Some(ItemProbability {
                     starting_from_tick: ONE_MINUTE * 2,
@@ -1289,7 +1297,7 @@ impl Item {
                 }),
                 Item::Hemp => Some(ItemProbability {
                     starting_from_tick: 0,
-                    expected_ticks_per_drop: ONE_MINUTE * 5,
+                    expected_ticks_per_drop: ONE_MINUTE * 3,
                 }),
                 _ => None,
             },
@@ -1516,7 +1524,7 @@ impl Craftable for Item {
             Item::CookedFish => Some(Bundle::new().add(Item::RawFish, 1).add(Item::Coal, 1)),
             Item::Poison => Some(Bundle::new().add(Item::PufferFish, 1)),
             Item::PoisonedBow => Some(Bundle::new().add(Item::Bow, 1).add(Item::Poison, 1)),
-            Item::String => Some(Bundle::new().add(Item::Hemp, 5)),
+            Item::String => Some(Bundle::new().add(Item::Hemp, 3)),
             Item::LeatherArmor => Some(Bundle::new().add(Item::Leather, 8).add(Item::String, 3)),
             Item::Sword => Some(
                 Bundle::new()
@@ -1601,12 +1609,17 @@ impl Craftable for Item {
             ),
             Item::Fabric => Some(
                 Bundle::new()
-                    .add(Item::String, 5)
+                    .add(Item::String, 3)
             ),
             Item::Backpack => Some(
                 Bundle::new()
                     .add(Item::String, 2)
-                    .add(Item::Fabric, 5)
+                    .add(Item::Leather, 5)
+            ),
+            Item::Bag => Some(
+                Bundle::new()
+                    .add(Item::String, 1)
+                    .add(Item::Fabric, 2)
             ),
             Item::Helmet => Some(
                 Bundle::new()

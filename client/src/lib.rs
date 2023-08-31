@@ -691,7 +691,7 @@ fn base(SyncData { state, user_id }: &SyncData) -> Node<Msg> {
                 td![format!("{}", player.base.village_type())]
             ],
             //tr![th!["Settlement Level"], td![format!("{} / {}", player.base.curr_level, player.base.max_level())]],
-            tr![th!["Population", tip("Upgrade your settlement to increase the maximum population.")], td![format!("{}/{}", player.dwarfs.len(), player.base.num_dwarfs())]],
+            tr![th!["Population", tip("Upgrade your settlement to increase the maximum population. You can get new dwarfs from certain quests or at random.")], td![format!("{}/{}", player.dwarfs.len(), player.base.num_dwarfs())]],
             tr![th!["Money", tip("Earn money by doing quests. With money, you can buy loot crates.")], td![format!("🜚{}", player.money)]],
             tr![th!["Food", tip("Your settlement can store food for your dwarfs to consume. One quantity of food restores 0.1% of a dwarfs health.")], td![format!("{}", player.base.food)]],
         ],
