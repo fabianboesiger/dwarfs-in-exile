@@ -1023,11 +1023,7 @@ impl Item {
                 | Item::ApplePie
         ) {
             let nutrition = self.item_rarity_num() / 100 + self.crafting_depth() * 5;
-            if nutrition > 0 {
-                Some(nutrition)
-            } else {
-                None
-            }
+            Some(nutrition.max(1))
         } else {
             None
         }
