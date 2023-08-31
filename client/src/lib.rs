@@ -2,7 +2,7 @@ use seed::{prelude::*, *};
 use shared::{
     Bundle, Craftable, DwarfId, Event, EventData, Health, Item, ItemRarity, ItemType, LogMsg,
     Occupation, QuestType, Req, Res, RewardMode, Stats, SyncData, LOOT_CRATE_COST, MAX_HEALTH,
-    SPEED,
+    SPEED, Player,
 };
 use std::{rc::Rc, str::FromStr};
 use itertools::Itertools;
@@ -634,7 +634,7 @@ fn quests(SyncData { state, user_id }: &SyncData) -> Node<Msg> {
                 ],
                 RewardMode::BestGetsItems(items) => div![
                     p![format!("The best player will get the following items:")],
-                    p![bundle(&items)]
+                    p![bundle(&items, player)]
                 ],
                 RewardMode::NewDwarf(num) => div![p![format!("The best participant gets {num} new dwarf for their settlement.")]],
             },
@@ -704,7 +704,7 @@ fn base(SyncData { state, user_id }: &SyncData) -> Node<Msg> {
                 } else {
                     p!["The next upgrade increases your maximal population by two."]
                 },
-                bundle(&requires),
+                bundle(&requires, player),
                 button![
                     if player.inventory.items.check_remove(&requires) {
                         attrs! {}
@@ -887,7 +887,7 @@ fn inventory(
                                 vec![div![
                                     if let Some(requires) = item.requires() {
                                         div![
-                                            bundle(&requires),
+                                            bundle(&requires, player),
                                             button![
                                                 if player.inventory.items.check_remove(&requires) {
                                                     attrs! {}
@@ -1181,12 +1181,21 @@ fn history(model: &Model, SyncData { state, user_id }: &SyncData) -> Node<Msg> {
     ]
 }
 
-fn bundle(requires: &Bundle<Item>) -> Node<Msg> {
+fn bundle(requires: &Bundle<Item>, player: &Player) -> Node<Msg> {
     ul![requires
         .clone()
         .sorted_by_rarity()
         .into_iter()
-        .map(|(item, n)| { li![C!["clickable-item"], format!("{n}x {item}"), ev(Ev::Click, move |_| Msg::GoToItem(item))] })]
+        .map(|(item, n)| {
+            let available = player.inventory.items.check_remove(&Bundle::new().add(item, n));
+            li![C!["clickable-item"],
+                span![
+                    if available { C![] } else { C!["unavailable"]},
+                    format!("{n}x {item}"), ev(Ev::Click, move |_| Msg::GoToItem(item))
+                ],
+                span![format!(" ({})", player.inventory.items.get(&item).copied().unwrap_or_default())]
+            ]
+        })]
 }
 
 fn stats(stats: &Stats) -> Node<Msg> {

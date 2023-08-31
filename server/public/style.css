@@ -409,6 +409,10 @@ input[type=checkbox] {
     cursor: pointer;
 }
 
+.clickable-item.unavailable {
+    text-decoration: line-through underline;
+}
+
 .loading {
     margin-top: 30vw;
     text-shadow: 0 0 32px black;
