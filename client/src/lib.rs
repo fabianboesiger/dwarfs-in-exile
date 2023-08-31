@@ -7,7 +7,10 @@ use shared::{
 use std::{rc::Rc, str::FromStr};
 use itertools::Itertools;
 
+#[cfg(not(debug_assertions))]
 const WS_URL: &str = "ws://boesiger.internet-box.ch/game/ws";
+#[cfg(debug_assertions)]
+const WS_URL: &str = "ws://127.0.0.1:3000/game/ws";
 
 // ------ ------
 //     Model
@@ -580,10 +583,11 @@ fn dwarfs(SyncData { state, user_id }: &SyncData, mode: DwarfsMode) -> Node<Msg>
     } else {
         div![
             C!["content"],
-            p!["All your dwarfs have died!"],
+            h2!["There's Noone Here!"],
+            p!["All your dwarfs have died! You can wait until a new dwarf finds your settlement or start over with a new settlement."],
             button![
                 ev(Ev::Click, move |_| Msg::SendGameEvent(Event::Restart)),
-                "Restart",
+                "Restart your Settlement",
             ],
         ]
     }

@@ -86,11 +86,17 @@ impl State {
             Event::Tick => {
                 let mut rng: SmallRng = SmallRng::seed_from_u64(seed.unwrap());
 
-                for (_, player) in &mut self.players {
+                for (user_id, player) in &mut self.players {
+                    // Chance for a new dwarf!
+                    if rng.gen_ratio(1, ONE_DAY as u32) {
+                        player.new_dwarf(seed.unwrap(), &mut self.next_dwarf_id, self.time);
+                    }
+
                     // Let the dwarfs eat!
                     let mut sorted_by_health = player.dwarfs.values_mut().collect::<Vec<_>>();
                     sorted_by_health.sort_by_key(|dwarf| dwarf.health);
                     for dwarf in sorted_by_health {
+                        dwarf.decr_health(dwarf.occupation.health_cost_per_second() * 100);
                         if dwarf.occupation == Occupation::Idling {
                             if player.base.food > 0
                                 && dwarf.health <= MAX_HEALTH - MAX_HEALTH / 1000
@@ -98,8 +104,6 @@ impl State {
                                 player.base.food -= 1;
                                 dwarf.incr_health(MAX_HEALTH / 1000);
                             }
-                        } else {
-                            dwarf.decr_health(dwarf.occupation.health_cost_per_second());
                         }
                     }
 
@@ -110,12 +114,19 @@ impl State {
                         }
                     }
 
+                    // Remove dead dwarfs.
+                    for quest in &mut self.quests {
+                        if let Some(contestant) = quest.contestants.get_mut(user_id) {
+                            contestant.dwarfs.retain(|_, dwarf_id| !player.dwarfs.get(&dwarf_id).unwrap().dead());
+                        }
+                    }
                     player.dwarfs.retain(|_, dwarf| !dwarf.dead());
                 }
 
                 // Continue the active quests.
                 for quest in &mut self.quests {
                     quest.run(&self.players);
+
                     if quest.done() {
                         /*
                         for (user_id, player) in self.players.iter_mut() {
@@ -1892,7 +1903,7 @@ pub enum Occupation {
 impl Occupation {
     pub fn health_cost_per_second(self) -> u64 {
         match self {
-            Occupation::Idling => 0,
+            Occupation::Idling => 1,
             Occupation::Mining => 2,
             Occupation::Logging => 2,
             Occupation::Hunting => 2,
