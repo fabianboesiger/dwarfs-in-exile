@@ -13,7 +13,7 @@
     left: 0;
     width: 100vw;
     height: 100vh;
-    background-image: url("/background.jpg");
+    background-image: url("/background-low-res.jpg");
     background-position: center; 
     background-repeat: no-repeat;
     background-size: cover;
@@ -22,7 +22,7 @@
 
 html {
     font-family: Georgia, 'Times New Roman', Times, serif;
-    font-size: 14px;
+    font-size: 12px;
 }
 
 body {
@@ -76,7 +76,7 @@ input, button, select, a.button, summary {
     text-decoration: none;
     color: black;
     font-family: Georgia, 'Times New Roman', Times, serif;
-    font-size: 14px;
+    font-size: 12px;
 }
 
 
@@ -108,16 +108,16 @@ header {
     text-align: center;
 }
 
-.dwarf, .quest {
-    width: 100%;
-}
-
 .items, .dwarfs, .quests {
     display: flex;
     justify-content: space-between;
     align-items: stretch;
     gap: 16px;
     flex-wrap: wrap;
+}
+
+.dwarf, .quest {
+    width: 100%;
 }
 
 .item {
@@ -136,7 +136,7 @@ header {
 }
 
 .dwarf, .item, .quest, #chat .togglable, #history .togglable, .form-wrapper, .content {
-    background: rgba(255, 255, 255, 0.2);    
+    background: rgba(255, 255, 255, 0.3);    
     backdrop-filter: blur(16px);
     box-shadow: 0 0 8px;
 }
@@ -161,20 +161,26 @@ header {
     margin: 0;
 }
 
-
-.dwarf-contents, .building-contents {
+.dwarf-contents {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: stretch;
     width: 100%;
 }
+
+@media only screen and (max-width: 768px) {
+    .dwarf-contents > * {
+        width: 100%;
+    }
+}
+
 
 .item-contents {
     display: flex;
     flex-direction: column;
-    gap: 0px;
+    gap: 4px;
     justify-content: space-between;
     align-items: stretch;
     height: 100%;
@@ -293,16 +299,21 @@ nav button, nav a.button, .occupation button {
     margin-bottom: 16px;
     box-shadow: 0 0 8px;
     display: flex;
+    gap: 8px;
     justify-content: space-between;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    border-radius: 8px;
+    padding: 4px;
 }
 
 .inventory-filter > * {
     display: inline-block;
+    flex-shrink: 0;
 }
 
-.inventory-filter .spacer {
-    width: 16px;
+.inventory-filter > :last-child {
+    flex-grow: 0;
+    flex-shrink: 1;
 }
 
 input[type=checkbox] {
@@ -340,6 +351,8 @@ input[type=checkbox] {
     margin-left: 2px;
     margin-right: 2px;
     cursor: pointer;
+    font-weight: bold;
+    color: black;
 }
   
 .tooltip .tooltiptext {
@@ -352,9 +365,10 @@ input[type=checkbox] {
     box-shadow: 0 0 8px;
     padding: 8px;
     font-family: Georgia, 'Times New Roman', Times, serif;
-    font-size: 14px;
+    font-size: 12px;
     font-weight: normal;
     width: 256px;
+    color: black;
 }
   
 .tooltip:hover .tooltiptext, .tooltip:active .tooltiptext {
@@ -393,4 +407,12 @@ input[type=checkbox] {
 .clickable-item {
     text-decoration: underline;
     cursor: pointer;
+}
+
+.loading {
+    margin-top: 30vw;
+    text-shadow: 0 0 32px black;
+    color: white;
+    font-size: 16px;
+    text-align: center;
 }

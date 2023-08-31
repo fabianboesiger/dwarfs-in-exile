@@ -1,13 +1,14 @@
-use crate::ServerError;
+use crate::{ServerError, game::GameState};
 use askama::{DynTemplate, Template};
 use askama_axum::Response;
 use axum::{
     response::{IntoResponse, Redirect},
     Extension,
 };
-use axum_sessions::async_session::Session;
+use axum_sessions::extractors::ReadableSession;
 use bcrypt::hash;
 use serde::Deserialize;
+use shared::UserId;
 use sqlx::SqlitePool;
 use validator::{Validate, ValidationErrors};
 
@@ -88,7 +89,7 @@ pub struct AccountTemplate {
 }
 
 pub async fn get_account(
-    Extension(session): Extension<Session>,
+    session: ReadableSession,
     Extension(pool): Extension<SqlitePool>,
 ) -> Result<Response, ServerError> {
     let result: Option<(String,)> = sqlx::query_as(
@@ -115,21 +116,40 @@ pub async fn get_account(
 }
 
 pub async fn post_change_username(
-    ValidatedForm(change_username): ValidatedForm<ChangeUsernameForm>,
-    Extension(session): Extension<Session>,
+    session: ReadableSession,
     Extension(pool): Extension<SqlitePool>,
+    Extension(game_state): Extension<GameState>,
+    ValidatedForm(change_username): ValidatedForm<ChangeUsernameForm>,
 ) -> Result<Response, ServerError> {
+    let result: Result<(UserId,), _> = sqlx::query_as(
+        r#"
+            SELECT user_id
+                FROM sessions
+                WHERE session_id = $1
+        "#,
+    )
+    .bind(&session.id())
+    .fetch_one(&pool)
+    .await;
+
+    let user_id = match result {
+        Err(err) => {
+            return Err(ServerError::SqliteError(err));
+        }
+        Ok((user_id, )) => {
+            user_id
+        },
+    };
+
     let result = sqlx::query(
         r#"
             UPDATE users
             SET username = $1
-            WHERE user_id = (SELECT user_id
-                FROM sessions
-                WHERE session_id = $2)
+            WHERE user_id = $2
         "#,
     )
     .bind(&change_username.username)
-    .bind(&session.id())
+    .bind(&user_id)
     .execute(&pool)
     .await;
 
@@ -139,14 +159,18 @@ pub async fn post_change_username(
             "unique",
             "This username is already taken",
         )),
-        Ok(_) => Ok(Redirect::to("/account").into_response()),
+        Ok(_) => {
+            game_state.edit_player(user_id, change_username.username);
+
+            Ok(Redirect::to("/account").into_response())
+        },
     }
 }
 
 pub async fn post_change_password(
-    ValidatedForm(change_password): ValidatedForm<ChangePasswordForm>,
-    Extension(session): Extension<Session>,
+    session: ReadableSession,
     Extension(pool): Extension<SqlitePool>,
+    ValidatedForm(change_password): ValidatedForm<ChangePasswordForm>,
 ) -> Result<Response, ServerError> {
     let password = change_password.password.clone();
     let hashed = tokio::task::spawn_blocking(move || hash(&password, 4).unwrap())

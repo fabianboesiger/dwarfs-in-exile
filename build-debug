@@ -9,6 +9,3 @@ cd ..
 
 mkdir -p server/public
 /bin/cp -rf client/pkg server/public
-
-cd target/debug
-./server

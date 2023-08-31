@@ -1,0 +1,4 @@
+#!/bin/bash
+./build-release
+cd target/release
+./server

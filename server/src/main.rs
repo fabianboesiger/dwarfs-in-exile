@@ -38,7 +38,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let store = MemoryStore::new();
     let secret = b"7w!z%C*F-JaNdRgUjXn2r5u8x/A?D(G+KbPeShVmYp3s6v9y$B&E)H@McQfTjWnZ";
-    let session_layer = SessionLayer::new(store, secret);
+    let session_layer = SessionLayer::new(store, secret)
+        .with_secure(false)
+        .with_http_only(false);
 
     let game_state = game::GameState::new(pool.clone()).await;
 
@@ -46,17 +48,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .fallback(
             get_service(ServeDir::new(assets_dir).append_index_html_on_directories(true))
+                /*
                 .handle_error(|error: std::io::Error| async move {
                     (
                         StatusCode::INTERNAL_SERVER_ERROR,
                         format!("Unhandled internal error: {}", error),
                     )
                 }),
+                */
         )
         .route("/", get(index::get_index))
         .route("/about", get(about::get_about))
-        .route("/game", get(game::get_game))
         .route("/game/ws", get(game::ws_handler))
+        .route("/game", get(game::get_game))
+        .route("/game/*subpath", get(game::get_game))
         .route(
             "/register",
             get(auth::register::get_register).post(auth::register::post_register),
@@ -84,7 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .make_span_with(DefaultMakeSpan::default().include_headers(true)),
         );
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     tracing::debug!("listening on {}", addr);
 
     axum::Server::bind(&addr)

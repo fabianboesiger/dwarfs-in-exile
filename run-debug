@@ -1,0 +1,4 @@
+#!/bin/bash
+./build-debug
+cd target/debug
+./server

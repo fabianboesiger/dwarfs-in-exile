@@ -7,7 +7,7 @@ use axum::{
     response::{IntoResponse, Redirect},
     Extension,
 };
-use axum_sessions::async_session::Session;
+use axum_sessions::extractors::WritableSession;
 use bcrypt::hash;
 use serde::Deserialize;
 use shared::UserId;
@@ -69,11 +69,11 @@ pub async fn get_register() -> RegisterTemplate {
 }
 
 pub async fn post_register(
-    ValidatedForm(register): ValidatedForm<RegisterForm>,
-    Extension(mut session): Extension<Session>,
+    mut session: WritableSession,
     Extension(pool): Extension<SqlitePool>,
     Extension(game_state): Extension<GameState>,
-) -> Result<(Extension<Session>, Response), ServerError> {
+    ValidatedForm(register): ValidatedForm<RegisterForm>,
+) -> Result<Response, ServerError> {
     let password = register.password.clone();
     let hashed = tokio::task::spawn_blocking(move || hash(&password, 4).unwrap())
         .await
@@ -110,11 +110,10 @@ pub async fn post_register(
             .execute(&pool)
             .await?;
 
-            Ok((Extension(session), Redirect::to("/game").into_response()))
+            Ok(Redirect::to("/game").into_response())
         }
-        Err(_err) => Ok((
-            Extension(session),
+        Err(_err) => Ok(
             form_error(register, "unique", "This username is already taken"),
-        )),
+        ),
     }
 }

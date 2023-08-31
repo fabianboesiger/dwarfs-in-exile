@@ -7,7 +7,7 @@ use axum::{
     response::{IntoResponse, Redirect},
     Extension,
 };
-use axum_sessions::async_session::Session;
+use axum_sessions::extractors::WritableSession;
 use bcrypt::verify;
 use serde::Deserialize;
 use shared::UserId;
@@ -59,10 +59,10 @@ pub async fn get_login() -> LoginTemplate {
 }
 
 pub async fn post_login(
-    ValidatedForm(login): ValidatedForm<LoginForm>,
-    Extension(mut session): Extension<Session>,
+    mut session: WritableSession,
     Extension(pool): Extension<SqlitePool>,
-) -> Result<(Extension<Session>, Response), ServerError> {
+    ValidatedForm(login): ValidatedForm<LoginForm>,
+) -> Result<Response, ServerError> {
     let result: Result<(String, UserId), _> = sqlx::query_as(
         r#"
             SELECT password, user_id
@@ -96,17 +96,15 @@ pub async fn post_login(
                 .execute(&pool)
                 .await?;
 
-                Ok((Extension(session), Redirect::to("/game").into_response()))
+                Ok(Redirect::to("/game").into_response())
             } else {
-                Ok((
-                    Extension(session),
+                Ok(
                     form_error(login, "verify", "The password is incorrect"),
-                ))
+                )
             }
         }
-        Err(_err) => Ok((
-            Extension(session),
+        Err(_err) => Ok(
             form_error(login, "inexistent", "This username does not exist"),
-        )),
+        ),
     }
 }

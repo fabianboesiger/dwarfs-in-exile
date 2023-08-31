@@ -1,10 +1,10 @@
 use crate::ServerError;
 use axum::{response::Redirect, Extension};
-use axum_sessions::async_session::Session;
+use axum_sessions::extractors::ReadableSession;
 use sqlx::SqlitePool;
 
 pub async fn get_logout(
-    Extension(session): Extension<Session>,
+    session: ReadableSession,
     Extension(pool): Extension<SqlitePool>,
 ) -> Result<Redirect, ServerError> {
     sqlx::query(

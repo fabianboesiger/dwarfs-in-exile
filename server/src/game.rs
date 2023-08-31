@@ -5,7 +5,7 @@ use axum::{
     response::Redirect,
     Extension,
 };
-use axum_sessions::async_session::Session;
+use axum_sessions::extractors::ReadableSession;
 use futures_util::{sink::SinkExt, stream::StreamExt};
 use rand::{rngs::SmallRng, Rng, SeedableRng};
 use shared::{Event, EventData, SyncData, UserId, SPEED};
@@ -161,11 +161,22 @@ impl GameState {
             })
             .unwrap();
     }
+
+    pub fn edit_player(&self, user_id: UserId, username: String) {
+        self.0
+            .req_sender
+            .send(EventData {
+                event: Event::EditPlayer(user_id, username),
+                user_id: None,
+                seed: None,
+            })
+            .unwrap();
+    }
 }
 
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
-    Extension(session): Extension<Session>,
+    session: ReadableSession,
     Extension(pool): Extension<SqlitePool>,
     Extension(game_state): Extension<GameState>,
 ) -> Result<Response, ServerError> {
@@ -254,7 +265,7 @@ pub async fn ws_handler(
 pub struct GameTemplate {}
 
 pub async fn get_game(
-    Extension(session): Extension<Session>,
+    session: ReadableSession,
     Extension(pool): Extension<SqlitePool>,
 ) -> Result<Response, ServerError> {
     let result: Option<(UserId,)> = sqlx::query_as(

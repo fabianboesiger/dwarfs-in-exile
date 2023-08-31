@@ -4,10 +4,10 @@ use shared::{
     Occupation, QuestType, Req, Res, RewardMode, Stats, SyncData, LOOT_CRATE_COST, MAX_HEALTH,
     SPEED,
 };
-use std::rc::Rc;
+use std::{rc::Rc, str::FromStr};
 use itertools::Itertools;
 
-const WS_URL: &str = "ws://127.0.0.1:3000/game/ws";
+const WS_URL: &str = "ws://boesiger.internet-box.ch/game/ws";
 
 // ------ ------
 //     Model
@@ -20,6 +20,18 @@ pub enum Page {
     Inventory(InventoryMode),
     Quests,
     Ranking,
+}
+
+impl Page {
+    fn from_url(url: Url) -> Self {
+        match url.path().get(1).map(|s| s.as_str()) {
+            Some("dwarfs") => Page::Dwarfs(DwarfsMode::Overview),
+            Some("inventory") => Page::Inventory(InventoryMode::Crafting),
+            Some("quests") => Page::Quests,
+            Some("ranking") => Page::Ranking,
+            _ => Page::Base,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -70,14 +82,25 @@ pub struct Model {
 //     Init
 // ------ ------
 
-fn init(_url: Url, orders: &mut impl Orders<Msg>) -> Model {
-    orders.subscribe(|subs::UrlRequested(_, url_request)| url_request.handled());
+fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
+    //orders.subscribe(|subs::UrlRequested(_, url_request)| url_request.handled());
+    orders.subscribe(|subs::UrlRequested(url, url_request)| {
+        if url.path().get(0).map(|s| s.as_str()) == Some("game") {
+            url_request.unhandled()
+        } else {
+            url_request.handled()
+        }
+        //url_request.handled()
+    });
+    orders.subscribe(|subs::UrlChanged(url)| {
+        Msg::ChangePage(Page::from_url(url))
+    });
 
     Model {
         web_socket: create_websocket(orders),
         web_socket_reconnector: None,
         state: None,
-        page: Page::Base,
+        page: Page::from_url(url),
         message: String::new(),
         chat_visible: false,
         history_visible: false,
@@ -227,7 +250,8 @@ fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
         Msg::GoToItem(item) => {
             model.inventory_filter = InventoryFilter::default();
             model.inventory_filter.item_name = item.to_string();
-            model.page = Page::Inventory(InventoryMode::Crafting);
+            //model.page = Page::Inventory(InventoryMode::Crafting);
+            orders.notify(subs::UrlRequested::new(Url::from_str("/game/inventory").unwrap())); 
         }
     }
 }
@@ -274,6 +298,10 @@ fn decode_message(message: WebSocketMessage, msg_sender: Rc<dyn Fn(Option<Msg>)>
 fn view(model: &Model) -> Vec<Node<Msg>> {
     if let Some(data) = &model.state {
         vec![
+            div![id!["background"]],
+            header![
+                h1![a![attrs!{ At::Href => "/" }, "Dwarfs in Exile"]]
+            ],
             nav(model),
             #[cfg(debug_assertions)]
             div![
@@ -300,8 +328,15 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
             history(model, data),
         ]
     } else {
-        // Loading
-        vec![]
+        vec![
+            div![id!["background"]],
+            header![
+                h1![a![attrs!{ At::Href => "/" }, "Dwarfs in Exile"]]
+            ],
+            div![C!["loading"],
+                "Loading ..."
+            ]
+        ]
     }
 }
 
@@ -412,7 +447,8 @@ fn dwarfs(SyncData { state, user_id }: &SyncData, mode: DwarfsMode) -> Node<Msg>
                                 fmt_time(dwarf.occupation_duration)
                             )
                         }],
-                        health_bar(dwarf.health, MAX_HEALTH)
+                        health_bar(dwarf.health, MAX_HEALTH),
+                        tip("This shows your dwarfs health. If it reaches zero, your dwarf dies. To restore a dwarfs health, let him idle and make sure that there is food in your settlement.")
                     ],
                     div![
                         h4!["Stats"],
@@ -478,7 +514,6 @@ fn dwarfs(SyncData { state, user_id }: &SyncData, mode: DwarfsMode) -> Node<Msg>
                             ]
                         })]
                     ],
-                    
                     match mode {
                         DwarfsMode::Overview => {
                             div![
@@ -497,7 +532,9 @@ fn dwarfs(SyncData { state, user_id }: &SyncData, mode: DwarfsMode) -> Node<Msg>
                                     ]
                                 } else {
                                     div![
-                                        enum_iterator::all::<Occupation>().map(|occupation| {
+                                        enum_iterator::all::<Occupation>().filter(|occupation| player.base.curr_level >= occupation.unlocked_at_level()).map(|occupation| {
+                                            let all_items = enum_iterator::all::<Item>().filter_map(|item| item.item_probability(occupation).map(|_| item)).collect::<Vec<_>>();
+
                                             button![
                                                 if occupation == dwarf.occupation
                                                     || dwarf.participates_in_quest.is_some()
@@ -510,6 +547,11 @@ fn dwarfs(SyncData { state, user_id }: &SyncData, mode: DwarfsMode) -> Node<Msg>
                                                     Event::ChangeOccupation(id, occupation)
                                                 )),
                                                 format!("{}", occupation),
+                                                if all_items.len() == 0 {
+                                                    tip("From this occupation, you can get nothing.")
+                                                } else {
+                                                    tip(format!("From this occupation, you can get the items {}.", all_items.into_iter().join(", ")))
+                                                },
                                                 br![],
                                                 stars(dwarf.effectiveness(occupation) as i8, true)
                                             ]
@@ -567,6 +609,9 @@ fn quests(SyncData { state, user_id }: &SyncData) -> Node<Msg> {
                 QuestType::AFishingFriend => p!["Go fishing and make friends!"],
                 QuestType::ADwarfInDanger => p!["Free a dwarf that gets robbed by Orks. If you free him first, he may stay in your settlement!"],
                 QuestType::ForTheKing => p!["Fight a ruthless battle to become the king over all of Exile Island!"],
+                QuestType::DrunkFishing => p!["Participate in the drunk fishing contest! The dwarf that is the most successful drunk fisher gets a reward."],
+                QuestType::CollapsedCave => p!["A cave has collapsed and a dwarf is trapped inside. Be the first to save is life and he will move into your settlement."]
+
             },
             h4!["Rewards"],
             match quest.quest_type.reward_mode() {
@@ -649,7 +694,12 @@ fn base(SyncData { state, user_id }: &SyncData) -> Node<Msg> {
         if let Some(requires) = player.base.upgrade_cost() {
             div![
                 h3!["Upgrade Settlement"],
-                p!["Upgrade your settlement to increase the maximum population."],
+                p!["Upgrade your settlement to increase the maximum population and unlock new occupations for your dwarfs."],
+                if let Some(unlocked_occupation) = enum_iterator::all::<Occupation>().filter(|occupation| occupation.unlocked_at_level() == player.base.curr_level + 1).next() {
+                    p![format!("The next upgrade increases your maximal population by two and unlocks the occupation {}.", unlocked_occupation)]
+                } else {
+                    p!["The next upgrade increases your maximal population by two."]
+                },
                 bundle(&requires),
                 button![
                     if player.inventory.items.check_remove(&requires) {
@@ -782,7 +832,7 @@ fn inventory(
                         }) || (!model.inventory_filter.owned
                             && !model.inventory_filter.craftable))
                         && ((if model.inventory_filter.food {
-                            item.item_food().is_some()
+                            item.nutritional_value().is_some()
                         } else {
                             false
                         }) || (if model.inventory_filter.tools {
@@ -849,7 +899,7 @@ fn inventory(
                                     } else {
                                         Node::Empty
                                     },
-                                    if let Some(food) = item.item_food() {
+                                    if let Some(food) = item.nutritional_value() {
                                         button![
                                             if player
                                                 .inventory
@@ -1179,6 +1229,7 @@ fn stars(stars: i8, padded: bool) -> Node<Msg> {
 }
 
 fn nav(model: &Model) -> Node<Msg> {
+    /* 
     nav![div![
         button![
             if let Page::Base = model.page {
@@ -1227,6 +1278,51 @@ fn nav(model: &Model) -> Node<Msg> {
                 attrs! {}
             },
             ev(Ev::Click, move |_| Msg::ChangePage(Page::Ranking)),
+            "Ranking",
+        ],
+        //a![C!["button"], attrs! { At::Href => "/account"}, "Account"]
+    ]]
+    */
+
+    nav![div![
+        a![C!["button"],
+            if let Page::Base = model.page {
+                attrs! {At::Disabled => "true", At::Href => "/game"}
+            } else {
+                attrs! {At::Href => "/game"}
+            },
+            "Settlement",
+        ],
+        a![C!["button"],
+            if let Page::Dwarfs(DwarfsMode::Overview) = model.page {
+                attrs! {At::Disabled => "true", At::Href => "/game/dwarfs"}
+            } else {
+                attrs! {At::Href => "/game/dwarfs"}
+            },
+            "Dwarfs",
+        ],
+        a![C!["button"],
+            if let Page::Inventory(InventoryMode::Crafting) = model.page {
+                attrs! {At::Disabled => "true",  At::Href => "/game/inventory"}
+            } else {
+                attrs! {At::Href => "/game/inventory"}
+            },
+            "Inventory",
+        ],
+        a![C!["button"],
+            if let Page::Quests = model.page {
+                attrs! {At::Disabled => "true", At::Href => "/game/quests"}
+            } else {
+                attrs! {At::Href => "/game/quests"}
+            },
+            "Quests",
+        ],
+        a![C!["button"],
+            if let Page::Ranking = model.page {
+                attrs! {At::Disabled => "true", At::Href => "/game/ranking"}
+            } else {
+                attrs! {At::Href => "/game/ranking"}
+            },
             "Ranking",
         ],
         //a![C!["button"], attrs! { At::Href => "/account"}, "Account"]
