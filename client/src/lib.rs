@@ -950,7 +950,7 @@ fn inventory(
                                                     "Craft",
                                                 ],
                                                 button![
-                                                    if player.inventory.items.check_remove(&requires) {
+                                                    if player.inventory.items.check_remove(&requires.clone().mul(10)) {
                                                         attrs! {}
                                                     } else {
                                                         attrs! {At::Disabled => "true"}
@@ -961,7 +961,7 @@ fn inventory(
                                                     "10x",
                                                 ],
                                                 button![
-                                                    if player.inventory.items.check_remove(&requires) {
+                                                    if player.inventory.items.check_remove(&requires.clone().mul(100)) {
                                                         attrs! {}
                                                     } else {
                                                         attrs! {At::Disabled => "true"}
