@@ -392,15 +392,15 @@ impl State {
                     dwarf.change_occupation(occupation);
                 }
             }
-            Event::Craft(item) => {
+            Event::Craft(item, qty) => {
                 let player = self.players.get_mut(&user_id.unwrap())?;
 
                 if let Some(requires) = item.requires() {
-                    if player.inventory.items.remove_checked(requires) {
+                    if player.inventory.items.remove_checked(requires.mul(qty)) {
                         player
                             .inventory
                             .items
-                            .add_checked(Bundle::new().add(item, 1));
+                            .add_checked(Bundle::new().add(item, qty));
                     }
                 }
             }
@@ -416,39 +416,31 @@ impl State {
             Event::ChangeEquipment(dwarf_id, item_type, item) => {
                 let player = self.players.get_mut(&user_id.unwrap())?;
 
-                if let Some(item) = item {
+                let equipment = player
+                    .dwarfs
+                    .get_mut(&dwarf_id)?
+                    .equipment
+                    .get_mut(&item_type)?;
+
+                let old_item = if let Some(item) = item {
                     if player
                         .inventory
                         .items
                         .remove_checked(Bundle::new().add(item, 1))
                     {
-                        let equipment = player
-                            .dwarfs
-                            .get_mut(&dwarf_id)?
-                            .equipment
-                            .get_mut(&item_type)?;
-                        let old_item = equipment.replace(item);
-                        if let Some(old_item) = old_item {
-                            player
-                                .inventory
-                                .items
-                                .add_checked(Bundle::new().add(old_item, 1));
-                        }
+                        equipment.replace(item)
+                    } else {
+                        None
                     }
                 } else {
-                    let equipment = player
-                        .dwarfs
-                        .get_mut(&dwarf_id)?
-                        .equipment
-                        .get_mut(&item_type)?;
+                    equipment.take()
+                };
 
-                    let old_item = equipment.take();
-                    if let Some(old_item) = old_item {
-                        player
-                            .inventory
-                            .items
-                            .add_checked(Bundle::new().add(old_item, 1));
-                    }
+                if let Some(old_item) = old_item {
+                    player
+                        .inventory
+                        .items
+                        .add_checked(Bundle::new().add(old_item, 1));
                 }
             }
             Event::OpenLootCrate => {
@@ -490,16 +482,16 @@ impl State {
                     }
                 }
             }
-            Event::AddToFoodStorage(item) => {
+            Event::AddToFoodStorage(item, qty) => {
                 let player = self.players.get_mut(&user_id.unwrap())?;
-
-                if player
-                    .inventory
-                    .items
-                    .remove_checked(Bundle::new().add(item, 1))
-                {
-                    if let Some(food) = item.nutritional_value() {
-                        player.base.food += food;
+                if let Some(food) = item.nutritional_value() {
+                    if player
+                        .inventory
+                        .items
+                        .remove_checked(Bundle::new().add(item, qty))
+                    {
+                        player.base.food += food * qty;
+                        
                     }
                 }
             }
@@ -534,6 +526,14 @@ impl<T: BundleType> Bundle<T> {
         self.add_checked(Bundle(map));
         self
     }
+
+    pub fn mul(mut self, n: u64) -> Self {
+        for (item, qty) in &mut self.0 {
+            *qty *= n;
+        }
+        self
+    }
+
 
     pub fn check_add(&self, to_add: &Self) -> bool {
         for (t, n) in &to_add.0 {
@@ -2044,12 +2044,12 @@ pub enum Event {
     RemovePlayer(UserId),
     Message(String),
     ChangeOccupation(DwarfId, Occupation),
-    Craft(Item),
+    Craft(Item, u64),
     UpgradeBase,
     ChangeEquipment(DwarfId, ItemType, Option<Item>),
     OpenLootCrate,
     AssignToQuest(usize, usize, Option<DwarfId>),
-    AddToFoodStorage(Item),
+    AddToFoodStorage(Item, u64),
     Prestige,
     Restart,
 }

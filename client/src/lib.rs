@@ -942,7 +942,7 @@ fn inventory(
                                                     attrs! {At::Disabled => "true"}
                                                 },
                                                 ev(Ev::Click, move |_| Msg::SendGameEvent(
-                                                    Event::Craft(item)
+                                                    Event::Craft(item, 1)
                                                 )),
                                                 "Craft",
                                             ]
@@ -962,7 +962,7 @@ fn inventory(
                                                 attrs! {At::Disabled => "true"}
                                             },
                                             ev(Ev::Click, move |_| Msg::SendGameEvent(
-                                                Event::AddToFoodStorage(item)
+                                                Event::AddToFoodStorage(item, 1)
                                             )),
                                             format!("Store as {} Food", food),
                                         ]
