@@ -636,6 +636,8 @@ fn quests(SyncData { state, user_id }: &SyncData) -> Node<Msg> {
                 QuestType::CollapsedCave => p!["A cave has collapsed and a dwarf is trapped inside. Be the first to save is life and he will move into your settlement."]
 
             },
+            p![format!("{} remaining.", fmt_time(quest.time_left))],
+            p![format!("This quest requires {}.", quest.quest_type.occupation().to_string().to_lowercase())],
             h4!["Rewards"],
             match quest.quest_type.reward_mode() {
                 RewardMode::BestGetsAll(money) => div![p![format!("The best player gets 🜚{money}, the rest gets nothing.")]],
@@ -658,10 +660,15 @@ fn quests(SyncData { state, user_id }: &SyncData) -> Node<Msg> {
                 RewardMode::NewDwarf(num) => div![p![format!("The best participant gets {num} new dwarf for their settlement.")]],
             },
             h4!["Participate"],
-            p![format!("{} remaining.", fmt_time(quest.time_left))],
-            p![format!("This quest requires {}.", quest.quest_type.occupation().to_string().to_lowercase())],
             p![format!("A total of {} people participate in this quest.", quest.contestants.len())],
             
+            if let Some(contestant) = quest.contestants.get(user_id) {
+                let rank = quest.contestants.values().filter(|c| c.achieved_score >= contestant.achieved_score).count();
+                p![format!("You have a score of {} so far in this quest and with this you are on rank {}.", big_number(contestant.achieved_score), rank)]
+            } else {
+                Node::Empty
+            },
+
             table![
             (0..quest
                 .quest_type
@@ -696,6 +703,19 @@ fn quests(SyncData { state, user_id }: &SyncData) -> Node<Msg> {
             ]
         ]})
     ]
+}
+
+fn big_number(mut num: u64) -> String {
+    let mut ending = String::new();
+    if num >= 1000 {
+        ending = String::from("K");
+        num /= 1000;
+    }
+    if num >= 1000 {
+        ending = String::from("M");
+        num /= 1000;
+    }
+    format!("{}{}", num, ending)
 }
 
 fn base(SyncData { state, user_id }: &SyncData) -> Node<Msg> {
