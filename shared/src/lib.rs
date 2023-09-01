@@ -301,11 +301,12 @@ impl State {
 
                         for (contestant_id, contestant) in quest.contestants.iter() {
                             let player = self.players.get_mut(contestant_id)?;
-                            for dwarf_id in contestant.dwarfs.values() {
-                                player
+                            for dwarf_id in contestant.dwarfs.values() {   
+                                let dwarf = player
                                     .dwarfs
-                                    .get_mut(dwarf_id)?
-                                    .change_occupation(Occupation::Idling);
+                                    .get_mut(dwarf_id)?;
+                                dwarf.participates_in_quest = None;
+                                dwarf.change_occupation(Occupation::Idling);
                             }
                         }
                     }
