@@ -196,7 +196,7 @@ fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
         Msg::ReceiveGameEvent(event) => {
             if let Some(SyncData { state, .. }) = &mut model.state {
                 if state.update(event).is_none() {
-                    //web_socket.close(Some(4000), Some("invalid state")).unwrap();
+                    web_socket.close(Some(4000), Some("invalid state")).unwrap();
                 }
             }
         }

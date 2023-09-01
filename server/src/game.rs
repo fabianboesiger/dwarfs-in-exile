@@ -124,8 +124,6 @@ impl GameState {
                 if let Some(event) = event {
                     let state = game.read().await;
 
-                    println!("state at {}", state.next_event_idx);
-
                     let event = EventData {
                         user_id,
                         event,
@@ -136,11 +134,9 @@ impl GameState {
 
                     drop(state);
 
-                    println!("new event {:?} at {}", event.event, event.event_idx);
-
                     res_sender.send(event.clone()).ok();
                     if game.write().await.update(event).is_none() {
-                        tracing::event!(tracing::Level::WARN, "invalid message received, ignoring it.");
+                        //tracing::event!(tracing::Level::WARN, "invalid message received, ignoring it.");
                     }
                     let state = &*game.read().await;
                     if state.time % SPEED == 0 {
