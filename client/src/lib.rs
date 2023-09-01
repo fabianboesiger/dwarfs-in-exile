@@ -364,7 +364,7 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
     }
 }
 
-fn ranking(SyncData { state, user_id: _ }: &SyncData) -> Node<Msg> {
+fn ranking(SyncData { state, .. }: &SyncData) -> Node<Msg> {
     let mut players: Vec<_> = state.players.values().collect();
     players.sort_by_key(|p| (-(p.base.prestige as i64), -(p.dwarfs.len() as i64)));
 
@@ -446,7 +446,7 @@ fn health_bar(curr: Health, max: Health) -> Node<Msg> {
     ]
 }
 
-fn dwarfs(SyncData { state, user_id }: &SyncData, mode: DwarfsMode) -> Node<Msg> {
+fn dwarfs(SyncData { state, user_id, .. }: &SyncData, mode: DwarfsMode) -> Node<Msg> {
     let player = state.players.get(user_id).unwrap();
 
     if player.dwarfs.len() > 0 {
@@ -614,7 +614,7 @@ fn dwarfs(SyncData { state, user_id }: &SyncData, mode: DwarfsMode) -> Node<Msg>
     }
 }
 
-fn quests(SyncData { state, user_id }: &SyncData) -> Node<Msg> {
+fn quests(SyncData { state, user_id, .. }: &SyncData) -> Node<Msg> {
     let player = state.players.get(user_id).unwrap();
 
     div![
@@ -657,7 +657,7 @@ fn quests(SyncData { state, user_id }: &SyncData) -> Node<Msg> {
                 ],
                 RewardMode::BestGetsItems(items) => div![
                     p![format!("The best player will get the following items:")],
-                    p![bundle(&items, player)]
+                    p![bundle(&items, player, false)]
                 ],
                 RewardMode::NewDwarf(num) => div![p![format!("The best participant gets {num} new dwarf for their settlement.")]],
             },
@@ -720,7 +720,7 @@ fn big_number(mut num: u64) -> String {
     format!("{}{}", num, ending)
 }
 
-fn base(SyncData { state, user_id }: &SyncData) -> Node<Msg> {
+fn base(SyncData { state, user_id, .. }: &SyncData) -> Node<Msg> {
     let player = state.players.get(user_id).unwrap();
 
     div![C!["content"],
@@ -734,7 +734,7 @@ fn base(SyncData { state, user_id }: &SyncData) -> Node<Msg> {
             //tr![th!["Settlement Level"], td![format!("{} / {}", player.base.curr_level, player.base.max_level())]],
             tr![th!["Population", tip("Upgrade your settlement to increase the maximum population. You can get new dwarfs from certain quests or at random.")], td![format!("{}/{}", player.dwarfs.len(), player.base.num_dwarfs())]],
             tr![th!["Money", tip("Earn money by doing quests. With money, you can buy loot crates.")], td![format!("🜚{}", player.money)]],
-            tr![th!["Food", tip("Your settlement can store food for your dwarfs to consume. One quantity of food restores 0.1% of a dwarfs health.")], td![format!("{}", player.base.food)]],
+            tr![th!["Food", tip("Your settlement can store food for your dwarfs to consume. One quantity of food restores 0.1% of a dwarfs health.")], td![format!("🍽{}", player.base.food)]],
         ],
         if let Some(requires) = player.base.upgrade_cost() {
             div![
@@ -745,7 +745,7 @@ fn base(SyncData { state, user_id }: &SyncData) -> Node<Msg> {
                 } else {
                     p!["The next upgrade increases your maximal population by two."]
                 },
-                bundle(&requires, player),
+                bundle(&requires, player, true),
                 button![
                     if player.inventory.items.check_remove(&requires) {
                         attrs! {}
@@ -777,7 +777,7 @@ fn base(SyncData { state, user_id }: &SyncData) -> Node<Msg> {
 
 fn inventory(
     model: &Model,
-    SyncData { state, user_id }: &SyncData,
+    SyncData { state, user_id, .. }: &SyncData,
     mode: InventoryMode,
 ) -> Node<Msg> {
     let player = state.players.get(user_id).unwrap();
@@ -922,7 +922,9 @@ fn inventory(
                     div![
                         C!["item-contents"],
                         div![
-                            span![if let Some(item_type) = item.item_type() {
+                            span![if let Some(food) = item.nutritional_value() {
+                                format!("Food 🍽{food} | {}", item.item_rarity())
+                            } else if let Some(item_type) = item.item_type() {
                                 format!("{item_type} | {}", item.item_rarity())
                             } else {
                                 format!("Item | {}", item.item_rarity())
@@ -934,37 +936,93 @@ fn inventory(
                                 vec![div![
                                     if let Some(requires) = item.requires() {
                                         div![
-                                            bundle(&requires, player),
-                                            button![
-                                                if player.inventory.items.check_remove(&requires) {
-                                                    attrs! {}
-                                                } else {
-                                                    attrs! {At::Disabled => "true"}
-                                                },
-                                                ev(Ev::Click, move |_| Msg::SendGameEvent(
-                                                    Event::Craft(item, 1)
-                                                )),
-                                                "Craft",
+                                            bundle(&requires, player, true),
+                                            div![C!["button-row"],
+                                                button![
+                                                    if player.inventory.items.check_remove(&requires) {
+                                                        attrs! {}
+                                                    } else {
+                                                        attrs! {At::Disabled => "true"}
+                                                    },
+                                                    ev(Ev::Click, move |_| Msg::SendGameEvent(
+                                                        Event::Craft(item, 1)
+                                                    )),
+                                                    "Craft",
+                                                ],
+                                                button![
+                                                    if player.inventory.items.check_remove(&requires) {
+                                                        attrs! {}
+                                                    } else {
+                                                        attrs! {At::Disabled => "true"}
+                                                    },
+                                                    ev(Ev::Click, move |_| Msg::SendGameEvent(
+                                                        Event::Craft(item, 10)
+                                                    )),
+                                                    "10x",
+                                                ],
+                                                button![
+                                                    if player.inventory.items.check_remove(&requires) {
+                                                        attrs! {}
+                                                    } else {
+                                                        attrs! {At::Disabled => "true"}
+                                                    },
+                                                    ev(Ev::Click, move |_| Msg::SendGameEvent(
+                                                        Event::Craft(item, 100)
+                                                    )),
+                                                    "100x",
+                                                ]
                                             ]
                                         ]
                                     } else {
                                         Node::Empty
                                     },
-                                    if let Some(food) = item.nutritional_value() {
-                                        button![
-                                            if player
-                                                .inventory
-                                                .items
-                                                .check_remove(&Bundle::new().add(item, 1))
-                                            {
-                                                attrs! {}
-                                            } else {
-                                                attrs! {At::Disabled => "true"}
-                                            },
-                                            ev(Ev::Click, move |_| Msg::SendGameEvent(
-                                                Event::AddToFoodStorage(item, 1)
-                                            )),
-                                            format!("Store as {} Food", food),
+                                    if let Some(_) = item.nutritional_value() {
+                                        div![C!["button-row"],
+                                            button![
+                                                if player
+                                                    .inventory
+                                                    .items
+                                                    .check_remove(&Bundle::new().add(item, 1))
+                                                {
+                                                    attrs! {}
+                                                } else {
+                                                    attrs! {At::Disabled => "true"}
+                                                },
+                                                ev(Ev::Click, move |_| Msg::SendGameEvent(
+                                                    Event::AddToFoodStorage(item, 1)
+                                                )),
+                                                format!("Store"),
+                                            ],
+                                            button![
+                                                if player
+                                                    .inventory
+                                                    .items
+                                                    .check_remove(&Bundle::new().add(item, 10))
+                                                {
+                                                    attrs! {}
+                                                } else {
+                                                    attrs! {At::Disabled => "true"}
+                                                },
+                                                ev(Ev::Click, move |_| Msg::SendGameEvent(
+                                                    Event::AddToFoodStorage(item, 10)
+                                                )),
+                                                format!("10x"),
+                                            ],
+                                            button![
+                                                if player
+                                                    .inventory
+                                                    .items
+                                                    .check_remove(&Bundle::new().add(item, 100))
+                                                {
+                                                    attrs! {}
+                                                } else {
+                                                    attrs! {At::Disabled => "true"}
+                                                },
+                                                ev(Ev::Click, move |_| Msg::SendGameEvent(
+                                                    Event::AddToFoodStorage(item, 100)
+                                                )),
+                                                format!("100x"),
+                                            ] 
                                         ]
                                     } else {
                                         Node::Empty
@@ -1047,7 +1105,7 @@ fn inventory(
     ]
 }
 
-fn chat(model: &Model, SyncData { state, user_id: _ }: &SyncData) -> Node<Msg> {
+fn chat(model: &Model, SyncData { state, .. }: &SyncData) -> Node<Msg> {
     let message = model.message.clone();
 
     div![
@@ -1095,7 +1153,7 @@ fn chat(model: &Model, SyncData { state, user_id: _ }: &SyncData) -> Node<Msg> {
     ]
 }
 
-fn history(model: &Model, SyncData { state, user_id }: &SyncData) -> Node<Msg> {
+fn history(model: &Model, SyncData { state, user_id, .. }: &SyncData) -> Node<Msg> {
     let player = state.players.get(user_id).unwrap();
 
     div![
@@ -1232,20 +1290,30 @@ fn history(model: &Model, SyncData { state, user_id }: &SyncData) -> Node<Msg> {
     ]
 }
 
-fn bundle(requires: &Bundle<Item>, player: &Player) -> Node<Msg> {
+fn bundle(requires: &Bundle<Item>, player: &Player, requirement: bool) -> Node<Msg> {
     ul![requires
         .clone()
         .sorted_by_rarity()
         .into_iter()
         .map(|(item, n)| {
-            let available = player.inventory.items.check_remove(&Bundle::new().add(item, n));
-            li![C!["clickable-item"],
-                span![
-                    if available { C![] } else { C!["unavailable"]},
-                    format!("{n}x {item}"), ev(Ev::Click, move |_| Msg::GoToItem(item))
-                ],
-                span![format!(" ({})", player.inventory.items.get(&item).copied().unwrap_or_default())]
-            ]
+            if requirement {
+                let available = player.inventory.items.check_remove(&Bundle::new().add(item, n));
+                li![C!["clickable-item"],
+                    span![
+                        if available { C![] } else { C!["unavailable"]},
+                        format!("{n}x {item}"), ev(Ev::Click, move |_| Msg::GoToItem(item))
+                    ],
+                    span![format!(" ({})", player.inventory.items.get(&item).copied().unwrap_or_default())]
+                ]
+            } else {
+                let available = player.inventory.items.check_remove(&Bundle::new().add(item, n));
+                li![C!["clickable-item"],
+                    span![
+                        format!("{n}x {item}"), ev(Ev::Click, move |_| Msg::GoToItem(item))
+                    ],
+                ]
+            }
+            
         })]
 }
 

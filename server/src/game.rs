@@ -127,7 +127,6 @@ impl GameState {
                     let event = EventData {
                         user_id,
                         event,
-                        state_hash: state.hash_value(),
                         event_idx: state.next_event_idx,
                         seed: rng.gen()
                     };
@@ -209,7 +208,7 @@ pub async fn ws_handler(
 
             let msg = rmp_serde::to_vec(&shared::Res::Sync(SyncData {
                 user_id,
-                state
+                state,
             })).unwrap();
 
             if sink.send(Message::Binary(msg)).await.is_err() {
@@ -253,7 +252,7 @@ pub async fn ws_handler(
                                 receiver = new_receiver;
                                 let msg = rmp_serde::to_vec(&shared::Res::Sync(SyncData {
                                     user_id,
-                                    state
+                                    state,
                                 })).unwrap();
                                 if sink.send(Message::Binary(msg)).await.is_err() {
                                     break;

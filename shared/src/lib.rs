@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use strum::Display;
 use std::{
     collections::{HashSet, VecDeque, BTreeMap},
-    hash::{Hash, Hasher},
+    hash::Hash,
     ops::Deref,
 };
 
@@ -34,7 +34,6 @@ pub struct EventData {
     pub event: Event,
     pub user_id: Option<UserId>,
     pub seed: Seed,
-    pub state_hash: u64,
     pub event_idx: EventIndex,
 }
 
@@ -74,16 +73,9 @@ pub struct State {
 }
 
 impl State {
-    pub fn hash_value(&self) -> u64 {
-        let mut hasher = fxhash::FxHasher::default();
-        self.hash(&mut hasher);
-        hasher.finish()
-    }
-
     pub fn update(
         &mut self,
         EventData {
-            state_hash,
             event,
             seed,
             user_id,
@@ -528,7 +520,7 @@ impl<T: BundleType> Bundle<T> {
     }
 
     pub fn mul(mut self, n: u64) -> Self {
-        for (item, qty) in &mut self.0 {
+        for qty in self.0.values_mut() {
             *qty *= n;
         }
         self
