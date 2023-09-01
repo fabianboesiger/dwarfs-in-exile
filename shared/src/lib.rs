@@ -35,6 +35,7 @@ pub struct EventData {
     pub user_id: Option<UserId>,
     pub seed: Seed,
     pub state_hash: u64,
+    #[serde(default)]
     pub event_idx: EventIndex,
 }
 
