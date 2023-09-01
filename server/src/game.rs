@@ -15,6 +15,13 @@ use tokio::{
     sync::{broadcast, mpsc, RwLock},
     time,
 };
+use serde::{Serialize, Deserialize};
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PartialEventData {
+    pub event: Event,
+    pub user_id: Option<UserId>,
+}
 
 use crate::ServerError;
 
@@ -24,7 +31,7 @@ pub struct GameState(Arc<GameStateImpl>);
 struct GameStateImpl {
     state: RwLock<shared::State>,
     res_sender: broadcast::Sender<EventData>,
-    req_sender: mpsc::UnboundedSender<EventData>,
+    req_sender: mpsc::UnboundedSender<PartialEventData>,
 }
 
 impl GameState {
@@ -58,8 +65,8 @@ impl GameState {
     }
 
     pub async fn new(pool: SqlitePool) -> GameState {
-        let (req_sender, mut req_receiver) = mpsc::unbounded_channel::<EventData>();
-        let (res_sender, _res_receiver) = broadcast::channel::<EventData>(128);
+        let (req_sender, mut req_receiver) = mpsc::unbounded_channel::<PartialEventData>();
+        let (res_sender, _res_receiver) = broadcast::channel::<EventData>(64);
 
         let req_sender_clone = req_sender.clone();
 
@@ -74,15 +81,13 @@ impl GameState {
 
         tokio::spawn(async move {
             let mut interval = time::interval(Duration::from_millis(1000 / SPEED));
-            let mut rng = SmallRng::from_entropy();
 
             loop {
                 interval.tick().await;
 
                 req_sender_clone
-                    .send(EventData {
+                    .send(PartialEventData {
                         event: Event::Tick,
-                        seed: Some(rng.gen()),
                         user_id: None,
                     })
                     .unwrap();
@@ -98,9 +103,8 @@ impl GameState {
 
             let mut rng = SmallRng::from_entropy();
 
-            while let Some(EventData {
+            while let Some(PartialEventData {
                 event,
-                seed: _,
                 user_id,
             }) = req_receiver.recv().await
             {
@@ -115,16 +119,29 @@ impl GameState {
                         None
                     }
                     event => Some(event),
-                }
-                .map(|event| EventData {
-                    event,
-                    seed: Some(rng.gen()),
-                    user_id,
-                });
+                };
 
                 if let Some(event) = event {
+                    let state = game.read().await;
+
+                    println!("state at {}", state.next_event_idx);
+
+                    let event = EventData {
+                        user_id,
+                        event,
+                        state_hash: state.hash_value(),
+                        event_idx: state.next_event_idx,
+                        seed: rng.gen()
+                    };
+
+                    drop(state);
+
+                    println!("new event {:?} at {}", event.event, event.event_idx);
+
                     res_sender.send(event.clone()).ok();
-                    game.write().await.update(event);
+                    if game.write().await.update(event).is_none() {
+                        tracing::event!(tracing::Level::WARN, "invalid message received, ignoring it.");
+                    }
                     let state = &*game.read().await;
                     if state.time % SPEED == 0 {
                         GameState::store_game(&pool, state).await;
@@ -141,7 +158,7 @@ impl GameState {
         user_id: UserId,
     ) -> (
         shared::State,
-        mpsc::UnboundedSender<EventData>,
+        mpsc::UnboundedSender<PartialEventData>,
         broadcast::Receiver<EventData>,
     ) {
         (
@@ -154,10 +171,9 @@ impl GameState {
     pub fn add_player(&self, user_id: UserId, username: String) {
         self.0
             .req_sender
-            .send(EventData {
+            .send(PartialEventData {
                 event: Event::AddPlayer(user_id, username),
                 user_id: None,
-                seed: None,
             })
             .unwrap();
     }
@@ -165,10 +181,9 @@ impl GameState {
     pub fn edit_player(&self, user_id: UserId, username: String) {
         self.0
             .req_sender
-            .send(EventData {
-                event: Event::EditPlayer(user_id, username),
+            .send(PartialEventData {
+                event: Event::AddPlayer(user_id, username),
                 user_id: None,
-                seed: None,
             })
             .unwrap();
     }
@@ -200,6 +215,7 @@ pub async fn ws_handler(
                 user_id,
                 state
             })).unwrap();
+
             if sink.send(Message::Binary(msg)).await.is_err() {
                 return;
             }
@@ -212,7 +228,7 @@ pub async fn ws_handler(
                                 let req: shared::Req = rmp_serde::from_slice(&msg).unwrap();
                                 match req {
                                     shared::Req::Event(event) => {
-                                        if sender.send(EventData {event, seed: None, user_id: Some(user_id) }).is_err() {
+                                        if sender.send(PartialEventData {event, user_id: Some(user_id) }).is_err() {
                                             break;
                                         }
                                     }

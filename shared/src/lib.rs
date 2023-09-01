@@ -6,11 +6,16 @@ use rand::{
 };
 use serde::{Deserialize, Serialize};
 use strum::Display;
+use std::{
+    collections::{HashSet, VecDeque, BTreeMap},
+    hash::{Hash, Hasher},
+    ops::Deref,
+};
 
 #[cfg(not(debug_assertions))]
 pub const SPEED: u64 = 2;
 #[cfg(debug_assertions)]
-pub const SPEED: u64 = 10;
+pub const SPEED: u64 = 1;
 pub const ONE_MINUTE: u64 = 60;
 pub const ONE_HOUR: u64 = ONE_MINUTE * 60;
 pub const ONE_DAY: u64 = ONE_HOUR * 24;
@@ -27,9 +32,13 @@ pub type Time = u64;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EventData {
     pub event: Event,
-    pub seed: Option<Seed>,
     pub user_id: Option<UserId>,
+    pub seed: Seed,
+    pub state_hash: u64,
+    pub event_idx: EventIndex,
 }
+
+pub type EventIndex = u64;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Req {
@@ -50,15 +59,12 @@ pub struct SyncData {
 
 // MODIFY EVENTS AND STATE BELOW
 
-use std::{
-    collections::{HashMap, HashSet, VecDeque},
-    hash::Hash,
-    ops::Deref,
-};
 
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+
+#[derive(Serialize, Deserialize, Default, Clone, Debug, Hash)]
 pub struct State {
-    pub players: HashMap<UserId, Player>,
+    pub next_event_idx: EventIndex,
+    pub players: BTreeMap<UserId, Player>,
     pub next_dwarf_id: DwarfId,
     pub chat: Chat,
     pub quests: Vec<Quest>,
@@ -67,14 +73,35 @@ pub struct State {
 }
 
 impl State {
+    pub fn hash_value(&self) -> u64 {
+        let mut hasher = fxhash::FxHasher::default();
+        self.hash(&mut hasher);
+        hasher.finish()
+    }
+
     pub fn update(
         &mut self,
         EventData {
+            state_hash,
             event,
             seed,
             user_id,
+            event_idx,
         }: EventData,
     ) -> Option<()> {
+        
+        if event_idx < self.next_event_idx {
+            return Some(());
+        } else if event_idx > self.next_event_idx {
+            return None;
+        } else {     
+            /*if self.hash_value() != state_hash {
+                return None;
+            } else {*/
+                self.next_event_idx += 1;
+            //}
+        }
+
         self.time += 1;
 
         if let Some(user_id) = user_id {
@@ -84,12 +111,12 @@ impl State {
 
         match event {
             Event::Tick => {
-                let mut rng: SmallRng = SmallRng::seed_from_u64(seed.unwrap());
+                let mut rng: SmallRng = SmallRng::seed_from_u64(seed);
 
                 for (user_id, player) in &mut self.players {
                     // Chance for a new dwarf!
                     if rng.gen_ratio(1, ONE_DAY as u32) {
-                        player.new_dwarf(seed.unwrap(), &mut self.next_dwarf_id, self.time);
+                        player.new_dwarf(seed, &mut self.next_dwarf_id, self.time);
                     }
 
                     // Let the dwarfs eat!
@@ -110,7 +137,7 @@ impl State {
                     // Let the dwarfs work!
                     for (_, dwarf) in &mut player.dwarfs {
                         if !dwarf.dead() {
-                            dwarf.work(&mut player.inventory, seed.unwrap());
+                            dwarf.work(&mut player.inventory, seed);
                         }
                     }
 
@@ -244,7 +271,7 @@ impl State {
                                 }
                             }
                             RewardMode::Prestige => {
-                                if let Some(user_id) = quest.chance_by_score(seed.unwrap()) {
+                                if let Some(user_id) = quest.chance_by_score(seed) {
                                     if let Some(player) = self.players.get_mut(&user_id) {
                                         if player.can_prestige() {
                                             player.prestige();
@@ -269,7 +296,7 @@ impl State {
                                 }
                             }
                             RewardMode::NewDwarf(num_dwarfs) => {
-                                if let Some(user_id) = quest.chance_by_score(seed.unwrap()) {
+                                if let Some(user_id) = quest.chance_by_score(seed) {
                                     if let Some(player) = self.players.get_mut(&user_id) {
                                         player.log.add(
                                             self.time,
@@ -280,7 +307,7 @@ impl State {
                                         );
                                         for _ in 0..num_dwarfs {
                                             player
-                                                .new_dwarf(seed.unwrap(), &mut self.next_dwarf_id, self.time);
+                                                .new_dwarf(seed, &mut self.next_dwarf_id, self.time);
                                         }
                                     }
                                     for contestant_id in quest.contestants.keys() {
@@ -339,7 +366,7 @@ impl State {
             }
             Event::AddPlayer(user_id, username) => {
                 let mut player = Player::new(username, self.time);
-                player.new_dwarf(seed.unwrap(), &mut self.next_dwarf_id, self.time);
+                player.new_dwarf(seed, &mut self.next_dwarf_id, self.time);
                 self.players.insert(user_id, player);
 
                 for players in self.players.values_mut() {
@@ -358,7 +385,7 @@ impl State {
                     let player = self.players.remove(&user_id.unwrap()).unwrap();
                     let username = player.username;
                     let mut player = Player::new(username, self.time);
-                    player.new_dwarf(seed.unwrap(), &mut self.next_dwarf_id, self.time);
+                    player.new_dwarf(seed, &mut self.next_dwarf_id, self.time);
                     self.players.insert(user_id.unwrap(), player);
                 }
             }
@@ -436,7 +463,7 @@ impl State {
             Event::OpenLootCrate => {
                 let player = self.players.get_mut(&user_id.unwrap())?;
 
-                player.open_loot_crate(seed.unwrap(), self.time);
+                player.open_loot_crate(seed, self.time);
             }
             Event::AssignToQuest(quest_idx, dwarf_idx, dwarf_id) => {
                 let player = self.players.get_mut(&user_id.unwrap())?;
@@ -502,16 +529,16 @@ impl State {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Bundle<T: BundleType>(HashMap<T, u64>);
+#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
+pub struct Bundle<T: BundleType>(BTreeMap<T, u64>);
 
 impl<T: BundleType> Bundle<T> {
     pub fn new() -> Self {
-        Bundle(HashMap::new())
+        Bundle(BTreeMap::new())
     }
 
     pub fn add(mut self, t: T, n: u64) -> Self {
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
         map.insert(t, n);
         self.add_checked(Bundle(map));
         self
@@ -586,7 +613,7 @@ where {
 }
 
 impl<T: BundleType> Deref for Bundle<T> {
-    type Target = HashMap<T, u64>;
+    type Target = BTreeMap<T, u64>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -601,12 +628,12 @@ impl<T: BundleType> FromIterator<(T, u64)> for Bundle<T> {
 
 impl<T: BundleType> Default for Bundle<T> {
     fn default() -> Self {
-        Bundle(HashMap::new())
+        Bundle(BTreeMap::new())
     }
 }
 
-pub trait BundleType: Hash + Eq + PartialEq + Copy {
-    fn max(self) -> Option<u64> {
+pub trait BundleType: Hash + Eq + PartialEq + Copy + Ord {
+    fn max(&self) -> Option<u64> {
         None
     }
 }
@@ -615,7 +642,7 @@ pub trait Craftable: Sequence + BundleType {
     fn requires(self) -> Option<Bundle<Item>>;
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default, Hash)]
 pub struct Log {
     pub msgs: VecDeque<(Time, LogMsg)>,
 }
@@ -629,7 +656,7 @@ impl Log {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 pub enum LogMsg {
     NewPlayer(UserId),
     NewDwarf(DwarfId),
@@ -644,11 +671,11 @@ pub enum LogMsg {
     NotEnoughSpaceForDwarf
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 pub struct Player {
     pub username: String,
     pub base: Base,
-    pub dwarfs: HashMap<DwarfId, Dwarf>,
+    pub dwarfs: BTreeMap<DwarfId, Dwarf>,
     pub inventory: Inventory,
     pub log: Log,
     pub money: Money,
@@ -659,7 +686,7 @@ impl Player {
     pub fn new(username: String, time: Time) -> Self {
         Player {
             username,
-            dwarfs: HashMap::new(),
+            dwarfs: BTreeMap::new(),
             base: Base::new(),
             inventory: Inventory::new(),
             log: Log::default(),
@@ -723,7 +750,7 @@ impl Player {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 pub struct Inventory {
     pub items: Bundle<Item>,
 }
@@ -860,7 +887,7 @@ impl Into<usize> for Item {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash, PartialEq, Eq, Sequence)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash, PartialEq, Eq, Sequence, PartialOrd, Ord)]
 pub enum ItemType {
     Tool,
     Clothing,
@@ -1747,14 +1774,14 @@ impl Craftable for Item {
 
 impl BundleType for Item {}
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 pub struct Dwarf {
     pub name: String,
     pub participates_in_quest: Option<(QuestType, usize, usize)>,
     pub occupation: Occupation,
     pub occupation_duration: u64,
     pub stats: Stats,
-    pub equipment: HashMap<ItemType, Option<Item>>,
+    pub equipment: BTreeMap<ItemType, Option<Item>>,
     pub health: Health,
 }
 
@@ -1902,7 +1929,7 @@ impl Dwarf {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Copy, Sequence, PartialEq, Eq, Display)]
+#[derive(Serialize, Deserialize, Clone, Debug, Copy, Sequence, PartialEq, Eq, Display, Hash)]
 #[strum(serialize_all = "title_case")]
 pub enum Occupation {
     Idling,
@@ -1949,7 +1976,7 @@ impl Occupation {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 pub struct Base {
     pub prestige: u64,
     pub curr_level: u64,
@@ -2061,7 +2088,7 @@ impl EventData {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, Hash)]
 pub struct Chat {
     pub messages: VecDeque<(UserId, String)>,
 }
@@ -2075,9 +2102,9 @@ impl Chat {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash)]
 pub struct Quest {
-    pub contestants: HashMap<UserId, Contestant>,
+    pub contestants: BTreeMap<UserId, Contestant>,
     pub time_left: u64,
     pub quest_type: QuestType,
 }
@@ -2085,7 +2112,7 @@ pub struct Quest {
 impl Quest {
     pub fn new(quest_type: QuestType) -> Self {
         Quest {
-            contestants: HashMap::new(),
+            contestants: BTreeMap::new(),
             time_left: quest_type.duration(),
             quest_type,
         }
@@ -2129,13 +2156,13 @@ impl Quest {
         self.contestants.insert(
             user_id,
             Contestant {
-                dwarfs: HashMap::new(),
+                dwarfs: BTreeMap::new(),
                 achieved_score: 0,
             },
         );
     }
 
-    pub fn run(&mut self, players: &HashMap<UserId, Player>) {
+    pub fn run(&mut self, players: &BTreeMap<UserId, Player>) {
         if self.time_left > 0 {
             self.time_left -= 1;
             for (user_id, contestant) in &mut self.contestants {
@@ -2168,9 +2195,9 @@ pub enum RewardMode {
     BecomeKing,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, Hash)]
 pub struct Contestant {
-    pub dwarfs: HashMap<usize, DwarfId>,
+    pub dwarfs: BTreeMap<usize, DwarfId>,
     pub achieved_score: u64,
 }
 
