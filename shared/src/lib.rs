@@ -328,11 +328,12 @@ impl State {
 
                         for (contestant_id, contestant) in quest.contestants.iter() {
                             let player = self.players.get_mut(contestant_id)?;
-                            for dwarf_id in contestant.dwarfs.values() {
-                                player
+                            for dwarf_id in contestant.dwarfs.values() {   
+                                let dwarf = player
                                     .dwarfs
-                                    .get_mut(dwarf_id)?
-                                    .change_occupation(Occupation::Idling);
+                                    .get_mut(dwarf_id)?;
+                                dwarf.participates_in_quest = None;
+                                dwarf.change_occupation(Occupation::Idling);
                             }
                         }
                     }
@@ -879,6 +880,7 @@ pub enum Item {
     BearClawBoots,
     FishingNet,
     Bag,
+    Headlamp,
 }
 
 impl Into<usize> for Item {
@@ -922,6 +924,7 @@ impl Item {
             Item::RhinoHornHelmet => Some(ItemType::Clothing),
             Item::Gloves => Some(ItemType::Clothing),
             Item::BearClawGloves => Some(ItemType::Clothing),
+            Item::Headlamp => Some(ItemType::Clothing),
 
             Item::Bow => Some(ItemType::Tool),
             Item::PoisonedBow => Some(ItemType::Tool),
@@ -1001,7 +1004,7 @@ impl Item {
                 intelligence: 2,
                 .. Default::default()
             },
-            Item::Lantern => Stats { 
+            Item::Lantern | Item::Headlamp => Stats { 
                 perception: 4,
                 .. Default::default()
             },
@@ -1072,6 +1075,8 @@ impl Item {
             (Item::Dragon, Occupation::Fighting) => 10,
             (Item::Donkey, Occupation::Gathering) => 6,
             (Item::Donkey, Occupation::Farming) => 4,
+            (Item::Wolf, Occupation::Hunting) => 6,
+            (Item::Wolf, Occupation::Fighting) => 6,
             (Item::Axe, Occupation::Logging) => 6,
             (Item::Axe, Occupation::Fighting) => 3,
             (Item::Pickaxe, Occupation::Mining) => 6,
@@ -1085,8 +1090,9 @@ impl Item {
             (Item::Dynamite, Occupation::Mining) => 8,
             (Item::Backpack, Occupation::Gathering) => 7,
             (Item::Bag, Occupation::Gathering) => 5,
-            (Item::Helmet, Occupation::Mining | Occupation::Logging) => 4,
-            (Item::Helmet, Occupation::Fighting) => 3,
+            (Item::Helmet | Item::Headlamp, Occupation::Mining | Occupation::Logging) => 4,
+            (Item::Helmet | Item::Headlamp, Occupation::Fighting) => 3,
+            (Item::RhinoHornHelmet, Occupation::Mining | Occupation::Logging) => 4,
             (Item::RhinoHornHelmet, Occupation::Fighting) => 8,
             (Item::Horse, Occupation::Fighting) => 5,
             (Item::Horse, Occupation::Farming | Occupation::Logging) => 7,
@@ -1136,15 +1142,6 @@ impl Item {
                 agility: 7,
                 ..Default::default()
             },
-            Item::Dragon => Stats {
-                intelligence: 10,
-                ..Default::default()
-            },
-            Item::Donkey => Stats {
-                intelligence: 5,
-                endurance: 5,
-                ..Default::default()
-            },
             Item::Axe => Stats {
                 strength: 5,
                 endurance: 5,
@@ -1170,11 +1167,6 @@ impl Item {
                 agility: 5,
                 ..Default::default()
             },
-            Item::Bird => Stats {
-                intelligence: 5,
-                agility: 5,
-                ..Default::default()
-            },
             Item::Dynamite => Stats {
                 intelligence: 8,
                 perception: 2,
@@ -1193,11 +1185,6 @@ impl Item {
             Item::Bag => Stats {
                 strength: 5,
                 endurance: 5,
-                ..Default::default()
-            },
-            Item::Horse => Stats {
-                agility: 5,
-                intelligence: 5,
                 ..Default::default()
             },
             Item::FishingRod | Item::FishingNet => Stats {
@@ -1766,6 +1753,11 @@ impl Craftable for Item {
                 Bundle::new()
                     .add(Item::String, 20)
                     .add(Item::Iron, 2)
+            ),
+            Item::Headlamp => Some(
+                Bundle::new()
+                    .add(Item::Helmet, 1)
+                    .add(Item::Lantern, 1)
             ),
             _ => None,
         }

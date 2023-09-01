@@ -29,7 +29,10 @@ impl Page {
     fn from_url(url: Url) -> Self {
         match url.path().get(1).map(|s| s.as_str()) {
             Some("dwarfs") => Page::Dwarfs(DwarfsMode::Overview),
-            Some("inventory") => Page::Inventory(InventoryMode::Crafting),
+            Some("inventory") => Page::Inventory(match url.hash().map(|s| s.as_str()) {
+                Some("stats") => InventoryMode::Stats,
+                _ => InventoryMode::Crafting
+            }),
             Some("quests") => Page::Quests,
             Some("ranking") => Page::Ranking,
             _ => Page::Base,
@@ -40,6 +43,7 @@ impl Page {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum InventoryMode {
     Crafting,
+    Stats,
     Select(InventorySelect),
 }
 
@@ -141,6 +145,7 @@ pub enum Msg {
     InventoryFilterName(String),
     InventoryFilterReset,
     GoToItem(Item),
+    InventoryToggleStats,
 }
 
 fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
@@ -257,6 +262,20 @@ fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
             model.inventory_filter.item_name = item.to_string();
             //model.page = Page::Inventory(InventoryMode::Crafting);
             orders.notify(subs::UrlRequested::new(Url::from_str("/game/inventory").unwrap())); 
+        }
+        Msg::InventoryToggleStats => {
+            match model.page {
+                Page::Inventory(InventoryMode::Stats) => {
+                    //model.page = Page::Inventory(InventoryMode::Crafting);
+                    orders.notify(subs::UrlRequested::new(Url::from_str("/game/inventory#crafting").unwrap())); 
+                }, 
+                Page::Inventory(InventoryMode::Crafting) => {
+                    //model.page = Page::Inventory(InventoryMode::Stats);
+                    orders.notify(subs::UrlRequested::new(Url::from_str("/game/inventory#stats").unwrap())); 
+
+                }
+                _ => {}
+            }
         }
     }
 }
@@ -619,6 +638,8 @@ fn quests(SyncData { state, user_id }: &SyncData) -> Node<Msg> {
                 QuestType::CollapsedCave => p!["A cave has collapsed and a dwarf is trapped inside. Be the first to save is life and he will move into your settlement."]
 
             },
+            p![format!("{} remaining.", fmt_time(quest.time_left))],
+            p![format!("This quest requires {}.", quest.quest_type.occupation().to_string().to_lowercase())],
             h4!["Rewards"],
             match quest.quest_type.reward_mode() {
                 RewardMode::BestGetsAll(money) => div![p![format!("The best player gets 🜚{money}, the rest gets nothing.")]],
@@ -641,10 +662,15 @@ fn quests(SyncData { state, user_id }: &SyncData) -> Node<Msg> {
                 RewardMode::NewDwarf(num) => div![p![format!("The best participant gets {num} new dwarf for their settlement.")]],
             },
             h4!["Participate"],
-            p![format!("{} remaining.", fmt_time(quest.time_left))],
-            p![format!("This quest requires {}.", quest.quest_type.occupation().to_string().to_lowercase())],
             p![format!("A total of {} people participate in this quest.", quest.contestants.len())],
             
+            if let Some(contestant) = quest.contestants.get(user_id) {
+                let rank = quest.contestants.values().filter(|c| c.achieved_score >= contestant.achieved_score).count();
+                p![format!("You have a score of {} so far in this quest and with this you are on rank {}.", big_number(contestant.achieved_score), rank)]
+            } else {
+                Node::Empty
+            },
+
             table![
             (0..quest
                 .quest_type
@@ -679,6 +705,19 @@ fn quests(SyncData { state, user_id }: &SyncData) -> Node<Msg> {
             ]
         ]})
     ]
+}
+
+fn big_number(mut num: u64) -> String {
+    let mut ending = String::new();
+    if num >= 1000 {
+        ending = String::from("K");
+        num /= 1000;
+    }
+    if num >= 1000 {
+        ending = String::from("M");
+        num /= 1000;
+    }
+    format!("{}{}", num, ending)
 }
 
 fn base(SyncData { state, user_id }: &SyncData) -> Node<Msg> {
@@ -805,13 +844,19 @@ fn inventory(
             ],
             div![
                 input![
+                    id!["tools"],
+                    attrs! {At::Type => "checkbox", At::Checked => matches!(model.page, Page::Inventory(InventoryMode::Stats)).as_at_value()},
+                    ev(Ev::Click, |_| Msg::InventoryToggleStats),
+                ],
+                label![attrs! {At::For => "tools"}, "Show Stats"],
+                input![
                     attrs! {At::Type => "text", At::Value => model.inventory_filter.item_name, At::Placeholder => "Item Name"},
                     input_ev(Ev::Input, Msg::InventoryFilterName)
                 ],
                 button![
                     ev(Ev::Click, move |_| Msg::InventoryFilterReset),
                     "Reset Filter",
-                ]
+                ],
             ]
         ],
         div![
@@ -926,10 +971,7 @@ fn inventory(
                                     },
                                 ]]
                             }
-                            InventoryMode::Select(InventorySelect::Equipment(
-                                dwarf_id,
-                                item_type,
-                            )) => {
+                            mode => {
                                 vec![
                                     if !item.provides_stats().is_zero() {
                                         div![
@@ -975,14 +1017,21 @@ fn inventory(
                                     } else {
                                         Node::Empty
                                     },
-                                    button![
-                                        ev(Ev::Click, move |_| Msg::ChangeEquipment(
-                                            dwarf_id,
-                                            item_type,
-                                            Some(item)
-                                        )),
-                                        "Equip"
-                                    ],
+                                    if let InventoryMode::Select(InventorySelect::Equipment(
+                                        dwarf_id,
+                                        item_type,
+                                    )) = mode {
+                                        button![
+                                            ev(Ev::Click, move |_| Msg::ChangeEquipment(
+                                                dwarf_id,
+                                                item_type,
+                                                Some(item)
+                                            )),
+                                            "Equip"
+                                        ]
+                                    } else {
+                                        Node::Empty
+                                    }
                                 ]
                             }
                         }
