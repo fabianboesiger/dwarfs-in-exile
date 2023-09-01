@@ -1048,6 +1048,8 @@ impl Item {
             (Item::Dragon, Occupation::Fighting) => 10,
             (Item::Donkey, Occupation::Gathering) => 6,
             (Item::Donkey, Occupation::Farming) => 4,
+            (Item::Wolf, Occupation::Hunting) => 6,
+            (Item::Wolf, Occupation::Fighting) => 6,
             (Item::Axe, Occupation::Logging) => 6,
             (Item::Axe, Occupation::Fighting) => 3,
             (Item::Pickaxe, Occupation::Mining) => 6,
@@ -1113,15 +1115,6 @@ impl Item {
                 agility: 7,
                 ..Default::default()
             },
-            Item::Dragon => Stats {
-                intelligence: 10,
-                ..Default::default()
-            },
-            Item::Donkey => Stats {
-                intelligence: 5,
-                endurance: 5,
-                ..Default::default()
-            },
             Item::Axe => Stats {
                 strength: 5,
                 endurance: 5,
@@ -1147,11 +1140,6 @@ impl Item {
                 agility: 5,
                 ..Default::default()
             },
-            Item::Bird => Stats {
-                intelligence: 5,
-                agility: 5,
-                ..Default::default()
-            },
             Item::Dynamite => Stats {
                 intelligence: 8,
                 perception: 2,
@@ -1170,11 +1158,6 @@ impl Item {
             Item::Bag => Stats {
                 strength: 5,
                 endurance: 5,
-                ..Default::default()
-            },
-            Item::Horse => Stats {
-                agility: 5,
-                intelligence: 5,
                 ..Default::default()
             },
             Item::FishingRod | Item::FishingNet => Stats {
