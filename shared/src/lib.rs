@@ -35,7 +35,6 @@ pub struct EventData {
     pub user_id: Option<UserId>,
     pub seed: Seed,
     pub state_hash: u64,
-    #[serde(default)]
     pub event_idx: EventIndex,
 }
 
@@ -64,6 +63,7 @@ pub struct SyncData {
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug, Hash)]
 pub struct State {
+    #[serde(default)]
     pub next_event_idx: EventIndex,
     pub players: BTreeMap<UserId, Player>,
     pub next_dwarf_id: DwarfId,
