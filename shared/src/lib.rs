@@ -853,6 +853,7 @@ pub enum Item {
     BearClawBoots,
     FishingNet,
     Bag,
+    Headlamp,
 }
 
 impl Into<usize> for Item {
@@ -896,6 +897,7 @@ impl Item {
             Item::RhinoHornHelmet => Some(ItemType::Clothing),
             Item::Gloves => Some(ItemType::Clothing),
             Item::BearClawGloves => Some(ItemType::Clothing),
+            Item::Headlamp => Some(ItemType::Clothing),
 
             Item::Bow => Some(ItemType::Tool),
             Item::PoisonedBow => Some(ItemType::Tool),
@@ -975,7 +977,7 @@ impl Item {
                 intelligence: 2,
                 .. Default::default()
             },
-            Item::Lantern => Stats { 
+            Item::Lantern | Item::Headlamp => Stats { 
                 perception: 4,
                 .. Default::default()
             },
@@ -1059,8 +1061,9 @@ impl Item {
             (Item::Dynamite, Occupation::Mining) => 8,
             (Item::Backpack, Occupation::Gathering) => 7,
             (Item::Bag, Occupation::Gathering) => 5,
-            (Item::Helmet, Occupation::Mining | Occupation::Logging) => 4,
-            (Item::Helmet, Occupation::Fighting) => 3,
+            (Item::Helmet | Item::Headlamp, Occupation::Mining | Occupation::Logging) => 4,
+            (Item::Helmet | Item::Headlamp, Occupation::Fighting) => 3,
+            (Item::RhinoHornHelmet, Occupation::Mining | Occupation::Logging) => 4,
             (Item::RhinoHornHelmet, Occupation::Fighting) => 8,
             (Item::Horse, Occupation::Fighting) => 5,
             (Item::Horse, Occupation::Farming | Occupation::Logging) => 7,
@@ -1740,6 +1743,11 @@ impl Craftable for Item {
                 Bundle::new()
                     .add(Item::String, 20)
                     .add(Item::Iron, 2)
+            ),
+            Item::Headlamp => Some(
+                Bundle::new()
+                    .add(Item::Helmet, 1)
+                    .add(Item::Lantern, 1)
             ),
             _ => None,
         }
