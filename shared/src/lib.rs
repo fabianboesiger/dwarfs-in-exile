@@ -88,7 +88,8 @@ impl State {
 
                 for (user_id, player) in &mut self.players {
                     // Chance for a new dwarf!
-                    if rng.gen_ratio(1, ONE_DAY as u32) {
+
+                    if rng.gen_ratio(1, ONE_DAY as u32  / 2) {
                         player.new_dwarf(seed.unwrap(), &mut self.next_dwarf_id, self.time);
                     }
 
@@ -104,6 +105,9 @@ impl State {
                                 player.base.food -= 1;
                                 dwarf.incr_health(MAX_HEALTH / 1000);
                             }
+                        }
+                        if dwarf.dead() {
+                            player.log.add(self.time, LogMsg::DwarfDied(dwarf.name.clone()));
                         }
                     }
 
@@ -128,20 +132,6 @@ impl State {
                     quest.run(&self.players);
 
                     if quest.done() {
-                        /*
-                        for (user_id, player) in self.players.iter_mut() {
-                            if let Some(contestant) = quest.contestants.get(user_id) {
-                                player.log.add(
-                                    self.time,
-                                    LogMsg::QuestCompleted(
-                                        contestant.dwarfs.values().copied().collect(),
-                                        quest.quest_type,
-                                    ),
-                                );
-                            }
-                        }
-                        */
-
                         match quest.quest_type.reward_mode() {
                             RewardMode::BestGetsAll(money) => {
                                 if let Some(user_id) = quest.best() {
@@ -679,6 +669,7 @@ impl Player {
 
     pub fn new_dwarf(&mut self, seed: Seed, next_dwarf_id: &mut DwarfId, time: Time) {
         if self.dwarfs.len() < self.base.num_dwarfs() {
+            self.log.add(time, LogMsg::NewDwarf(*next_dwarf_id));
             self.dwarfs.insert(*next_dwarf_id, Dwarf::new(seed));
             *next_dwarf_id += 1;
         } else {
