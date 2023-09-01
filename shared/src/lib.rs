@@ -63,14 +63,14 @@ pub struct SyncData {
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug, Hash)]
 pub struct State {
-    #[serde(default)]
-    pub next_event_idx: EventIndex,
     pub players: BTreeMap<UserId, Player>,
     pub next_dwarf_id: DwarfId,
     pub chat: Chat,
     pub quests: Vec<Quest>,
     pub time: Time,
     pub king: Option<UserId>,
+    #[serde(default)]
+    pub next_event_idx: EventIndex,
 }
 
 impl State {
