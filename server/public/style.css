@@ -405,12 +405,11 @@ input[type=checkbox] {
 }
 
 .clickable-item {
-    text-decoration: underline;
     cursor: pointer;
 }
 
-.clickable-item.unavailable {
-    text-decoration: line-through underline;
+.clickable-item .unavailable {
+    text-decoration: line-through;
 }
 
 .loading {
