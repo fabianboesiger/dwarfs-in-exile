@@ -174,7 +174,7 @@ fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
             );
 
             // Chrome doesn't invoke `on_error` when the connection is lost.
-            if !close_event.was_clean() && model.web_socket_reconnector.is_none() {
+            if (!close_event.was_clean() || close_event.code() == 4000) && model.web_socket_reconnector.is_none() {
                 model.web_socket_reconnector = Some(
                     orders.stream_with_handle(streams::backoff(None, Msg::ReconnectWebSocket)),
                 );
@@ -195,7 +195,9 @@ fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
         Msg::SendGameEvent(event) => send(event),
         Msg::ReceiveGameEvent(event) => {
             if let Some(SyncData { state, .. }) = &mut model.state {
-                state.update(event);
+                if state.update(event).is_none() {
+                    //web_socket.close(Some(4000), Some("invalid state")).unwrap();
+                }
             }
         }
         Msg::InitGameState(sync_data) => {

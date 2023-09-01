@@ -8,7 +8,6 @@ mod index;
 use error::*;
 
 use axum::{
-    http::StatusCode,
     routing::{get, get_service, post},
     Extension, Router,
 };
