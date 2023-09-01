@@ -29,7 +29,10 @@ impl Page {
     fn from_url(url: Url) -> Self {
         match url.path().get(1).map(|s| s.as_str()) {
             Some("dwarfs") => Page::Dwarfs(DwarfsMode::Overview),
-            Some("inventory") => Page::Inventory(InventoryMode::Crafting),
+            Some("inventory") => Page::Inventory(match url.hash().map(|s| s.as_str()) {
+                Some("stats") => InventoryMode::Stats,
+                _ => InventoryMode::Crafting
+            }),
             Some("quests") => Page::Quests,
             Some("ranking") => Page::Ranking,
             _ => Page::Base,
@@ -40,6 +43,7 @@ impl Page {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum InventoryMode {
     Crafting,
+    Stats,
     Select(InventorySelect),
 }
 
@@ -141,6 +145,7 @@ pub enum Msg {
     InventoryFilterName(String),
     InventoryFilterReset,
     GoToItem(Item),
+    InventoryToggleStats,
 }
 
 fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
@@ -255,6 +260,20 @@ fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
             model.inventory_filter.item_name = item.to_string();
             //model.page = Page::Inventory(InventoryMode::Crafting);
             orders.notify(subs::UrlRequested::new(Url::from_str("/game/inventory").unwrap())); 
+        }
+        Msg::InventoryToggleStats => {
+            match model.page {
+                Page::Inventory(InventoryMode::Stats) => {
+                    //model.page = Page::Inventory(InventoryMode::Crafting);
+                    orders.notify(subs::UrlRequested::new(Url::from_str("/game/inventory#crafting").unwrap())); 
+                }, 
+                Page::Inventory(InventoryMode::Crafting) => {
+                    //model.page = Page::Inventory(InventoryMode::Stats);
+                    orders.notify(subs::UrlRequested::new(Url::from_str("/game/inventory#stats").unwrap())); 
+
+                }
+                _ => {}
+            }
         }
     }
 }
@@ -803,13 +822,19 @@ fn inventory(
             ],
             div![
                 input![
+                    id!["tools"],
+                    attrs! {At::Type => "checkbox", At::Checked => matches!(model.page, Page::Inventory(InventoryMode::Stats)).as_at_value()},
+                    ev(Ev::Click, |_| Msg::InventoryToggleStats),
+                ],
+                label![attrs! {At::For => "tools"}, "Show Stats"],
+                input![
                     attrs! {At::Type => "text", At::Value => model.inventory_filter.item_name, At::Placeholder => "Item Name"},
                     input_ev(Ev::Input, Msg::InventoryFilterName)
                 ],
                 button![
                     ev(Ev::Click, move |_| Msg::InventoryFilterReset),
                     "Reset Filter",
-                ]
+                ],
             ]
         ],
         div![
@@ -924,10 +949,7 @@ fn inventory(
                                     },
                                 ]]
                             }
-                            InventoryMode::Select(InventorySelect::Equipment(
-                                dwarf_id,
-                                item_type,
-                            )) => {
+                            mode => {
                                 vec![
                                     if !item.provides_stats().is_zero() {
                                         div![
@@ -973,14 +995,21 @@ fn inventory(
                                     } else {
                                         Node::Empty
                                     },
-                                    button![
-                                        ev(Ev::Click, move |_| Msg::ChangeEquipment(
-                                            dwarf_id,
-                                            item_type,
-                                            Some(item)
-                                        )),
-                                        "Equip"
-                                    ],
+                                    if let InventoryMode::Select(InventorySelect::Equipment(
+                                        dwarf_id,
+                                        item_type,
+                                    )) = mode {
+                                        button![
+                                            ev(Ev::Click, move |_| Msg::ChangeEquipment(
+                                                dwarf_id,
+                                                item_type,
+                                                Some(item)
+                                            )),
+                                            "Equip"
+                                        ]
+                                    } else {
+                                        Node::Empty
+                                    }
                                 ]
                             }
                         }
