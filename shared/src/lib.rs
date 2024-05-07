@@ -1,3 +1,4 @@
+use endian_hasher::HasherToBE;
 use enum_iterator::Sequence;
 use rand::{
     rngs::SmallRng,
@@ -7,8 +8,8 @@ use rand::{
 use serde::{Deserialize, Serialize};
 use strum::Display;
 use std::{
-    collections::{HashSet, VecDeque, BTreeMap},
-    hash::Hash,
+    collections::{BTreeMap, HashSet, VecDeque},
+    hash::{Hash, Hasher},
     ops::Deref,
 };
 
@@ -34,7 +35,7 @@ pub struct EventData {
     pub event: Event,
     pub user_id: Option<UserId>,
     pub seed: Seed,
-    pub event_idx: EventIndex,
+    pub state_checksum: u64,
 }
 
 pub type EventIndex = u64;
@@ -54,6 +55,7 @@ pub enum Res {
 pub struct SyncData {
     pub user_id: UserId,
     pub state: State,
+    pub checksum: u64,
 }
 
 // MODIFY EVENTS AND STATE BELOW
@@ -72,30 +74,26 @@ pub struct State {
     pub next_event_idx: EventIndex,
 }
 
+
 impl State {
+    pub fn checksum(&self) -> u64 {
+        let mut hasher = HasherToBE(std::hash::DefaultHasher::new());
+        self.hash(&mut hasher);
+        hasher.finish()
+    } 
+
     pub fn update(
         &mut self,
         EventData {
             event,
             seed,
             user_id,
-            event_idx,
+            state_checksum
         }: EventData,
     ) -> Option<()> {
-        
-        if event_idx < self.next_event_idx {
-            return Some(());
-        } else if event_idx > self.next_event_idx {
+        if self.checksum() != state_checksum {
             return None;
-        } else {     
-            /*if self.hash_value() != state_hash {
-                return None;
-            } else {*/
-                self.next_event_idx += 1;
-            //}
         }
-
-        self.time += 1;
 
         if let Some(user_id) = user_id {
             let player = self.players.get_mut(&user_id)?;
@@ -104,6 +102,8 @@ impl State {
 
         match event {
             Event::Tick => {
+                self.time += 1;
+
                 let mut rng: SmallRng = SmallRng::seed_from_u64(seed);
 
                 for (user_id, player) in &mut self.players {

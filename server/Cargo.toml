@@ -5,10 +5,10 @@ edition = "2021"
 
 [dependencies]
 shared = { path = "../shared" }
-axum = { version = "^0.6", features = ["ws", "headers"] }
+axum = { version = "0.6", features = ["ws", "headers"] }
 headers = "0.3"
 tokio = { version = "1.0", features = ["full"] }
-tower-http = { version = "^0.4", features = ["fs", "trace"] }
+tower-http = { version = "0.4", features = ["fs", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 serde = { version = "1.0.137", features = ["derive"] }
@@ -22,7 +22,7 @@ http-body = "0.4.3"
 thiserror = "1.0"
 sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "sqlite"] }
 dotenv = "0.15"
-askama_axum = { git = "https://github.com/djc/askama" }
-askama = { git = "https://github.com/djc/askama", features = ["with-axum"] }
+askama_axum = { version = "0.3" }
+askama = { version = "0.12", features = ["with-axum"] }
 bcrypt = "0.15.0"
 rand = {version = "0.8", features = ["small_rng"] }

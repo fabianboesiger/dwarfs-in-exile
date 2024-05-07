@@ -196,11 +196,15 @@ fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
         Msg::ReceiveGameEvent(event) => {
             if let Some(SyncData { state, .. }) = &mut model.state {
                 if state.update(event).is_none() {
+                    log!("invalid state");
                     web_socket.close(Some(4000), Some("invalid state")).unwrap();
                 }
             }
         }
         Msg::InitGameState(sync_data) => {
+            if sync_data.state.checksum() != sync_data.checksum {
+                error!("invalid state on initialize");
+            }
             model.state = Some(sync_data);
         }
         Msg::ChangePage(page) => {

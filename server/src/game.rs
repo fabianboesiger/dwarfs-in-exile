@@ -127,7 +127,7 @@ impl GameState {
                     let event = EventData {
                         user_id,
                         event,
-                        event_idx: state.next_event_idx,
+                        state_checksum: state.checksum(),
                         seed: rng.gen()
                     };
 
@@ -207,6 +207,7 @@ pub async fn ws_handler(
             let (mut sink, mut stream) = socket.split();
 
             let msg = rmp_serde::to_vec(&shared::Res::Sync(SyncData {
+                checksum: state.checksum(),
                 user_id,
                 state,
             })).unwrap();
@@ -251,6 +252,7 @@ pub async fn ws_handler(
                                 let (state, _, new_receiver) = game_state.new_connection(user_id).await;
                                 receiver = new_receiver;
                                 let msg = rmp_serde::to_vec(&shared::Res::Sync(SyncData {
+                                    checksum: state.checksum(),
                                     user_id,
                                     state,
                                 })).unwrap();

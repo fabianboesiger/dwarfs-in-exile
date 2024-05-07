@@ -10,3 +10,4 @@ enum-iterator = { version = "1.4.1" }
 log = "0.4.19"
 strum = { version = "0.25", features = ["derive"] }
 fxhash = "0.2"
+endian-hasher = "0.1"
