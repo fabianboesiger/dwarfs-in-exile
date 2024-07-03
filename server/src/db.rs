@@ -34,7 +34,7 @@ pub async fn setup() -> Result<SqlitePool, Box<dyn std::error::Error>> {
 
     sqlx::query(
         r#"
-        CREATE TABLE IF NOT EXISTS worlds (
+        CREATE TABLE IF NOT EXISTS games (
             name TEXT PRIMARY KEY,
             data BLOB
         )

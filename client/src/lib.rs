@@ -1,16 +1,17 @@
+use engine_client::{ClientState, EventWrapper, Msg as EngineMsg};
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, Craftable, DwarfId, Event, EventData, Health, Item, ItemRarity, ItemType, LogMsg,
-    Occupation, QuestType, Req, Res, RewardMode, Stats, SyncData, LOOT_CRATE_COST, MAX_HEALTH,
+    Bundle, DwarfId, ClientEvent, Health, Item, ItemRarity, ItemType, LogMsg, Craftable,
+    Occupation, QuestType, RewardMode, Stats, LOOT_CRATE_COST, MAX_HEALTH,
     SPEED, Player,
 };
-use std::{rc::Rc, str::FromStr};
+use std::str::FromStr;
 use itertools::Itertools;
 
 #[cfg(not(debug_assertions))]
 const WS_URL: &str = "ws://boesiger.internet-box.ch/game/ws";
 #[cfg(debug_assertions)]
-const WS_URL: &str = "ws://127.0.0.1:3000/game/ws";
+const WS_URL: &str = "ws://localhost:3000/game/ws";
 
 // ------ ------
 //     Model
@@ -75,9 +76,7 @@ pub struct InventoryFilter {
 }
 
 pub struct Model {
-    web_socket: WebSocket,
-    web_socket_reconnector: Option<StreamHandle>,
-    state: Option<SyncData>,
+    state: ClientState<shared::State>,
     page: Page,
     message: String,
     chat_visible: bool,
@@ -104,9 +103,7 @@ fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
     });
 
     Model {
-        web_socket: create_websocket(orders),
-        web_socket_reconnector: None,
-        state: None,
+        state: ClientState::init(orders, WS_URL.to_owned()),
         page: Page::from_url(url),
         message: String::new(),
         chat_visible: false,
@@ -118,7 +115,7 @@ fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
 // ------ ------
 //    Update
 // ------ ------
-
+/* 
 #[derive(Debug)]
 pub enum Msg {
     WebSocketOpened,
@@ -126,9 +123,18 @@ pub enum Msg {
     WebSocketClosed(CloseEvent),
     WebSocketFailed,
     ReconnectWebSocket(usize),
-    SendGameEvent(Event),
+    SendGameEvent(ClientEvent),
     ReceiveGameEvent(EventData),
     InitGameState(SyncData),
+    
+}
+
+impl EngineMsg<shared::State> for Msg {}
+*/
+
+#[derive(Debug)]
+pub enum Msg {
+    GameStateEvent(EventWrapper<shared::State>),
     ChangePage(Page),
     ChangeMessage(String),
     SubmitMessage,
@@ -148,64 +154,19 @@ pub enum Msg {
     InventoryToggleStats,
 }
 
-fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
-    let web_socket = &model.web_socket;
-    let send = |event| {
-        let serialized = rmp_serde::to_vec(&Req::Event(event)).unwrap();
-        web_socket.send_bytes(&serialized).unwrap();
-    };
+impl EngineMsg<shared::State> for Msg {}
 
+impl From<EventWrapper<shared::State>> for Msg {
+    fn from(event: EventWrapper<shared::State>) -> Self {
+        Self::GameStateEvent(event)
+    }
+}
+
+
+fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
     match msg {
-        Msg::WebSocketOpened => {
-            model.web_socket_reconnector = None;
-            log!("WebSocket connection is open now");
-        }
-        Msg::CloseWebSocket => {
-            model.web_socket_reconnector = None;
-            model
-                .web_socket
-                .close(None, Some("user clicked close button"))
-                .unwrap();
-        }
-        Msg::WebSocketClosed(close_event) => {
-            log!(
-                "WebSocket connection was closed, reason:",
-                close_event.reason()
-            );
-
-            // Chrome doesn't invoke `on_error` when the connection is lost.
-            if (!close_event.was_clean() || close_event.code() == 4000) && model.web_socket_reconnector.is_none() {
-                model.web_socket_reconnector = Some(
-                    orders.stream_with_handle(streams::backoff(None, Msg::ReconnectWebSocket)),
-                );
-            }
-        }
-        Msg::WebSocketFailed => {
-            log!("WebSocket failed");
-            if model.web_socket_reconnector.is_none() {
-                model.web_socket_reconnector = Some(
-                    orders.stream_with_handle(streams::backoff(None, Msg::ReconnectWebSocket)),
-                );
-            }
-        }
-        Msg::ReconnectWebSocket(retries) => {
-            log!("Reconnect attempt:", retries);
-            model.web_socket = create_websocket(orders);
-        }
-        Msg::SendGameEvent(event) => send(event),
-        Msg::ReceiveGameEvent(event) => {
-            if let Some(SyncData { state, .. }) = &mut model.state {
-                if state.update(event).is_none() {
-                    log!("invalid state");
-                    web_socket.close(Some(4000), Some("invalid state")).unwrap();
-                }
-            }
-        }
-        Msg::InitGameState(sync_data) => {
-            if sync_data.state.checksum() != sync_data.checksum {
-                error!("invalid state on initialize");
-            }
-            model.state = Some(sync_data);
+        Msg::GameStateEvent(ev) => {
+            model.state.update(ev, orders);
         }
         Msg::ChangePage(page) => {
             model.page = page;
@@ -214,7 +175,8 @@ fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
             model.message = message;
         }
         Msg::SubmitMessage => {
-            send(Event::Message(model.message.clone()));
+            //send(ClientEvent::Message(model.message.clone()));
+            orders.send_msg(Msg::send_event(ClientEvent::Message(model.message.clone())));
             model.message.clear();
         }
         Msg::ToggleChat => {
@@ -253,13 +215,16 @@ fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
             if dwarf_id.is_some() {
                 model.page = Page::Quests;
             }
-            send(Event::AssignToQuest(quest_idx, dwarf_idx, dwarf_id));
+            //send(ClientEvent::AssignToQuest(quest_idx, dwarf_idx, dwarf_id));
+            orders.send_msg(Msg::send_event(ClientEvent::AssignToQuest(quest_idx, dwarf_idx, dwarf_id)));
+
         }
         Msg::ChangeEquipment(dwarf_id, item_type, item) => {
             if item.is_some() {
                 model.page = Page::Dwarfs(DwarfsMode::Overview);
             }
-            send(Event::ChangeEquipment(dwarf_id, item_type, item))
+            //send(ClientEvent::ChangeEquipment(dwarf_id, item_type, item))
+            orders.send_msg(Msg::send_event(ClientEvent::ChangeEquipment(dwarf_id, item_type, item)));
         }
         Msg::GoToItem(item) => {
             model.inventory_filter = InventoryFilter::default();
@@ -284,47 +249,12 @@ fn update(msg: Msg, mut model: &mut Model, orders: &mut impl Orders<Msg>) {
     }
 }
 
-fn create_websocket(orders: &impl Orders<Msg>) -> WebSocket {
-    let msg_sender = orders.msg_sender();
-
-    WebSocket::builder(WS_URL, orders)
-        .on_open(|| Msg::WebSocketOpened)
-        .on_message(move |msg| decode_message(msg, msg_sender))
-        .on_close(Msg::WebSocketClosed)
-        .on_error(|| Msg::WebSocketFailed)
-        .build_and_open()
-        .unwrap()
-}
-
-fn decode_message(message: WebSocketMessage, msg_sender: Rc<dyn Fn(Option<Msg>)>) {
-    if message.contains_text() {
-        unreachable!()
-    } else {
-        spawn_local(async move {
-            let bytes = message
-                .bytes()
-                .await
-                .expect("WebsocketError on binary data");
-
-            let msg: Res = rmp_serde::from_slice(&bytes).unwrap();
-            match msg {
-                Res::Event(event) => {
-                    msg_sender(Some(Msg::ReceiveGameEvent(event)));
-                }
-                Res::Sync(sync) => {
-                    msg_sender(Some(Msg::InitGameState(sync)));
-                }
-            }
-        });
-    }
-}
-
 // ------ ------
 //     View
 // ------ ------
 
 fn view(model: &Model) -> Vec<Node<Msg>> {
-    if let Some(data) = &model.state {
+    if let (Some(state), Some(user_id), client_state) = (model.state.get_state(), model.state.get_user_id(), &model.state) {
         vec![
             div![id!["background"]],
             header![
@@ -334,7 +264,7 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
             #[cfg(debug_assertions)]
             div![
                 id!["server-info"],
-                span![format!(
+                /*span![format!(
                     "status: {}, tick number: {}, tick rate: 1/{} s",
                     if model.web_socket_reconnector.is_none() {
                         "connected"
@@ -343,17 +273,17 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
                     },
                     data.state.time,
                     shared::SPEED,
-                )]
+                )]*/
             ],
             main![match model.page {
-                Page::Dwarfs(mode) => dwarfs(data, mode),
-                Page::Base => base(data),
-                Page::Inventory(mode) => inventory(model, data, mode),
-                Page::Ranking => ranking(data),
-                Page::Quests => quests(data),
+                Page::Dwarfs(mode) => dwarfs(state, user_id, mode),
+                Page::Base => base(state, user_id),
+                Page::Inventory(mode) => inventory(model, state, user_id, mode),
+                Page::Ranking => ranking(state, client_state),
+                Page::Quests => quests(state, user_id),
             }],
-            chat(model, data),
-            history(model, data),
+            chat(model, state, client_state),
+            history(model, state, user_id, client_state),
         ]
     } else {
         vec![
@@ -368,16 +298,15 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
     }
 }
 
-fn ranking(SyncData { state, .. }: &SyncData) -> Node<Msg> {
-    let mut players: Vec<_> = state.players.values().collect();
-    players.sort_by_key(|p| (-(p.base.prestige as i64), -(p.dwarfs.len() as i64)));
+fn ranking(state: &shared::State, client_state: &ClientState<shared::State>) -> Node<Msg> {
+    let mut players: Vec<_> = state.players.iter().collect();
+    players.sort_by_key(|(_, p)| (-(p.base.prestige as i64), -(p.dwarfs.len() as i64)));
 
     div![
         C!["content"],
         h2!["Ranking"],
         if let Some(king) = state.king {
-            let king = state.players.get(&king).unwrap();
-            p![format!("All hail our King {}!", king.username), tip("The king gets one tenth of all money that was earned. Make sure you become the king as soon as the quest becomes available.")]
+            p![format!("All hail our King {}!", client_state.get_user_data(&king).unwrap().username), tip("The king gets one tenth of all money that was earned. Make sure you become the king as soon as the quest becomes available.")]
         } else {
             Node::Empty
         },
@@ -388,11 +317,11 @@ fn ranking(SyncData { state, .. }: &SyncData) -> Node<Msg> {
                 th!["Settlement"],
                 th!["Population"]
             ],
-            players.iter().enumerate().map(|(i, player)| {
+            players.iter().enumerate().map(|(i, (user_id, player))| {
                 let rank = i + 1;
                 tr![
                     td![rank],
-                    td![format!("{} ", player.username), span![C!["symbols", if player.is_online(state.time) { "online" } else { "offline" }], "●"]],
+                    td![format!("{} ", client_state.get_user_data(&user_id).unwrap().username), span![C!["symbols", if player.is_online(state.time) { "online" } else { "offline" }], "●"]],
                     td![format!("{}", player.base.village_type())],
                     td![player.dwarfs.len()]
                 ]
@@ -450,7 +379,7 @@ fn health_bar(curr: Health, max: Health) -> Node<Msg> {
     ]
 }
 
-fn dwarfs(SyncData { state, user_id, .. }: &SyncData, mode: DwarfsMode) -> Node<Msg> {
+fn dwarfs(state: &shared::State, user_id: &shared::UserId, mode: DwarfsMode) -> Node<Msg> {
     let player = state.players.get(user_id).unwrap();
 
     if player.dwarfs.len() > 0 {
@@ -571,8 +500,8 @@ fn dwarfs(SyncData { state, user_id, .. }: &SyncData, mode: DwarfsMode) -> Node<
                                                 } else {
                                                     attrs! {}
                                                 },
-                                                ev(Ev::Click, move |_| Msg::SendGameEvent(
-                                                    Event::ChangeOccupation(id, occupation)
+                                                ev(Ev::Click, move |_| Msg::send_event(
+                                                    ClientEvent::ChangeOccupation(id, occupation)
                                                 )),
                                                 format!("{}", occupation),
                                                 if all_items.len() == 0 {
@@ -611,14 +540,14 @@ fn dwarfs(SyncData { state, user_id, .. }: &SyncData, mode: DwarfsMode) -> Node<
             h2!["There's Noone Here!"],
             p!["All your dwarfs have died! You can wait until a new dwarf finds your settlement or start over with a new settlement."],
             button![
-                ev(Ev::Click, move |_| Msg::SendGameEvent(Event::Restart)),
+                ev(Ev::Click, move |_| Msg::send_event(ClientEvent::Restart)),
                 "Restart your Settlement",
             ],
         ]
     }
 }
 
-fn quests(SyncData { state, user_id, .. }: &SyncData) -> Node<Msg> {
+fn quests(state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     let player = state.players.get(user_id).unwrap();
 
     div![
@@ -724,7 +653,7 @@ fn big_number(mut num: u64) -> String {
     format!("{}{}", num, ending)
 }
 
-fn base(SyncData { state, user_id, .. }: &SyncData) -> Node<Msg> {
+fn base(state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     let player = state.players.get(user_id).unwrap();
 
     div![C!["content"],
@@ -756,7 +685,7 @@ fn base(SyncData { state, user_id, .. }: &SyncData) -> Node<Msg> {
                     } else {
                         attrs! {At::Disabled => "true"}
                     },
-                    ev(Ev::Click, move |_| Msg::SendGameEvent(Event::UpgradeBase)),
+                    ev(Ev::Click, move |_| Msg::send_event(ClientEvent::UpgradeBase)),
                     "Upgrade",
                 ]
             ]
@@ -772,7 +701,7 @@ fn base(SyncData { state, user_id, .. }: &SyncData) -> Node<Msg> {
                 } else {
                     attrs! {At::Disabled => "true"}
                 },
-                ev(Ev::Click, move |_| Msg::SendGameEvent(Event::OpenLootCrate)),
+                ev(Ev::Click, move |_| Msg::send_event(ClientEvent::OpenLootCrate)),
                 format!("Buy and Open (🜚{})", LOOT_CRATE_COST),
             ]
         ]
@@ -781,7 +710,8 @@ fn base(SyncData { state, user_id, .. }: &SyncData) -> Node<Msg> {
 
 fn inventory(
     model: &Model,
-    SyncData { state, user_id, .. }: &SyncData,
+    state: &shared::State,
+    user_id: &shared::UserId,
     mode: InventoryMode,
 ) -> Node<Msg> {
     let player = state.players.get(user_id).unwrap();
@@ -948,8 +878,8 @@ fn inventory(
                                                     } else {
                                                         attrs! {At::Disabled => "true"}
                                                     },
-                                                    ev(Ev::Click, move |_| Msg::SendGameEvent(
-                                                        Event::Craft(item, 1)
+                                                    ev(Ev::Click, move |_| Msg::send_event(
+                                                        ClientEvent::Craft(item, 1)
                                                     )),
                                                     "Craft",
                                                 ],
@@ -959,8 +889,8 @@ fn inventory(
                                                     } else {
                                                         attrs! {At::Disabled => "true"}
                                                     },
-                                                    ev(Ev::Click, move |_| Msg::SendGameEvent(
-                                                        Event::Craft(item, 10)
+                                                    ev(Ev::Click, move |_| Msg::send_event(
+                                                        ClientEvent::Craft(item, 10)
                                                     )),
                                                     "10x",
                                                 ],
@@ -970,8 +900,8 @@ fn inventory(
                                                     } else {
                                                         attrs! {At::Disabled => "true"}
                                                     },
-                                                    ev(Ev::Click, move |_| Msg::SendGameEvent(
-                                                        Event::Craft(item, 100)
+                                                    ev(Ev::Click, move |_| Msg::send_event(
+                                                        ClientEvent::Craft(item, 100)
                                                     )),
                                                     "100x",
                                                 ]
@@ -992,8 +922,8 @@ fn inventory(
                                                 } else {
                                                     attrs! {At::Disabled => "true"}
                                                 },
-                                                ev(Ev::Click, move |_| Msg::SendGameEvent(
-                                                    Event::AddToFoodStorage(item, 1)
+                                                ev(Ev::Click, move |_| Msg::send_event(
+                                                    ClientEvent::AddToFoodStorage(item, 1)
                                                 )),
                                                 format!("Store"),
                                             ],
@@ -1007,8 +937,8 @@ fn inventory(
                                                 } else {
                                                     attrs! {At::Disabled => "true"}
                                                 },
-                                                ev(Ev::Click, move |_| Msg::SendGameEvent(
-                                                    Event::AddToFoodStorage(item, 10)
+                                                ev(Ev::Click, move |_| Msg::send_event(
+                                                    ClientEvent::AddToFoodStorage(item, 10)
                                                 )),
                                                 format!("10x"),
                                             ],
@@ -1022,8 +952,8 @@ fn inventory(
                                                 } else {
                                                     attrs! {At::Disabled => "true"}
                                                 },
-                                                ev(Ev::Click, move |_| Msg::SendGameEvent(
-                                                    Event::AddToFoodStorage(item, 100)
+                                                ev(Ev::Click, move |_| Msg::send_event(
+                                                    ClientEvent::AddToFoodStorage(item, 100)
                                                 )),
                                                 format!("100x"),
                                             ] 
@@ -1109,7 +1039,7 @@ fn inventory(
     ]
 }
 
-fn chat(model: &Model, SyncData { state, .. }: &SyncData) -> Node<Msg> {
+fn chat(model: &Model, state: &shared::State, client_state: &ClientState<shared::State>) -> Node<Msg> {
     let message = model.message.clone();
 
     div![
@@ -1125,7 +1055,7 @@ fn chat(model: &Model, SyncData { state, .. }: &SyncData) -> Node<Msg> {
                 div![
                     C!["messages"],
                     state.chat.messages.iter().map(|(user_id, message)| {
-                        let username = &state.players.get(user_id).unwrap().username;
+                        let username = &client_state.get_user_data(&user_id).unwrap().username;
                         div![
                             C!["message"],
                             span![C!["username"], format!("{username}")],
@@ -1157,7 +1087,7 @@ fn chat(model: &Model, SyncData { state, .. }: &SyncData) -> Node<Msg> {
     ]
 }
 
-fn history(model: &Model, SyncData { state, user_id, .. }: &SyncData) -> Node<Msg> {
+fn history(model: &Model, state: &shared::State, user_id: &shared::UserId, client_state: &ClientState<shared::State>) -> Node<Msg> {
     let player = state.players.get(user_id).unwrap();
 
     div![
@@ -1181,7 +1111,7 @@ fn history(model: &Model, SyncData { state, user_id, .. }: &SyncData) -> Node<Ms
                             LogMsg::NewPlayer(user_id) => {
                                 span![format!(
                                     "A new player has joined the game, say hi to {}!",
-                                    state.players.get(user_id).unwrap().username
+                                    client_state.get_user_data(&user_id).unwrap().username
                                 )]
                             }
                             LogMsg::MoneyForKing(money) => {
@@ -1310,7 +1240,7 @@ fn bundle(requires: &Bundle<Item>, player: &Player, requirement: bool) -> Node<M
                     span![format!(" ({})", player.inventory.items.get(&item).copied().unwrap_or_default())]
                 ]
             } else {
-                let available = player.inventory.items.check_remove(&Bundle::new().add(item, n));
+                //let available = player.inventory.items.check_remove(&Bundle::new().add(item, n));
                 li![C!["clickable-item"],
                     span![
                         format!("{n}x {item}"), ev(Ev::Click, move |_| Msg::GoToItem(item))

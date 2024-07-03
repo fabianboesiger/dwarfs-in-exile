@@ -12,6 +12,7 @@ use axum::{
     Extension, Router,
 };
 use axum_sessions::{async_session::MemoryStore, SessionLayer};
+use game::{GameState, GameStore};
 use std::{net::SocketAddr, path::PathBuf};
 use tower_http::{
     services::ServeDir,
@@ -41,7 +42,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_secure(false)
         .with_http_only(false);
 
-    let game_state = game::GameState::new(pool.clone()).await;
+    let store = GameStore::new(pool.clone());
+    let game_state = GameState::new(store).await;
 
     // build our application with some routes
     let app = Router::new()

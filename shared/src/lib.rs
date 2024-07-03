@@ -1,15 +1,14 @@
-use endian_hasher::HasherToBE;
+use engine_shared::{utils::custom_map::CustomMap, Event};
 use enum_iterator::Sequence;
 use rand::{
-    rngs::SmallRng,
     seq::{IteratorRandom, SliceRandom},
-    Rng, SeedableRng,
+    Rng,
 };
 use serde::{Deserialize, Serialize};
 use strum::Display;
 use std::{
-    collections::{BTreeMap, HashSet, VecDeque},
-    hash::{Hash, Hasher},
+    collections::{HashSet, VecDeque},
+    hash::Hash,
     ops::Deref,
 };
 
@@ -27,493 +26,445 @@ pub type Money = u64;
 pub type Food = u64;
 pub type Health = u64;
 
-pub type UserId = i64;
 pub type Time = u64;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct EventData {
-    pub event: Event,
-    pub user_id: Option<UserId>,
-    pub seed: Seed,
-    pub state_checksum: u64,
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash, PartialEq, Eq)]
+pub struct UserId(pub i64);
+
+impl engine_shared::UserId for UserId {}
+
+impl From<i64> for UserId {
+    fn from(id: i64) -> Self {
+        UserId(id)
+    }
 }
 
-pub type EventIndex = u64;
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum Req {
-    Event(Event),
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq)]
+pub struct UserData {
+    pub username: String,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-pub enum Res {
-    Sync(SyncData),
-    Event(EventData),
+impl engine_shared::UserData for UserData {}
+
+impl From<String> for UserData {
+    fn from(username: String) -> Self {
+        UserData { username }
+    }
 }
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct SyncData {
-    pub user_id: UserId,
-    pub state: State,
-    pub checksum: u64,
-}
-
-// MODIFY EVENTS AND STATE BELOW
-
-
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug, Hash)]
 pub struct State {
-    pub players: BTreeMap<UserId, Player>,
+    pub players: CustomMap<UserId, Player>,
     pub next_dwarf_id: DwarfId,
     pub chat: Chat,
     pub quests: Vec<Quest>,
     pub time: Time,
     pub king: Option<UserId>,
-    #[serde(default)]
-    pub next_event_idx: EventIndex,
 }
 
 
-impl State {
-    pub fn checksum(&self) -> u64 {
-        let mut hasher = HasherToBE(std::hash::DefaultHasher::new());
-        self.hash(&mut hasher);
-        hasher.finish()
-    } 
+impl engine_shared::State for State {
+    type ServerEvent = ServerEvent;
+    type ClientEvent = ClientEvent;
+    type UserId = UserId;
+    type UserData = UserData;
+    
+    const DURATION_PER_TICK: std::time::Duration = std::time::Duration::from_millis(1000 / SPEED);
 
-    pub fn update(
-        &mut self,
-        EventData {
-            event,
-            seed,
-            user_id,
-            state_checksum
-        }: EventData,
-    ) -> Option<()> {
-        if self.checksum() != state_checksum {
-            return None;
-        }
-
-        if let Some(user_id) = user_id {
-            let player = self.players.get_mut(&user_id)?;
-            player.last_online = self.time;
-        }
-
-        match event {
-            Event::Tick => {
-                self.time += 1;
-
-                let mut rng: SmallRng = SmallRng::seed_from_u64(seed);
-
-                for (user_id, player) in &mut self.players {
-                    // Chance for a new dwarf!
-                    if rng.gen_ratio(1, ONE_DAY as u32  / 2) {
-                        player.new_dwarf(seed, &mut self.next_dwarf_id, self.time);
+    fn update(&mut self, rng: &mut impl Rng, event: Event<Self>) {
+        move || -> Option<()> {
+            match event {
+                Event::ClientEvent(event, user_id) => {
+                    if !self.players.contains_key(&user_id) {
+                        self.players.insert(user_id, Player::new(self.time));
                     }
-
-                    // Let the dwarfs eat!
-                    let mut sorted_by_health = player.dwarfs.values_mut().collect::<Vec<_>>();
-                    sorted_by_health.sort_by_key(|dwarf| dwarf.health);
-                    for dwarf in sorted_by_health {
-                        dwarf.decr_health(dwarf.occupation.health_cost_per_second());
-                        if dwarf.occupation == Occupation::Idling {
-                            if player.base.food > 0
-                                && dwarf.health <= MAX_HEALTH - MAX_HEALTH / 1000
-                            {
-                                player.base.food -= 1;
-                                dwarf.incr_health(MAX_HEALTH / 1000);
+                    let player = self.players.get_mut(&user_id)?;
+                    player.last_online = self.time;
+    
+                    match event {
+                        ClientEvent::Init => {}
+                        ClientEvent::Restart => {
+                            if player.dwarfs.len() == 0 {
+                                let mut player = Player::new(self.time);
+                                player.new_dwarf(rng, &mut self.next_dwarf_id, self.time);
+                                self.players.insert(user_id, player);
                             }
                         }
-                        if dwarf.dead() {
-                            player.log.add(self.time, LogMsg::DwarfDied(dwarf.name.clone()));
+                        ClientEvent::Message(message) => {
+                            self.chat.add_message(user_id, message);
                         }
-                    }
-
-                    // Let the dwarfs work!
-                    for (_, dwarf) in &mut player.dwarfs {
-                        if !dwarf.dead() {
-                            dwarf.work(&mut player.inventory, seed);
+                        ClientEvent::ChangeOccupation(dwarf_id, occupation) => {            
+                            let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
+            
+                            if dwarf.participates_in_quest.is_none() && player.base.curr_level >= occupation.unlocked_at_level() {
+                                dwarf.change_occupation(occupation);
+                            }
                         }
-                    }
-
-                    // Remove dead dwarfs.
-                    for quest in &mut self.quests {
-                        if let Some(contestant) = quest.contestants.get_mut(user_id) {
-                            contestant.dwarfs.retain(|_, dwarf_id| !player.dwarfs.get(&dwarf_id).unwrap().dead());
-                        }
-                    }
-                    player.dwarfs.retain(|_, dwarf| !dwarf.dead());
-                }
-
-                // Continue the active quests.
-                for quest in &mut self.quests {
-                    quest.run(&self.players);
-
-                    if quest.done() {
-                        match quest.quest_type.reward_mode() {
-                            RewardMode::BestGetsAll(money) => {
-                                if let Some(user_id) = quest.best() {
-                                    if let Some(player) = self.players.get_mut(&user_id) {
-                                        if self.king.is_some() {
-                                            player.money += money * 9 / 10;
-                                        } else {
-                                            player.money += money;
-                                        }
-                                        player.log.add(
-                                            self.time,
-                                            LogMsg::QuestCompletedMoney(quest.quest_type, money),
-                                        );
-                                    }
-                                    if let Some(king) = self.king {
-                                        if let Some(player) = self.players.get_mut(&king) {
-                                            player.money += money / 10;
-                                            player.log.add(
-                                                self.time,
-                                                LogMsg::MoneyForKing(money / 10),
-                                            );
-                                        }
-                                    }
-                                    for contestant_id in quest.contestants.keys() {
-                                        if *contestant_id != user_id {
-                                            let player = self.players.get_mut(contestant_id)?;
-                                            player.log.add(
-                                                self.time,
-                                                LogMsg::QuestCompletedMoney(quest.quest_type, 0),
-                                            );
-                                        }
-                                    }
+                        ClientEvent::Craft(item, qty) => {            
+                            if let Some(requires) = item.requires() {
+                                if player.inventory.items.remove_checked(requires.mul(qty)) {
+                                    player
+                                        .inventory
+                                        .items
+                                        .add_checked(Bundle::new().add(item, qty));
                                 }
                             }
-                            RewardMode::BecomeKing => {
-                                if let Some(user_id) = quest.best() {
-                                    if let Some(player) = self.players.get_mut(&user_id) {
-                                        self.king = Some(user_id);
-                                        player.log.add(
-                                            self.time,
-                                            LogMsg::QuestCompletedKing(quest.quest_type, true),
-                                        );
-                                    }
-                                    for contestant_id in quest.contestants.keys() {
-                                        if *contestant_id != user_id {
-                                            let player = self.players.get_mut(contestant_id)?;
-                                            player.log.add(
-                                                self.time,
-                                                LogMsg::QuestCompletedKing(quest.quest_type, false),
-                                            );
-                                        }
-                                    }
+                        }
+                        ClientEvent::UpgradeBase => {            
+                            if let Some(requires) = player.base.upgrade_cost() {
+                                if player.inventory.items.remove_checked(requires) {
+                                    player.base.upgrade();
                                 }
                             }
-                            RewardMode::SplitFairly(money) => {
-                                for (user_id, money) in quest.split_by_score(if self.king.is_some() {
-                                    money * 9 / 10
+                        }
+                        ClientEvent::ChangeEquipment(dwarf_id, item_type, item) => {            
+                            let equipment = player
+                                .dwarfs
+                                .get_mut(&dwarf_id)?
+                                .equipment
+                                .get_mut(&item_type)?;
+            
+                            let old_item = if let Some(item) = item {
+                                if player
+                                    .inventory
+                                    .items
+                                    .remove_checked(Bundle::new().add(item, 1))
+                                {
+                                    equipment.replace(item)
                                 } else {
-                                    money
-                                }) {
-                                    if let Some(player) = self.players.get_mut(&user_id) {
-                                        player.money += money;
-                                        player.log.add(
-                                            self.time,
-                                            LogMsg::QuestCompletedMoney(quest.quest_type, money),
-                                        );
-                                    }
+                                    None
                                 }
-                                if let Some(king) = self.king {
-                                    if let Some(player) = self.players.get_mut(&king) {
-                                        player.money += money / 10;
-                                        player.log.add(
-                                            self.time,
-                                            LogMsg::MoneyForKing(money / 10),
-                                        );
-                                    }
-                                }
+                            } else {
+                                equipment.take()
+                            };
+            
+                            if let Some(old_item) = old_item {
+                                player
+                                    .inventory
+                                    .items
+                                    .add_checked(Bundle::new().add(old_item, 1));
                             }
-                            RewardMode::BestGetsItems(items) => {
-                                if let Some(user_id) = quest.best() {
-                                    if let Some(player) = self.players.get_mut(&user_id) {
-                                        player.inventory.items.add_checked(items.clone());
-                                        player.log.add(
-                                            self.time,
-                                            LogMsg::QuestCompletedItems(
-                                                quest.quest_type,
-                                                Some(items),
-                                            ),
-                                        );
-                                    }
-                                    for contestant_id in quest.contestants.keys() {
-                                        if *contestant_id != user_id {
-                                            let player = self.players.get_mut(contestant_id)?;
-                                            player.log.add(
-                                                self.time,
-                                                LogMsg::QuestCompletedItems(quest.quest_type, None),
-                                            );
-                                        }
-                                    }
+                        }
+                        ClientEvent::OpenLootCrate => {            
+                            player.open_loot_crate(rng, self.time);
+                        }
+                        ClientEvent::AssignToQuest(quest_idx, dwarf_idx, dwarf_id) => {            
+                            if let Some(dwarf_id) = dwarf_id {
+                                let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
+            
+                                if let Some((_, old_quest_idx, old_dwarf_idx)) = dwarf.participates_in_quest {
+                                    let old_quest = self.quests.get_mut(old_quest_idx)?;
+                                    let old_contestant =
+                                        old_quest.contestants.entry(user_id).or_default();
+                                    old_contestant.dwarfs.swap_remove(&old_dwarf_idx);
                                 }
-                            }
-                            RewardMode::Prestige => {
-                                if let Some(user_id) = quest.chance_by_score(seed) {
-                                    if let Some(player) = self.players.get_mut(&user_id) {
-                                        if player.can_prestige() {
-                                            player.prestige();
-                                        }
-                                        player.log.add(
-                                            self.time,
-                                            LogMsg::QuestCompletedPrestige(quest.quest_type, true),
-                                        );
-                                    }
-                                    for contestant_id in quest.contestants.keys() {
-                                        if *contestant_id != user_id {
-                                            let player = self.players.get_mut(contestant_id)?;
-                                            player.log.add(
-                                                self.time,
-                                                LogMsg::QuestCompletedPrestige(
-                                                    quest.quest_type,
-                                                    false,
-                                                ),
-                                            );
-                                        }
-                                    }
+            
+                                let quest = self.quests.get_mut(quest_idx)?;
+                                let contestant = quest.contestants.entry(user_id).or_default();
+            
+                                dwarf.change_occupation(quest.quest_type.occupation());
+                                dwarf.participates_in_quest = Some((quest.quest_type, quest_idx, dwarf_idx));
+                                if dwarf_idx < quest.quest_type.max_dwarfs() {
+                                    contestant.dwarfs.insert(dwarf_idx, dwarf_id);
                                 }
-                            }
-                            RewardMode::NewDwarf(num_dwarfs) => {
-                                if let Some(user_id) = quest.chance_by_score(seed) {
-                                    if let Some(player) = self.players.get_mut(&user_id) {
-                                        player.log.add(
-                                            self.time,
-                                            LogMsg::QuestCompletedDwarfs(
-                                                quest.quest_type,
-                                                Some(num_dwarfs),
-                                            ),
-                                        );
-                                        for _ in 0..num_dwarfs {
-                                            player
-                                                .new_dwarf(seed, &mut self.next_dwarf_id, self.time);
-                                        }
-                                    }
-                                    for contestant_id in quest.contestants.keys() {
-                                        if *contestant_id != user_id {
-                                            let player = self.players.get_mut(contestant_id)?;
-                                            player.log.add(
-                                                self.time,
-                                                LogMsg::QuestCompletedDwarfs(
-                                                    quest.quest_type,
-                                                    None,
-                                                ),
-                                            );
-                                        }
-                                    }
+                            } else {
+                                let quest = self.quests.get_mut(quest_idx)?;
+                                let contestant = quest.contestants.entry(user_id).or_default();
+            
+                                let old_dwarf_id = contestant.dwarfs.swap_remove(&dwarf_idx);
+            
+                                if let Some(old_dwarf_id) = old_dwarf_id {
+                                    let dwarf = player.dwarfs.get_mut(&old_dwarf_id)?;
+                                    dwarf.change_occupation(Occupation::Idling);
+                                    dwarf.participates_in_quest = None;
                                 }
                             }
                         }
-
-                        for (contestant_id, contestant) in quest.contestants.iter() {
-                            let player = self.players.get_mut(contestant_id)?;
-                            for dwarf_id in contestant.dwarfs.values() {   
-                                let dwarf = player
-                                    .dwarfs
-                                    .get_mut(dwarf_id)?;
-                                dwarf.participates_in_quest = None;
-                                dwarf.change_occupation(Occupation::Idling);
+                        ClientEvent::AddToFoodStorage(item, qty) => {
+                            if let Some(food) = item.nutritional_value() {
+                                if player
+                                    .inventory
+                                    .items
+                                    .remove_checked(Bundle::new().add(item, qty))
+                                {
+                                    player.base.food += food * qty;
+                                    
+                                }
+                            }
+                        }
+                        ClientEvent::Prestige => {            
+                            if player.can_prestige() {
+                                player.prestige();
                             }
                         }
                     }
                 }
-
-                self.quests.retain(|quest| !quest.done());
-
-                // Add quests.
-                let active_players = self.players.iter().filter(|(_, player)| player.is_active(self.time)).count();
-                while self.quests.len() < 3.max(active_players / 3) {
-                    let active_quests = self
-                        .quests
-                        .iter()
-                        .map(|q| q.quest_type)
-                        .collect::<HashSet<_>>();
-                    let all_quests = enum_iterator::all::<QuestType>().collect::<HashSet<_>>();
-                    let potential_quests = &all_quests - &active_quests;
-
-                    if potential_quests.is_empty() {
-                        break;
-                    }
-
-                    self.quests.push(Quest::new(
-                        *potential_quests
-                            .into_iter()
-                            .collect::<Vec<_>>()
-                            .choose(&mut rng)
-                            .unwrap(),
-                    ))
-                }
-            }
-            Event::AddPlayer(user_id, username) => {
-                let mut player = Player::new(username, self.time);
-                player.new_dwarf(seed, &mut self.next_dwarf_id, self.time);
-                self.players.insert(user_id, player);
-
-                for players in self.players.values_mut() {
-                    players.log.add(self.time, LogMsg::NewPlayer(user_id));
-                }
-            }
-            Event::EditPlayer(user_id, username) => {
-                self.players.get_mut(&user_id)?.username = username;
-            }
-            Event::RemovePlayer(user_id) => {
-                self.players.remove(&user_id);
-            }
-            Event::Restart => {
-                let player = self.players.get_mut(&user_id.unwrap())?;
-                if player.dwarfs.len() == 0 {
-                    let player = self.players.remove(&user_id.unwrap()).unwrap();
-                    let username = player.username;
-                    let mut player = Player::new(username, self.time);
-                    player.new_dwarf(seed, &mut self.next_dwarf_id, self.time);
-                    self.players.insert(user_id.unwrap(), player);
-                }
-            }
-            Event::Message(message) => {
-                self.chat.add_message(user_id.unwrap(), message);
-            }
-            Event::ChangeOccupation(dwarf_id, occupation) => {
-                let player = self.players.get_mut(&user_id.unwrap())?;
-
-                let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
-
-                if dwarf.participates_in_quest.is_none() && player.base.curr_level >= occupation.unlocked_at_level() {
-                    dwarf.change_occupation(occupation);
-                }
-            }
-            Event::Craft(item, qty) => {
-                let player = self.players.get_mut(&user_id.unwrap())?;
-
-                if let Some(requires) = item.requires() {
-                    if player.inventory.items.remove_checked(requires.mul(qty)) {
-                        player
-                            .inventory
-                            .items
-                            .add_checked(Bundle::new().add(item, qty));
-                    }
-                }
-            }
-            Event::UpgradeBase => {
-                let player = self.players.get_mut(&user_id.unwrap())?;
-
-                if let Some(requires) = player.base.upgrade_cost() {
-                    if player.inventory.items.remove_checked(requires) {
-                        player.base.upgrade();
-                    }
-                }
-            }
-            Event::ChangeEquipment(dwarf_id, item_type, item) => {
-                let player = self.players.get_mut(&user_id.unwrap())?;
-
-                let equipment = player
-                    .dwarfs
-                    .get_mut(&dwarf_id)?
-                    .equipment
-                    .get_mut(&item_type)?;
-
-                let old_item = if let Some(item) = item {
-                    if player
-                        .inventory
-                        .items
-                        .remove_checked(Bundle::new().add(item, 1))
-                    {
-                        equipment.replace(item)
-                    } else {
-                        None
-                    }
-                } else {
-                    equipment.take()
-                };
-
-                if let Some(old_item) = old_item {
-                    player
-                        .inventory
-                        .items
-                        .add_checked(Bundle::new().add(old_item, 1));
-                }
-            }
-            Event::OpenLootCrate => {
-                let player = self.players.get_mut(&user_id.unwrap())?;
-
-                player.open_loot_crate(seed, self.time);
-            }
-            Event::AssignToQuest(quest_idx, dwarf_idx, dwarf_id) => {
-                let player = self.players.get_mut(&user_id.unwrap())?;
-
-                if let Some(dwarf_id) = dwarf_id {
-                    let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
-
-                    if let Some((_, old_quest_idx, old_dwarf_idx)) = dwarf.participates_in_quest {
-                        let old_quest = self.quests.get_mut(old_quest_idx)?;
-                        let old_contestant =
-                            old_quest.contestants.entry(user_id.unwrap()).or_default();
-                        old_contestant.dwarfs.remove(&old_dwarf_idx);
-                    }
-
-                    let quest = self.quests.get_mut(quest_idx)?;
-                    let contestant = quest.contestants.entry(user_id.unwrap()).or_default();
-
-                    dwarf.change_occupation(quest.quest_type.occupation());
-                    dwarf.participates_in_quest = Some((quest.quest_type, quest_idx, dwarf_idx));
-                    if dwarf_idx < quest.quest_type.max_dwarfs() {
-                        contestant.dwarfs.insert(dwarf_idx, dwarf_id);
-                    }
-                } else {
-                    let quest = self.quests.get_mut(quest_idx)?;
-                    let contestant = quest.contestants.entry(user_id.unwrap()).or_default();
-
-                    let old_dwarf_id = contestant.dwarfs.remove(&dwarf_idx);
-
-                    if let Some(old_dwarf_id) = old_dwarf_id {
-                        let dwarf = player.dwarfs.get_mut(&old_dwarf_id)?;
-                        dwarf.change_occupation(Occupation::Idling);
-                        dwarf.participates_in_quest = None;
-                    }
-                }
-            }
-            Event::AddToFoodStorage(item, qty) => {
-                let player = self.players.get_mut(&user_id.unwrap())?;
-                if let Some(food) = item.nutritional_value() {
-                    if player
-                        .inventory
-                        .items
-                        .remove_checked(Bundle::new().add(item, qty))
-                    {
-                        player.base.food += food * qty;
+                Event::ServerEvent(event) => {
+                    match event {
+                        ServerEvent::Tick => {
+                            self.time += 1;
                         
+                            for (user_id, player) in self.players.iter_mut() {
+                                // Chance for a new dwarf!
+                                if rng.gen_ratio(1, ONE_DAY as u32  / 2) {
+                                    player.new_dwarf(rng, &mut self.next_dwarf_id, self.time);
+                                }
+            
+                                // Let the dwarfs eat!
+                                let mut sorted_by_health = player.dwarfs.values_mut().collect::<Vec<_>>();
+                                sorted_by_health.sort_by_key(|dwarf| dwarf.health);
+                                for dwarf in sorted_by_health {
+                                    dwarf.decr_health(dwarf.occupation.health_cost_per_second());
+                                    if dwarf.occupation == Occupation::Idling {
+                                        if player.base.food > 0
+                                            && dwarf.health <= MAX_HEALTH - MAX_HEALTH / 1000
+                                        {
+                                            player.base.food -= 1;
+                                            dwarf.incr_health(MAX_HEALTH / 1000);
+                                        }
+                                    }
+                                    if dwarf.dead() {
+                                        player.log.add(self.time, LogMsg::DwarfDied(dwarf.name.clone()));
+                                    }
+                                }
+            
+                                // Let the dwarfs work!
+                                for (_, dwarf) in player.dwarfs.iter_mut() {
+                                    if !dwarf.dead() {
+                                        dwarf.work(&mut player.inventory, rng);
+                                    }
+                                }
+            
+                                // Remove dead dwarfs.
+                                for quest in &mut self.quests {
+                                    if let Some(contestant) = quest.contestants.get_mut(user_id) {
+                                        contestant.dwarfs.retain(|_, dwarf_id| !player.dwarfs.get(&*dwarf_id).unwrap().dead());
+                                    }
+                                }
+                                player.dwarfs.retain(|_, dwarf| !dwarf.dead());
+                            }
+            
+                            // Continue the active quests.
+                            for quest in &mut self.quests {
+                                quest.run(&self.players);
+            
+                                if quest.done() {
+                                    match quest.quest_type.reward_mode() {
+                                        RewardMode::BestGetsAll(money) => {
+                                            if let Some(user_id) = quest.best() {
+                                                if let Some(player) = self.players.get_mut(&user_id) {
+                                                    if self.king.is_some() {
+                                                        player.money += money * 9 / 10;
+                                                    } else {
+                                                        player.money += money;
+                                                    }
+                                                    player.log.add(
+                                                        self.time,
+                                                        LogMsg::QuestCompletedMoney(quest.quest_type, money),
+                                                    );
+                                                }
+                                                if let Some(king) = self.king {
+                                                    if let Some(player) = self.players.get_mut(&king) {
+                                                        player.money += money / 10;
+                                                        player.log.add(
+                                                            self.time,
+                                                            LogMsg::MoneyForKing(money / 10),
+                                                        );
+                                                    }
+                                                }
+                                                for contestant_id in quest.contestants.keys() {
+                                                    if *contestant_id != user_id {
+                                                        let player = self.players.get_mut(contestant_id)?;
+                                                        player.log.add(
+                                                            self.time,
+                                                            LogMsg::QuestCompletedMoney(quest.quest_type, 0),
+                                                        );
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        RewardMode::BecomeKing => {
+                                            if let Some(user_id) = quest.best() {
+                                                if let Some(player) = self.players.get_mut(&user_id) {
+                                                    self.king = Some(user_id);
+                                                    player.log.add(
+                                                        self.time,
+                                                        LogMsg::QuestCompletedKing(quest.quest_type, true),
+                                                    );
+                                                }
+                                                for contestant_id in quest.contestants.keys() {
+                                                    if *contestant_id != user_id {
+                                                        let player = self.players.get_mut(contestant_id)?;
+                                                        player.log.add(
+                                                            self.time,
+                                                            LogMsg::QuestCompletedKing(quest.quest_type, false),
+                                                        );
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        RewardMode::SplitFairly(money) => {
+                                            for (user_id, money) in quest.split_by_score(if self.king.is_some() {
+                                                money * 9 / 10
+                                            } else {
+                                                money
+                                            }) {
+                                                if let Some(player) = self.players.get_mut(&user_id) {
+                                                    player.money += money;
+                                                    player.log.add(
+                                                        self.time,
+                                                        LogMsg::QuestCompletedMoney(quest.quest_type, money),
+                                                    );
+                                                }
+                                            }
+                                            if let Some(king) = self.king {
+                                                if let Some(player) = self.players.get_mut(&king) {
+                                                    player.money += money / 10;
+                                                    player.log.add(
+                                                        self.time,
+                                                        LogMsg::MoneyForKing(money / 10),
+                                                    );
+                                                }
+                                            }
+                                        }
+                                        RewardMode::BestGetsItems(items) => {
+                                            if let Some(user_id) = quest.best() {
+                                                if let Some(player) = self.players.get_mut(&user_id) {
+                                                    player.inventory.items.add_checked(items.clone());
+                                                    player.log.add(
+                                                        self.time,
+                                                        LogMsg::QuestCompletedItems(
+                                                            quest.quest_type,
+                                                            Some(items),
+                                                        ),
+                                                    );
+                                                }
+                                                for contestant_id in quest.contestants.keys() {
+                                                    if *contestant_id != user_id {
+                                                        let player = self.players.get_mut(contestant_id)?;
+                                                        player.log.add(
+                                                            self.time,
+                                                            LogMsg::QuestCompletedItems(quest.quest_type, None),
+                                                        );
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        RewardMode::Prestige => {
+                                            if let Some(user_id) = quest.chance_by_score(rng) {
+                                                if let Some(player) = self.players.get_mut(&user_id) {
+                                                    if player.can_prestige() {
+                                                        player.prestige();
+                                                    }
+                                                    player.log.add(
+                                                        self.time,
+                                                        LogMsg::QuestCompletedPrestige(quest.quest_type, true),
+                                                    );
+                                                }
+                                                for contestant_id in quest.contestants.keys() {
+                                                    if *contestant_id != user_id {
+                                                        let player = self.players.get_mut(contestant_id)?;
+                                                        player.log.add(
+                                                            self.time,
+                                                            LogMsg::QuestCompletedPrestige(
+                                                                quest.quest_type,
+                                                                false,
+                                                            ),
+                                                        );
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        RewardMode::NewDwarf(num_dwarfs) => {
+                                            if let Some(user_id) = quest.chance_by_score(rng) {
+                                                if let Some(player) = self.players.get_mut(&user_id) {
+                                                    player.log.add(
+                                                        self.time,
+                                                        LogMsg::QuestCompletedDwarfs(
+                                                            quest.quest_type,
+                                                            Some(num_dwarfs),
+                                                        ),
+                                                    );
+                                                    for _ in 0..num_dwarfs {
+                                                        player
+                                                            .new_dwarf(rng, &mut self.next_dwarf_id, self.time);
+                                                    }
+                                                }
+                                                for contestant_id in quest.contestants.keys() {
+                                                    if *contestant_id != user_id {
+                                                        let player = self.players.get_mut(contestant_id)?;
+                                                        player.log.add(
+                                                            self.time,
+                                                            LogMsg::QuestCompletedDwarfs(
+                                                                quest.quest_type,
+                                                                None,
+                                                            ),
+                                                        );
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+            
+                                    for (contestant_id, contestant) in quest.contestants.iter() {
+                                        let player = self.players.get_mut(contestant_id)?;
+                                        for dwarf_id in contestant.dwarfs.values() {   
+                                            let dwarf = player
+                                                .dwarfs
+                                                .get_mut(dwarf_id)?;
+                                            dwarf.participates_in_quest = None;
+                                            dwarf.change_occupation(Occupation::Idling);
+                                        }
+                                    }
+                                }
+                            }
+            
+                            self.quests.retain(|quest| !quest.done());
+            
+                            // Add quests.
+                            let active_players = self.players.iter().filter(|(_, player)| player.is_active(self.time)).count();
+                            while self.quests.len() < 3.max(active_players / 3) {
+                                let active_quests = self
+                                    .quests
+                                    .iter()
+                                    .map(|q| q.quest_type)
+                                    .collect::<HashSet<_>>();
+                                let all_quests = enum_iterator::all::<QuestType>().collect::<HashSet<_>>();
+                                let potential_quests = &all_quests - &active_quests;
+            
+                                if potential_quests.is_empty() {
+                                    break;
+                                }
+            
+                                self.quests.push(Quest::new(
+                                    *potential_quests
+                                        .into_iter()
+                                        .collect::<Vec<_>>()
+                                        .choose(rng)
+                                        .unwrap(),
+                                ))
+                            }
+                        }
                     }
                 }
             }
-            Event::Prestige => {
-                let player = self.players.get_mut(&user_id.unwrap())?;
 
-                if player.can_prestige() {
-                    player.prestige();
-                }
-            }
-        }
-
-        Some(())
-    }
-
-    pub fn view(&self, _receiver: UserId) -> Self {
-        State { ..self.clone() }
+            Some(())
+        }().unwrap();
+        
     }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
-pub struct Bundle<T: BundleType>(BTreeMap<T, u64>);
+pub struct Bundle<T: BundleType>(CustomMap<T, u64>);
 
 impl<T: BundleType> Bundle<T> {
     pub fn new() -> Self {
-        Bundle(BTreeMap::new())
+        Bundle(CustomMap::new())
     }
 
     pub fn add(mut self, t: T, n: u64) -> Self {
-        let mut map = BTreeMap::new();
+        let mut map = CustomMap::new();
         map.insert(t, n);
         self.add_checked(Bundle(map));
         self
@@ -596,7 +547,7 @@ where {
 }
 
 impl<T: BundleType> Deref for Bundle<T> {
-    type Target = BTreeMap<T, u64>;
+    type Target = CustomMap<T, u64>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -611,7 +562,7 @@ impl<T: BundleType> FromIterator<(T, u64)> for Bundle<T> {
 
 impl<T: BundleType> Default for Bundle<T> {
     fn default() -> Self {
-        Bundle(BTreeMap::new())
+        Bundle(CustomMap::new())
     }
 }
 
@@ -656,9 +607,8 @@ pub enum LogMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 pub struct Player {
-    pub username: String,
     pub base: Base,
-    pub dwarfs: BTreeMap<DwarfId, Dwarf>,
+    pub dwarfs: CustomMap<DwarfId, Dwarf>,
     pub inventory: Inventory,
     pub log: Log,
     pub money: Money,
@@ -666,10 +616,9 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(username: String, time: Time) -> Self {
+    pub fn new(time: Time) -> Self {
         Player {
-            username,
-            dwarfs: BTreeMap::new(),
+            dwarfs: CustomMap::new(),
             base: Base::new(),
             inventory: Inventory::new(),
             log: Log::default(),
@@ -686,10 +635,10 @@ impl Player {
         (time - self.last_online) / SPEED < ONE_DAY
     }
 
-    pub fn new_dwarf(&mut self, seed: Seed, next_dwarf_id: &mut DwarfId, time: Time) {
+    pub fn new_dwarf(&mut self, rng: &mut impl Rng, next_dwarf_id: &mut DwarfId, time: Time) {
         if self.dwarfs.len() < self.base.num_dwarfs() {
             self.log.add(time, LogMsg::NewDwarf(*next_dwarf_id));
-            self.dwarfs.insert(*next_dwarf_id, Dwarf::new(seed));
+            self.dwarfs.insert(*next_dwarf_id, Dwarf::new(rng));
             *next_dwarf_id += 1;
         } else {
             self.log.add(
@@ -699,9 +648,7 @@ impl Player {
         }
     }
 
-    pub fn open_loot_crate(&mut self, seed: Seed, time: Time) {
-        let mut rng: SmallRng = SmallRng::seed_from_u64(seed);
-
+    pub fn open_loot_crate(&mut self, rng: &mut impl Rng, time: Time) {
         if self.money >= LOOT_CRATE_COST {
             self.money -= LOOT_CRATE_COST;
             let possible_items: Vec<Item> = enum_iterator::all::<Item>()
@@ -709,7 +656,7 @@ impl Player {
                     matches!(item.item_rarity(), ItemRarity::Epic | ItemRarity::Legendary)
                 })
                 .collect();
-            let item = *possible_items.choose(&mut rng).unwrap();
+            let item = *possible_items.choose(rng).unwrap();
             let bundle = Bundle::new().add(item, 1);
             self.log.add(time, LogMsg::OpenedLootCrate(bundle.clone()));
             self.inventory.items.add_checked(bundle);
@@ -927,6 +874,7 @@ impl Item {
             Item::Plough => Some(ItemType::Tool),
             Item::Lantern => Some(ItemType::Tool),
             Item::FishingNet => Some(ItemType::Tool),
+            Item::Dagger => Some(ItemType::Tool),
             Item::TigerFangDagger => Some(ItemType::Tool),
             Item::Bag => Some(ItemType::Tool),
 
@@ -1475,9 +1423,7 @@ pub struct Stats {
 }
 
 impl Stats {
-    pub fn random(seed: Seed) -> Self {
-        let mut rng: SmallRng = SmallRng::seed_from_u64(seed);
-
+    pub fn random(rng: &mut impl Rng) -> Self {
         Stats {
             strength: rng.gen_range(1..=10),
             endurance: rng.gen_range(1..=10),
@@ -1756,32 +1702,31 @@ pub struct Dwarf {
     pub occupation: Occupation,
     pub occupation_duration: u64,
     pub stats: Stats,
-    pub equipment: BTreeMap<ItemType, Option<Item>>,
+    pub equipment: CustomMap<ItemType, Option<Item>>,
     pub health: Health,
 }
 
 impl Dwarf {
-    fn name(seed: Seed) -> String {
-        let mut rng: SmallRng = SmallRng::seed_from_u64(seed);
+    fn name(rng: &mut impl Rng) -> String {
         let vowels = ['a', 'e', 'i', 'o', 'u'];
         let consonants = [
             'b', 'c', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'm', 'n', 'p', 'q', 'r', 's', 't', 'v',
             'w', 'x', 'y', 'z',
         ];
 
-        let len = (2..8).choose(&mut rng).unwrap();
+        let len = (2..8).choose(rng).unwrap();
 
         let mut name = String::new();
 
         name.push(
             consonants
-                .choose(&mut rng)
+                .choose(rng)
                 .unwrap()
                 .to_uppercase()
                 .next()
                 .unwrap(),
         );
-        name.push(*vowels.choose(&mut rng).unwrap());
+        name.push(*vowels.choose(rng).unwrap());
 
         for _ in 0..len {
             let mut rev_chars = name.chars().rev();
@@ -1789,13 +1734,13 @@ impl Dwarf {
             let second_last_is_consonant = consonants.contains(&rev_chars.next().unwrap());
             if last_is_consonant {
                 if second_last_is_consonant {
-                    name.push(*vowels.choose(&mut rng).unwrap());
+                    name.push(*vowels.choose(rng).unwrap());
                 } else {
                     if rng.gen_bool(0.4) {
-                        name.push(*vowels.choose(&mut rng).unwrap());
+                        name.push(*vowels.choose(rng).unwrap());
                     } else {
                         if rng.gen_bool(0.7) {
-                            name.push(*consonants.choose(&mut rng).unwrap());
+                            name.push(*consonants.choose(rng).unwrap());
                         } else {
                             let last = name.pop().unwrap();
                             name.push(last);
@@ -1804,21 +1749,21 @@ impl Dwarf {
                     }
                 }
             } else {
-                name.push(*consonants.choose(&mut rng).unwrap());
+                name.push(*consonants.choose(rng).unwrap());
             }
         }
 
         name
     }
 
-    fn new(seed: Seed) -> Self {
-        let name = Dwarf::name(seed);
+    fn new(rng: &mut impl Rng) -> Self {
+        let name = Dwarf::name(rng);
 
         Dwarf {
             name,
             occupation: Occupation::Idling,
             occupation_duration: 0,
-            stats: Stats::random(seed),
+            stats: Stats::random(rng),
             equipment: enum_iterator::all()
                 .map(|item_type| (item_type, None))
                 .collect(),
@@ -1881,9 +1826,7 @@ impl Dwarf {
         usefulness
     }
 
-    pub fn work(&mut self, inventory: &mut Inventory, seed: Seed) {
-        let mut rng = SmallRng::seed_from_u64(seed);
-
+    pub fn work(&mut self, inventory: &mut Inventory, rng: &mut impl Rng) {
         for _ in 0..=self.effectiveness(self.occupation) {
             for item in enum_iterator::all::<Item>() {
                 if let Some(ItemProbability {
@@ -2025,15 +1968,11 @@ pub enum VillageType {
     Megalopolis,
 }
 
-pub type Seed = u64;
 pub type DwarfId = u64;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum Event {
-    Tick,
-    AddPlayer(UserId, String),
-    EditPlayer(UserId, String),
-    RemovePlayer(UserId),
+pub enum ClientEvent {
+    Init,
     Message(String),
     ChangeOccupation(DwarfId, Occupation),
     Craft(Item, u64),
@@ -2046,20 +1985,20 @@ pub enum Event {
     Restart,
 }
 
+impl engine_shared::ClientEvent for ClientEvent {
+    fn init() -> Self {
+        ClientEvent::Init
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum RandEvent {}
+pub enum ServerEvent {
+    Tick,
+}
 
-impl EventData {
-    pub fn filter(&self, _receiver: UserId) -> bool {
-        /*
-        let EventData { event, user_id } = self;
-        let user_id = *user_id;
-
-        match event {
-            _ => true,
-        }
-        */
-        true
+impl engine_shared::ServerEvent<State> for ServerEvent {
+    fn tick() -> Self {
+        ServerEvent::Tick
     }
 }
 
@@ -2079,7 +2018,7 @@ impl Chat {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash)]
 pub struct Quest {
-    pub contestants: BTreeMap<UserId, Contestant>,
+    pub contestants: CustomMap<UserId, Contestant>,
     pub time_left: u64,
     pub quest_type: QuestType,
 }
@@ -2087,7 +2026,7 @@ pub struct Quest {
 impl Quest {
     pub fn new(quest_type: QuestType) -> Self {
         Quest {
-            contestants: BTreeMap::new(),
+            contestants: CustomMap::new(),
             time_left: quest_type.duration(),
             quest_type,
         }
@@ -2115,14 +2054,13 @@ impl Quest {
             .collect()
     }
 
-    pub fn chance_by_score(&self, seed: Seed) -> Option<UserId> {
-        let mut rng: SmallRng = SmallRng::seed_from_u64(seed);
+    pub fn chance_by_score(&self, rng: &mut impl Rng) -> Option<UserId> {
         let total_score: u64 = self.contestants.values().map(|c| c.achieved_score).sum();
         self.contestants
             .iter()
             .map(|(user_id, c)| (*user_id, c.achieved_score as f64 / total_score as f64))
             .collect::<Vec<_>>()
-            .choose_weighted(&mut rng, |elem| elem.1)
+            .choose_weighted(rng, |elem| elem.1)
             .ok()
             .map(|item| item.0)
     }
@@ -2131,16 +2069,16 @@ impl Quest {
         self.contestants.insert(
             user_id,
             Contestant {
-                dwarfs: BTreeMap::new(),
+                dwarfs: CustomMap::new(),
                 achieved_score: 0,
             },
         );
     }
 
-    pub fn run(&mut self, players: &BTreeMap<UserId, Player>) {
+    pub fn run(&mut self, players: &CustomMap<UserId, Player>) {
         if self.time_left > 0 {
             self.time_left -= 1;
-            for (user_id, contestant) in &mut self.contestants {
+            for (user_id, contestant) in self.contestants.iter_mut() {
                 for dwarf_id in contestant.dwarfs.values() {
                     contestant.achieved_score += players
                         .get(user_id)
@@ -2172,7 +2110,7 @@ pub enum RewardMode {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, Hash)]
 pub struct Contestant {
-    pub dwarfs: BTreeMap<usize, DwarfId>,
+    pub dwarfs: CustomMap<usize, DwarfId>,
     pub achieved_score: u64,
 }
 

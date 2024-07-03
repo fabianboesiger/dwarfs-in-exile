@@ -26,3 +26,5 @@ askama_axum = { version = "0.3" }
 askama = { version = "0.12", features = ["with-axum"] }
 bcrypt = "0.15.0"
 rand = {version = "0.8", features = ["small_rng"] }
+engine-server = { path = "../../browsergame-engine/server" }
+engine-shared = { path = "../../browsergame-engine/shared" }

@@ -10,7 +10,7 @@ use axum::{
 use axum_sessions::extractors::WritableSession;
 use bcrypt::hash;
 use serde::Deserialize;
-use shared::UserId;
+use shared::{UserData, UserId};
 use sqlx::SqlitePool;
 use validator::{Validate, ValidationErrors};
 
@@ -79,7 +79,7 @@ pub async fn post_register(
         .await
         .unwrap();
 
-    let result: Result<(UserId,), _> = sqlx::query_as(
+    let result: Result<(i64,), _> = sqlx::query_as(
         r#"
             INSERT INTO users (username, password)
             VALUES ($1, $2)
@@ -93,8 +93,9 @@ pub async fn post_register(
 
     match result {
         Ok((user_id,)) => {
-            // Add a player to the game state.
-            game_state.add_player(user_id, register.username);
+            game_state.new_server_connection().await.request(engine_shared::Res::UserUpdate(
+                UserId::from(user_id),
+                UserData::from(register.username.clone())));
 
             session.expire_in(Duration::from_secs(60 * 60 * 24 * 7));
 

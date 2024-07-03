@@ -10,7 +10,6 @@ use axum::{
 use axum_sessions::extractors::WritableSession;
 use bcrypt::verify;
 use serde::Deserialize;
-use shared::UserId;
 use sqlx::SqlitePool;
 use validator::{Validate, ValidationErrors};
 
@@ -63,7 +62,7 @@ pub async fn post_login(
     Extension(pool): Extension<SqlitePool>,
     ValidatedForm(login): ValidatedForm<LoginForm>,
 ) -> Result<Response, ServerError> {
-    let result: Result<(String, UserId), _> = sqlx::query_as(
+    let result: Result<(String, i64), _> = sqlx::query_as(
         r#"
             SELECT password, user_id
             FROM users

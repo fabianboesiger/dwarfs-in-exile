@@ -8,7 +8,7 @@ use axum::{
 use axum_sessions::extractors::ReadableSession;
 use bcrypt::hash;
 use serde::Deserialize;
-use shared::UserId;
+use shared::{UserData, UserId};
 use sqlx::SqlitePool;
 use validator::{Validate, ValidationErrors};
 
@@ -121,7 +121,7 @@ pub async fn post_change_username(
     Extension(game_state): Extension<GameState>,
     ValidatedForm(change_username): ValidatedForm<ChangeUsernameForm>,
 ) -> Result<Response, ServerError> {
-    let result: Result<(UserId,), _> = sqlx::query_as(
+    let result: Result<(i64,), _> = sqlx::query_as(
         r#"
             SELECT user_id
                 FROM sessions
@@ -160,7 +160,9 @@ pub async fn post_change_username(
             "This username is already taken",
         )),
         Ok(_) => {
-            game_state.edit_player(user_id, change_username.username);
+            game_state.new_server_connection().await.request(engine_shared::Res::UserUpdate(
+                UserId::from(user_id),
+                UserData::from(change_username.username.clone())));
 
             Ok(Redirect::to("/account").into_response())
         },
