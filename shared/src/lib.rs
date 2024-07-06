@@ -1041,110 +1041,6 @@ impl Item {
         }
     }
 
-    pub fn requires_stats(self) -> Stats {
-        match self {
-            Item::Crossbow => Stats {
-                agility: 2,
-                perception: 8,
-                ..Default::default()
-            },
-            Item::Bow | Item::PoisonedBow => Stats {
-                agility: 4,
-                perception: 6,
-                ..Default::default()
-            },
-            Item::Spear | Item::PoisonedSpear => Stats {
-                strength: 5,
-                agility: 5,
-                ..Default::default()
-            },
-            Item::Sword => Stats {
-                strength: 7,
-                agility: 3,
-                ..Default::default()
-            },
-            Item::Longsword => Stats {
-                strength: 8,
-                agility: 2,
-                ..Default::default()
-            },
-            Item::Dagger | Item::TigerFangDagger => Stats {
-                intelligence: 3,
-                agility: 7,
-                ..Default::default()
-            },
-            Item::Axe => Stats {
-                strength: 5,
-                endurance: 5,
-                ..Default::default()
-            },
-            Item::Pickaxe => Stats {
-                strength: 5,
-                agility: 5,
-                ..Default::default()
-            },
-            Item::Pitchfork => Stats {
-                endurance: 5,
-                agility: 5,
-                ..Default::default()
-            },
-            Item::ChainMail => Stats {
-                strength: 5,
-                endurance: 5,
-                ..Default::default()
-            },
-            Item::RhinoHornHelmet => Stats {
-                strength: 5,
-                agility: 5,
-                ..Default::default()
-            },
-            Item::Dynamite => Stats {
-                intelligence: 8,
-                perception: 2,
-                ..Default::default()
-            },
-            Item::Musket => Stats {
-                intelligence: 2,
-                perception: 0,
-                ..Default::default()
-            },
-            Item::Backpack => Stats {
-                strength: 5,
-                endurance: 5,
-                ..Default::default()
-            },
-            Item::Bag => Stats {
-                strength: 5,
-                endurance: 5,
-                ..Default::default()
-            },
-            Item::FishingRod | Item::FishingNet => Stats {
-                agility: 5,
-                intelligence: 5,
-                ..Default::default()
-            },
-            Item::Map => Stats {
-                intelligence: 10,
-                ..Default::default()
-            },
-            Item::Plough => Stats {
-                strength: 5,
-                intelligence: 5,
-                ..Default::default()
-            },
-            Item::Wheelbarrow => Stats {
-                strength: 5,
-                endurance: 5,
-                ..Default::default()
-            },
-            Item::BearClawBoots | Item::BearClawGloves => Stats {
-                agility: 10,
-                ..Default::default()
-            },
-            _ => Stats::default(),
-        }
-    }
-
     pub fn item_probability(self, occupation: Occupation) -> Option<ItemProbability> {
         match occupation {
             Occupation::Mining => match self {
@@ -1806,11 +1702,7 @@ impl Dwarf {
     }
 
     pub fn equipment_usefulness(&self, occupation: Occupation, item: Item) -> u64 {
-        if item.requires_stats().is_zero() {
-            item.usefulness_for(occupation)
-        } else {
-            item.usefulness_for(occupation) * self.effective_stats().cross(item.requires_stats()) / 100
-        }
+        item.usefulness_for(occupation) * self.effective_stats().cross(occupation.requires_stats()) / 100
     }
 
     // output 0 - 10
@@ -1890,6 +1782,60 @@ impl Occupation {
             Occupation::Exploring => 6,
             Occupation::Farming => 8,
             Occupation::Rockhounding => 10,
+        }
+    }
+
+
+    pub fn requires_stats(self) -> Stats {
+        match self {
+            Occupation::Idling => Stats {
+                ..Default::default()
+            },
+            Occupation::Mining => Stats {
+                strength: 5,
+                perception: 5,
+                ..Default::default()
+            },
+            Occupation::Logging => Stats {
+                strength: 5,
+                endurance: 5,
+                ..Default::default()
+            },
+            Occupation::Hunting => Stats {
+                agility: 5,
+                perception: 5,
+                ..Default::default()
+            },
+            Occupation::Gathering => Stats {
+                intelligence: 5,
+                perception: 5,
+                ..Default::default()
+            },
+            Occupation::Fishing => Stats {
+                intelligence: 5,
+                agility: 5,
+                ..Default::default()
+            },
+            Occupation::Fighting => Stats {
+                strength: 5,
+                endurance: 5,
+                ..Default::default()
+            },
+            Occupation::Exploring => Stats {
+                endurance: 5,
+                intelligence: 5,
+                ..Default::default()
+            },
+            Occupation::Farming => Stats {
+                endurance: 5,
+                agility: 5,
+                ..Default::default()
+            },
+            Occupation::Rockhounding => Stats {
+                intelligence: 5,
+                strength: 5,
+                ..Default::default()
+            },
         }
     }
 }
@@ -2121,7 +2067,7 @@ pub enum QuestType {
     ExploreNewLands,
     FreeTheVillage,
     FeastForAGuest,
-    SearchForNewDwarfs,
+    ADwarfGotLost,
     AFishingFriend,
     ADwarfInDanger,
     ForTheKing,
@@ -2137,7 +2083,7 @@ impl std::fmt::Display for QuestType {
             QuestType::ExploreNewLands => write!(f, "Explore New Lands"),
             QuestType::FreeTheVillage => write!(f, "Free the Elven Village"),
             QuestType::FeastForAGuest => write!(f, "A Feast for a Guest"),
-            QuestType::SearchForNewDwarfs => write!(f, "A Dwarf got Lost"),
+            QuestType::ADwarfGotLost => write!(f, "A Dwarf got Lost"),
             QuestType::AFishingFriend => write!(f, "A Fishing Friend"),
             QuestType::ADwarfInDanger => write!(f, "A Dwarf in Danger"),
             QuestType::ForTheKing => write!(f, "For the King!"),
@@ -2157,7 +2103,7 @@ impl QuestType {
             Self::ExploreNewLands => RewardMode::Prestige,
             Self::FreeTheVillage => RewardMode::SplitFairly(1000),
             Self::FeastForAGuest => RewardMode::NewDwarf(1),
-            Self::SearchForNewDwarfs => RewardMode::NewDwarf(1),
+            Self::ADwarfGotLost => RewardMode::NewDwarf(1),
             Self::AFishingFriend => RewardMode::NewDwarf(1),
             Self::ADwarfInDanger => RewardMode::NewDwarf(1),
             Self::ForTheKing => RewardMode::BecomeKing,
@@ -2173,7 +2119,7 @@ impl QuestType {
             Self::ExploreNewLands => ONE_DAY / 2,
             Self::FreeTheVillage => ONE_HOUR * 3,
             Self::FeastForAGuest => ONE_HOUR * 3,
-            Self::SearchForNewDwarfs => ONE_HOUR * 3,
+            Self::ADwarfGotLost => ONE_HOUR * 3,
             Self::AFishingFriend => ONE_HOUR * 3,
             Self::ADwarfInDanger => ONE_HOUR * 3,
             Self::ForTheKing => ONE_DAY / 2,
@@ -2189,7 +2135,7 @@ impl QuestType {
             Self::ExploreNewLands => Occupation::Exploring,
             Self::FreeTheVillage => Occupation::Fighting,
             Self::FeastForAGuest => Occupation::Hunting,
-            Self::SearchForNewDwarfs => Occupation::Exploring,
+            Self::ADwarfGotLost => Occupation::Exploring,
             Self::AFishingFriend => Occupation::Fishing,
             Self::ADwarfInDanger => Occupation::Fighting,
             Self::ForTheKing => Occupation::Fighting,
@@ -2205,7 +2151,7 @@ impl QuestType {
             Self::ExploreNewLands => 2,
             Self::FreeTheVillage => 3,
             Self::FeastForAGuest => 1,
-            Self::SearchForNewDwarfs => 1,
+            Self::ADwarfGotLost => 1,
             Self::AFishingFriend => 1,
             Self::ADwarfInDanger => 1,
             Self::ForTheKing => 3,

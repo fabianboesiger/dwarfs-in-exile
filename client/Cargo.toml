@@ -26,6 +26,9 @@ itertools = "0.11.0"
 engine-client = { path = "../../browsergame-engine/client" }
 engine-shared = { path = "../../browsergame-engine/shared" }
 i18n = { path = "../../browsergame-engine/i18n", features = ["seed", "web-sys"] }
+strum = { version = "0.25", features = ["derive"] }
+rand_chacha = "0.3"
+sha2 = "0.10"
 
 [profile.release]
 lto = true
