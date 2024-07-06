@@ -329,7 +329,7 @@ fn ranking(state: &shared::State, client_state: &ClientState<shared::State>) -> 
         C!["content"],
         h2!["Ranking"],
         if let Some(king) = state.king {
-            p![format!("All hail our King {}!", client_state.get_user_data(&king).unwrap().username), tip("The king gets one tenth of all money that was earned. Make sure you become the king as soon as the quest becomes available.")]
+            p![format!("All hail our King {}!", client_state.get_user_data(&king).map(|data| data.username.clone()).unwrap_or_default()), tip("The king gets one tenth of all money that was earned. Make sure you become the king as soon as the quest becomes available.")]
         } else {
             Node::Empty
         },
@@ -344,7 +344,7 @@ fn ranking(state: &shared::State, client_state: &ClientState<shared::State>) -> 
                 let rank = i + 1;
                 tr![
                     td![rank],
-                    td![format!("{} ", client_state.get_user_data(&user_id).unwrap().username), span![C!["symbols", if player.is_online(state.time) { "online" } else { "offline" }], "●"]],
+                    td![format!("{} ", client_state.get_user_data(&user_id).map(|data| data.username.clone()).unwrap_or_default()), span![C!["symbols", if player.is_online(state.time) { "online" } else { "offline" }], "●"]],
                     td![format!("{}", player.base.village_type())],
                     td![player.dwarfs.len()]
                 ]
@@ -1150,7 +1150,7 @@ fn chat(model: &Model, state: &shared::State, client_state: &ClientState<shared:
                 div![
                     C!["messages"],
                     state.chat.messages.iter().map(|(user_id, message)| {
-                        let username = &client_state.get_user_data(&user_id).unwrap().username;
+                        let username = &client_state.get_user_data(&user_id).map(|data| data.username.clone()).unwrap_or_default();
                         div![
                             C!["message"],
                             span![C!["username"], format!("{username}")],
@@ -1206,7 +1206,7 @@ fn history(model: &Model, state: &shared::State, user_id: &shared::UserId, clien
                             LogMsg::NewPlayer(user_id) => {
                                 span![format!(
                                     "A new player has joined the game, say hi to {}!",
-                                    client_state.get_user_data(&user_id).unwrap().username
+                                    client_state.get_user_data(&user_id).map(|data| data.username.clone()).unwrap_or_default()
                                 )]
                             }
                             LogMsg::MoneyForKing(money) => {

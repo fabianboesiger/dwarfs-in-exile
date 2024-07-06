@@ -8,7 +8,6 @@ use axum::{
 use axum_sessions::extractors::ReadableSession;
 use bcrypt::hash;
 use serde::Deserialize;
-use shared::{UserData, UserId};
 use sqlx::SqlitePool;
 use validator::{Validate, ValidationErrors};
 
@@ -160,10 +159,7 @@ pub async fn post_change_username(
             "This username is already taken",
         )),
         Ok(_) => {
-            game_state.new_server_connection().await.request(engine_shared::Res::UserUpdate(
-                UserId::from(user_id),
-                UserData::from(change_username.username.clone())));
-
+            game_state.new_server_connection().await.updated_user_data();
             Ok(Redirect::to("/account").into_response())
         },
     }

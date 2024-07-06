@@ -76,7 +76,7 @@ impl engine_shared::State for State {
             match event {
                 Event::ClientEvent(event, user_id) => {
                     if !self.players.contains_key(&user_id) {
-                        self.players.insert(user_id, Player::new(self.time));
+                        self.players.insert(user_id, Player::new(self.time, rng));
                     }
                     let player = self.players.get_mut(&user_id)?;
                     player.last_online = self.time;
@@ -85,7 +85,7 @@ impl engine_shared::State for State {
                         ClientEvent::Init => {}
                         ClientEvent::Restart => {
                             if player.dwarfs.len() == 0 {
-                                let mut player = Player::new(self.time);
+                                let mut player = Player::new(self.time, rng);
                                 player.new_dwarf(rng, &mut self.next_dwarf_id, self.time);
                                 self.players.insert(user_id, player);
                             }
@@ -616,9 +616,13 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(time: Time) -> Self {
+    pub fn new(time: Time, rng: &mut impl Rng) -> Self {
         Player {
-            dwarfs: CustomMap::new(),
+            dwarfs: {
+                let mut map = CustomMap::new();
+                map.insert(0, Dwarf::new(rng));
+                map
+            },
             base: Base::new(),
             inventory: Inventory::new(),
             log: Log::default(),

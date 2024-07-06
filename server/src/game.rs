@@ -8,7 +8,7 @@ use axum::{
 use axum_sessions::extractors::ReadableSession;
 use engine_shared::utils::custom_map::CustomMap;
 use futures_util::{sink::SinkExt, stream::StreamExt};
-use shared::{ClientEvent, UserId};
+use shared::{ClientEvent, UserData, UserId};
 use sqlx::SqlitePool;
 use serde::{Serialize, Deserialize};
 
@@ -34,7 +34,7 @@ impl GameStore {
 
 #[async_trait::async_trait]
 impl engine_server::BackendStore<shared::State> for GameStore {
-    async fn load_game(&self) -> engine_shared::StateWrapper<shared::State> {
+    async fn load_game(&self) -> shared::State {
         let result: Option<(Vec<u8>,)> = sqlx::query_as(
             r#"
                     SELECT data
@@ -50,6 +50,10 @@ impl engine_server::BackendStore<shared::State> for GameStore {
             .map(|(data,)| rmp_serde::from_slice(&data[..]).unwrap())
             .unwrap_or_default();
 
+        state
+    }
+
+    async fn load_user_data(&self) -> CustomMap<UserId, UserData> {
         let users: Vec<(i64, String)> = sqlx::query_as(
             r#"
                         SELECT user_id, username
@@ -65,17 +69,17 @@ impl engine_server::BackendStore<shared::State> for GameStore {
             .map(|(id, username)| (id.into(), username.into()))
             .collect::<CustomMap<shared::UserId, shared::UserData>>();
 
-        engine_shared::StateWrapper { state, users }
+        users
     }
 
-    async fn save_game(&self, state: &engine_shared::StateWrapper<shared::State>) {
+    async fn save_game(&self, state: &shared::State) {
         sqlx::query(
             r#"
                     INSERT OR REPLACE INTO games (name, data)
                     VALUES ('game', $1)
                 "#,
         )
-        .bind(rmp_serde::to_vec(&state.state).unwrap())
+        .bind(rmp_serde::to_vec(&state).unwrap())
         .execute(&self.db)
         .await
         .unwrap();
