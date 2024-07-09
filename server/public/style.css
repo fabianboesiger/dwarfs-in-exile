@@ -159,7 +159,7 @@ header {
     flex-direction: column;
     gap: 4px;
     justify-content: space-between;
-    align-items: stretch;
+    align-items: center;
     height: 100%;
 }
 
@@ -429,7 +429,7 @@ input[type=checkbox] {
     display: flex;
     flex-wrap: nowrap;
     justify-content: space-between;
-    align-items: stretch;
+    align-items: start;
     width: 100%;
 }
 
@@ -440,4 +440,12 @@ input[type=checkbox] {
 .list-item-image {
     width: 128px;
     flex-grow: 0;
+}
+
+h3, h4 {
+    margin-bottom: 0;
+}
+
+.subtitle {
+    margin-top: 0;
 }
