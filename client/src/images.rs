@@ -3,7 +3,7 @@ use std::convert::TryInto;
 use rand_chacha::{rand_core::{RngCore, SeedableRng}, ChaCha8Rng};
 use seed::virtual_dom::{AsAtValue, AtValue};
 use sha2::{Sha256, Digest};
-use shared::{Item, QuestType};
+use shared::{Item, Occupation, QuestType, VillageType};
 use strum::Display;
 
 #[derive(Display)]
@@ -44,14 +44,38 @@ pub enum Image {
     ForTheKing,
     ADwarfGotLost,
     ExploreNewLands,
+    ArenaFight,
+    Placeholder,
+    FeastForAGuest,
+    Outpost,
+    Dwelling,
+    Hamlet,
+    Village,
+    SmallTown,
+    LargeTown,
+    SmallCity,
+    LargeCity,
+    Metropolis,
+    Megalopolis,
+    Idling,
+    Mining,
+    Logging,
+    Farming,
+    Rockhounding,
+    Fishing,
+    Hunting,
+    Gathering,
+    Fighting,
+    Exploring,
 }
 
 
 impl AsAtValue for Image {
     fn as_at_value(&self) -> seed::prelude::AtValue {
         match self {
+            Image::Placeholder => AtValue::Some(format!("/images/placeholder.png")),
             Image::Dwarf(id) => AtValue::Some(format!("/images/dwarf-{}.jpg", id)),
-            _ => AtValue::Some(format!("/images/{self}.jpg").to_ascii_lowercase())
+            _ => AtValue::Some(format!("/images/{self}.jpg"))
         }
     }
 }
@@ -96,7 +120,7 @@ impl From<Item> for Image {
             Item::Sulfur => Image::Sulfur,
             Item::Sword => Image::Sword,
             Item::Wolf => Image::Wolf,
-            _ => Image::Wood,
+            _ => Image::Placeholder,
         }
     }
 }
@@ -113,7 +137,42 @@ impl From<QuestType> for Image {
             QuestType::KillTheDragon => Image::KillTheDragon,
             QuestType::ExploreNewLands => Image::ExploreNewLands,
             QuestType::ADwarfGotLost => Image::ADwarfGotLost,
-            _ => Image::Wood,
+            QuestType::FeastForAGuest => Image::FeastForAGuest,
+            QuestType::ArenaFight => Image::ArenaFight,
+        }
+    }
+}
+
+impl From<Occupation> for Image {
+    fn from(occupation: Occupation) -> Self {
+        match occupation {
+            Occupation::Idling => Image::Idling,
+            Occupation::Mining => Image::Mining,
+            Occupation::Logging => Image::Logging,
+            Occupation::Rockhounding => Image::Rockhounding,
+            Occupation::Farming => Image::Farming,
+            Occupation::Fishing => Image::Fishing,
+            Occupation::Hunting => Image::Hunting,
+            Occupation::Gathering => Image::Gathering,
+            Occupation::Fighting => Image::Fighting,
+            Occupation::Exploring => Image::Exploring,
+        }
+    }
+}
+
+impl From<VillageType> for Image {
+    fn from(village_type: VillageType) -> Self {
+        match village_type {
+            VillageType::Outpost => Image::Outpost,
+            VillageType::Dwelling => Image::Dwelling,
+            VillageType::Hamlet => Image::Hamlet,
+            VillageType::Village => Image::Village,
+            VillageType::SmallTown => Image::SmallTown,
+            VillageType::LargeTown => Image::LargeTown,
+            VillageType::SmallCity => Image::SmallCity,
+            VillageType::LargeCity => Image::LargeCity,
+            VillageType::Metropolis => Image::Metropolis,
+            VillageType::Megalopolis => Image::Megalopolis,
         }
     }
 }

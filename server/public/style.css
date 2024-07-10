@@ -35,6 +35,10 @@ header {
     z-index: 1500;
 }
 
+img {
+    width: 100%;
+}
+
 header > h1 {
     margin: 0;
 }
@@ -125,12 +129,26 @@ header {
     border-bottom: 1px solid white;
 }
 
+.list > *:first-child {
+    border-top: 1px solid white;
+}
+
 .list-item-content > *:first-child {
     margin-top: 0;
 }
 
 .list-item-content > *:last-child {
     margin-bottom: 0;
+}
+
+.list-item-content.grow {
+    flex-grow: 1;
+    flex-shrink: 1;
+}
+
+.list-item-content.shrink {
+    flex-grow: 0;
+    flex-shrink: 1;
 }
 
 .item-common {
@@ -244,8 +262,8 @@ th, td {
     text-align: left;
     padding-left: 4px;
     padding-right: 4px;
-    border-bottom: 1px solid black;
-    border-top: 1px solid black;
+    border-bottom: 1px solid white;
+    border-top: 1px solid white;
     background: rgba(255, 255, 255, 0.2);
 }
 
@@ -312,6 +330,30 @@ input[type=checkbox] {
 }
 
 .health-bar-overlay {
+    width: 100%;
+    height: 16px;
+    position: absolute;
+    top: 0;
+    left: 0;
+    text-align: center;
+}
+
+.score-bar-wrapper {
+    width: 100%;
+    height: 16px;
+    position: relative;
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.score-bar-curr {
+    height: 16px;
+    position: absolute;
+    top: 0;
+    left: 0;
+    background-color: rgba(0, 100, 100, 0.3);
+}
+
+.score-bar-overlay {
     width: 100%;
     height: 16px;
     position: absolute;
@@ -439,6 +481,13 @@ input[type=checkbox] {
 
 .list-item-image {
     width: 128px;
+    flex-grow: 0;
+}
+
+.list-item-image-placeholder {
+    width: 128px;
+    height: 128px;
+    background: rgba(0, 0, 0, 0.2);
     flex-grow: 0;
 }
 

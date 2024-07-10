@@ -98,12 +98,12 @@ pub async fn post_login(
                 Ok(Redirect::to("/game").into_response())
             } else {
                 Ok(
-                    form_error(login, "verify", "The password is incorrect"),
+                    form_error(login, "verify", "password", "The password is incorrect"),
                 )
             }
         }
         Err(_err) => Ok(
-            form_error(login, "inexistent", "This username does not exist"),
+            form_error(login, "inexistent", "username", "This username does not exist"),
         ),
     }
 }

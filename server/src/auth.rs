@@ -49,11 +49,11 @@ where
     }
 }
 
-pub fn form_error<F: ToTemplate>(form: F, code: &'static str, message: &'static str) -> Response {
+pub fn form_error<F: ToTemplate>(form: F, code: &'static str, field: &'static str, message: &'static str) -> Response {
     let mut error = ValidationError::new(code);
     error.message = Some(Cow::Borrowed(message));
     let mut errors = ValidationErrors::new();
-    errors.add("username", error);
+    errors.add(field, error);
 
     form_errors(form, errors)
 }

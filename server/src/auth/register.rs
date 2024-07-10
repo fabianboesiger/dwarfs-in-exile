@@ -111,7 +111,7 @@ pub async fn post_register(
             Ok(Redirect::to("/game").into_response())
         }
         Err(_err) => Ok(
-            form_error(register, "unique", "This username is already taken"),
+            form_error(register, "unique", "username", "This username is already taken"),
         ),
     }
 }

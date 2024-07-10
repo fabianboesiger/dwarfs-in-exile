@@ -156,6 +156,7 @@ pub async fn post_change_username(
         Err(_) => Ok(form_error(
             change_username,
             "unique",
+            "username",
             "This username is already taken",
         )),
         Ok(_) => {

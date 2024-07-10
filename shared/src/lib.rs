@@ -165,7 +165,12 @@ impl engine_shared::State for State {
                                 dwarf.change_occupation(quest.quest_type.occupation());
                                 dwarf.participates_in_quest = Some((quest.quest_type, quest_idx, dwarf_idx));
                                 if dwarf_idx < quest.quest_type.max_dwarfs() {
-                                    contestant.dwarfs.insert(dwarf_idx, dwarf_id);
+                                    let old_dwarf_id = contestant.dwarfs.insert(dwarf_idx, dwarf_id);
+                                    if let Some(old_dwarf_id) = old_dwarf_id {
+                                        let dwarf = player.dwarfs.get_mut(&old_dwarf_id)?;
+                                        dwarf.change_occupation(Occupation::Idling);
+                                        dwarf.participates_in_quest = None;
+                                    }
                                 }
                             } else {
                                 let quest = self.quests.get_mut(quest_idx)?;
@@ -206,7 +211,7 @@ impl engine_shared::State for State {
                         
                             for (user_id, player) in self.players.iter_mut() {
                                 // Chance for a new dwarf!
-                                if rng.gen_ratio(1, ONE_DAY as u32  / 2) {
+                                if rng.gen_ratio(1, ONE_DAY as u32 / 20 * (21 - player.base.prestige) as u32) {
                                     player.new_dwarf(rng, &mut self.next_dwarf_id, self.time);
                                 }
             
@@ -423,7 +428,7 @@ impl engine_shared::State for State {
             
                             // Add quests.
                             let active_players = self.players.iter().filter(|(_, player)| player.is_active(self.time)).count();
-                            while self.quests.len() < 3.max(active_players / 3) {
+                            while self.quests.len() < 3.max(active_players / 5) {
                                 let active_quests = self
                                     .quests
                                     .iter()
@@ -620,7 +625,7 @@ impl Player {
         Player {
             dwarfs: {
                 let mut map = CustomMap::new();
-                map.insert(0, Dwarf::new(rng));
+                map.insert(0, Dwarf::new(rng, 1));
                 map
             },
             base: Base::new(),
@@ -642,7 +647,7 @@ impl Player {
     pub fn new_dwarf(&mut self, rng: &mut impl Rng, next_dwarf_id: &mut DwarfId, time: Time) {
         if self.dwarfs.len() < self.base.num_dwarfs() {
             self.log.add(time, LogMsg::NewDwarf(*next_dwarf_id));
-            self.dwarfs.insert(*next_dwarf_id, Dwarf::new(rng));
+            self.dwarfs.insert(*next_dwarf_id, Dwarf::new(rng, self.base.prestige));
             *next_dwarf_id += 1;
         } else {
             self.log.add(
@@ -1323,13 +1328,13 @@ pub struct Stats {
 }
 
 impl Stats {
-    pub fn random(rng: &mut impl Rng) -> Self {
+    pub fn random(rng: &mut impl Rng, prestige: u64) -> Self {
         Stats {
-            strength: rng.gen_range(1..=10),
-            endurance: rng.gen_range(1..=10),
-            agility: rng.gen_range(1..=10),
-            intelligence: rng.gen_range(1..=10),
-            perception: rng.gen_range(1..=10),
+            strength: rng.gen_range(prestige as i8..=10),
+            endurance: rng.gen_range(prestige as i8..=10),
+            agility: rng.gen_range(prestige as i8..=10),
+            intelligence: rng.gen_range(prestige as i8..=10),
+            perception: rng.gen_range(prestige as i8..=10),
         }
     }
 
@@ -1656,14 +1661,14 @@ impl Dwarf {
         name
     }
 
-    fn new(rng: &mut impl Rng) -> Self {
+    fn new(rng: &mut impl Rng, prestige: u64) -> Self {
         let name = Dwarf::name(rng);
 
         Dwarf {
             name,
             occupation: Occupation::Idling,
             occupation_duration: 0,
-            stats: Stats::random(rng),
+            stats: Stats::random(rng, prestige),
             equipment: enum_iterator::all()
                 .map(|item_type| (item_type, None))
                 .collect(),
@@ -1865,7 +1870,7 @@ impl Base {
     }
 
     pub fn num_dwarfs(&self) -> usize {
-        self.curr_level as usize * 2
+        self.curr_level as usize * 1
     }
 
     pub fn upgrade_cost(&self) -> Option<Bundle<Item>> {
@@ -1892,9 +1897,9 @@ impl Base {
             2 => VillageType::Dwelling,
             3 => VillageType::Hamlet,
             4 => VillageType::Village,
-            5 => VillageType::Town,
+            5 => VillageType::SmallTown,
             6 => VillageType::LargeTown,
-            7 => VillageType::City,
+            7 => VillageType::SmallCity,
             8 => VillageType::LargeCity,
             9 => VillageType::Metropolis,
             10 => VillageType::Megalopolis,
@@ -1910,9 +1915,9 @@ pub enum VillageType {
     Dwelling,
     Hamlet,
     Village,
-    Town,
+    SmallTown,
     LargeTown,
-    City,
+    SmallCity,
     LargeCity,
     Metropolis,
     Megalopolis,
@@ -2152,7 +2157,7 @@ impl QuestType {
         match self {
             Self::KillTheDragon => 3,
             Self::ArenaFight => 1,
-            Self::ExploreNewLands => 2,
+            Self::ExploreNewLands => 1,
             Self::FreeTheVillage => 3,
             Self::FeastForAGuest => 1,
             Self::ADwarfGotLost => 1,
