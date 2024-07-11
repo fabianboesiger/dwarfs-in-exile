@@ -999,7 +999,7 @@ impl Item {
         }
     }
 
-    // sefulness from 0-10
+    // sefulness from 0 - 10
     pub fn usefulness_for(self, occupation: Occupation) -> u64 {
         match (self, occupation) {
             (Item::Crossbow, Occupation::Hunting | Occupation::Fighting) => 8,
@@ -1011,7 +1011,7 @@ impl Item {
             (Item::Longsword, Occupation::Fighting) => 7,
             (Item::Dagger, Occupation::Fighting) => 5,
             (Item::TigerFangDagger, Occupation::Fighting) => 8,
-            (Item::Dragon, Occupation::Hunting) => 2,
+            (Item::Dragon, Occupation::Hunting) => 4,
             (Item::Dragon, Occupation::Fighting) => 10,
             (Item::Donkey, Occupation::Gathering) => 6,
             (Item::Donkey, Occupation::Farming) => 4,
@@ -1026,8 +1026,8 @@ impl Item {
             (Item::Bird, Occupation::Mining) => 3,
             (Item::Musket, Occupation::Hunting) => 8,
             (Item::Musket, Occupation::Fighting) => 5,
-            (Item::Dynamite, Occupation::Fighting) => 4,
-            (Item::Dynamite, Occupation::Mining) => 8,
+            (Item::Dynamite, Occupation::Fighting) => 5,
+            (Item::Dynamite, Occupation::Mining) => 10,
             (Item::Backpack, Occupation::Gathering) => 7,
             (Item::Bag, Occupation::Gathering) => 5,
             (Item::Helmet | Item::Headlamp, Occupation::Mining | Occupation::Logging) => 4,
@@ -1041,11 +1041,11 @@ impl Item {
             (Item::FishingRod, Occupation::Fishing) => 6,
             (Item::FishingNet, Occupation::Fishing) => 10,
             (Item::Overall, Occupation::Farming | Occupation::Logging) => 8,
-            (Item::Boots, Occupation::Hunting | Occupation::Gathering | Occupation::Exploring) => 3,
+            (Item::Boots, Occupation::Hunting | Occupation::Gathering | Occupation::Exploring) => 4,
             (Item::BearClawBoots | Item::BearClawGloves, Occupation::Fighting) => 6,
             (Item::Wheelbarrow, Occupation::Gathering) => 8,
             (Item::Plough, Occupation::Farming) => 10,
-            (Item::Lantern, Occupation::Mining) => 4,
+            (Item::Lantern, Occupation::Mining) => 5,
             _ => 0,
         }
     }
@@ -1710,21 +1710,22 @@ impl Dwarf {
         stats
     }
 
-    pub fn equipment_usefulness(&self, occupation: Occupation, item: Item) -> u64 {
-        item.usefulness_for(occupation) * self.effective_stats().cross(occupation.requires_stats()) / 100
-    }
 
     // output 0 - 10
     pub fn effectiveness(&self, occupation: Occupation) -> u64 {
         let mut usefulness = 0;
         for item in self.equipment.values().flatten() {
-            usefulness += self.equipment_usefulness(occupation, *item);
+            usefulness += item.usefulness_for(occupation).max(1);
         }
         usefulness /= self.equipment.len() as u64;
 
-        assert!(usefulness <= 10);
+        debug_assert!(usefulness <= 10);
 
-        usefulness
+        let effectiveness = usefulness * self.effective_stats().cross(occupation.requires_stats()) / 200;
+
+        debug_assert!(effectiveness <= 10);
+
+        effectiveness
     }
 
     pub fn work(&mut self, inventory: &mut Inventory, rng: &mut impl Rng) {
@@ -1801,48 +1802,48 @@ impl Occupation {
                 ..Default::default()
             },
             Occupation::Mining => Stats {
-                strength: 5,
-                perception: 5,
+                strength: 10,
+                perception: 10,
                 ..Default::default()
             },
             Occupation::Logging => Stats {
-                strength: 5,
-                endurance: 5,
+                strength: 10,
+                endurance: 10,
                 ..Default::default()
             },
             Occupation::Hunting => Stats {
-                agility: 5,
-                perception: 5,
+                agility: 10,
+                perception: 10,
                 ..Default::default()
             },
             Occupation::Gathering => Stats {
-                intelligence: 5,
-                perception: 5,
+                intelligence: 10,
+                perception: 10,
                 ..Default::default()
             },
             Occupation::Fishing => Stats {
-                intelligence: 5,
-                agility: 5,
+                intelligence: 10,
+                agility: 10,
                 ..Default::default()
             },
             Occupation::Fighting => Stats {
-                strength: 5,
-                endurance: 5,
+                strength: 10,
+                endurance: 10,
                 ..Default::default()
             },
             Occupation::Exploring => Stats {
-                endurance: 5,
-                intelligence: 5,
+                endurance: 10,
+                intelligence: 10,
                 ..Default::default()
             },
             Occupation::Farming => Stats {
-                endurance: 5,
-                agility: 5,
+                endurance: 10,
+                agility: 10,
                 ..Default::default()
             },
             Occupation::Rockhounding => Stats {
-                intelligence: 5,
-                strength: 5,
+                intelligence: 10,
+                strength: 10,
                 ..Default::default()
             },
         }

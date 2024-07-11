@@ -675,14 +675,14 @@ fn dwarf(state: &shared::State, user_id: &shared::UserId, dwarf_id: DwarfId) -> 
                             let all_items = enum_iterator::all::<Item>().filter_map(|item| item.item_probability(occupation).map(|_| item)).collect::<Vec<_>>();
                             div![C!["list-item-row"],
                                 img![C!["list-item-image"], attrs! { At::Src => Image::from(occupation).as_at_value() } ],
-                                div![C!["list-item-content"],
+                                div![C!["list-item-content", "grow"],
                                     h3![C!["title"],
                                         format!("{}", occupation),
-                                        if all_items.len() == 0 {
+                                        /*if all_items.len() == 0 {
                                             tip(format!("From this occupation, you can get no items. This occupation requires {}.", stats_simple(&occupation.requires_stats())))
                                         } else {
                                             tip(format!("From this occupation, you can get the items {}. This occupation requires {}.", all_items.into_iter().join(", "), stats_simple(&occupation.requires_stats())))
-                                        },
+                                        },*/
                                     ],
                                     p![
                                         stars(dwarf.effectiveness(occupation) as i8, true),
@@ -712,6 +712,16 @@ fn dwarf(state: &shared::State, user_id: &shared::UserId, dwarf_id: DwarfId) -> 
                                     } else {
                                         Node::Empty
                                     },*/
+                                ],
+                                div![C!["list-item-content", "shrink"],
+                                    h4![C!["title"], "Requires"],
+                                    p![C!["subtitle"],stats_simple(&occupation.requires_stats())],
+                                    h4![C!["title"], "Provides"],
+                                    p![C!["subtitle"], if all_items.len() == 0 {
+                                        "None".to_owned()
+                                    } else {
+                                        all_items.into_iter().join(", ")
+                                    }]
                                 ]
                             ]
                             /* 
@@ -1585,19 +1595,19 @@ fn stats_simple(stats: &Stats) -> String {
     let mut v = Vec::new();
 
     if stats.strength != 0 {
-        v.push("strength");
+        v.push("Strength");
     }
     if stats.endurance != 0 {
-        v.push("endurance");
+        v.push("Endurance");
     }
     if stats.agility != 0 {
-        v.push("agility");
+        v.push("Agility");
     }
     if stats.intelligence != 0 {
-        v.push("intelligence");
+        v.push("Intelligence");
     }
     if stats.perception != 0 {
-        v.push("perception");
+        v.push("Perception");
     }
 
     if v.is_empty() {
