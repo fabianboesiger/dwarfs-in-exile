@@ -80,8 +80,8 @@ pub async fn post_register(
 
     let result: Result<(i64,), _> = sqlx::query_as(
         r#"
-            INSERT INTO users (username, password)
-            VALUES ($1, $2)
+            INSERT INTO users (username, password, premium)
+            VALUES ($1, $2, 0)
             RETURNING user_id
         "#,
     )

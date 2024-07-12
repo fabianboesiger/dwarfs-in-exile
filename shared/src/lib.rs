@@ -1,4 +1,4 @@
-use engine_shared::{utils::custom_map::CustomMap, Event};
+use engine_shared::{utils::custom_map::{CustomMap, CustomSet}, Event};
 use enum_iterator::Sequence;
 use rand::{
     seq::{IteratorRandom, SliceRandom},
@@ -42,15 +42,18 @@ impl From<i64> for UserId {
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct UserData {
     pub username: String,
+    pub premium: bool,
 }
 
 impl engine_shared::UserData for UserData {}
 
+/*
 impl From<String> for UserData {
     fn from(username: String) -> Self {
         UserData { username }
     }
 }
+*/
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug, Hash)]
 pub struct State {
@@ -62,6 +65,31 @@ pub struct State {
     pub king: Option<UserId>,
 }
 
+impl State {
+    fn add_to_food_storage(player: &mut Player, item: Item, qty: u64) {
+        if let Some(food) = item.nutritional_value() {
+            if player
+                .inventory
+                .items
+                .remove_checked(Bundle::new().add(item, qty))
+            {
+                player.base.food += food * qty;
+                
+            }
+        }
+    }
+
+    fn craft(player: &mut Player, item: Item, qty: u64) {
+        if let Some(requires) = item.requires() {
+            if player.inventory.items.remove_checked(requires.mul(qty)) {
+                player
+                    .inventory
+                    .items
+                    .add_checked(Bundle::new().add(item, qty));
+            }
+        }
+    }
+}
 
 impl engine_shared::State for State {
     type ServerEvent = ServerEvent;
@@ -70,8 +98,10 @@ impl engine_shared::State for State {
     type UserData = UserData;
     
     const DURATION_PER_TICK: std::time::Duration = std::time::Duration::from_millis(1000 / SPEED);
+    
+   
+    fn update(&mut self, rng: &mut impl Rng, event: Event<Self>, user_data: &CustomMap<UserId, UserData>) {
 
-    fn update(&mut self, rng: &mut impl Rng, event: Event<Self>) {
         move || -> Option<()> {
             match event {
                 Event::ClientEvent(event, user_id) => {
@@ -80,9 +110,34 @@ impl engine_shared::State for State {
                     }
                     let player = self.players.get_mut(&user_id)?;
                     player.last_online = self.time;
+
+                    let is_premium = user_data.get(&user_id).map(|user_data| user_data.premium).unwrap_or(false);
     
                     match event {
                         ClientEvent::Init => {}
+                        ClientEvent::ToggleAutoCraft(item) => {
+                            if is_premium {
+                                if player.auto_functions.auto_craft.contains(&item) {
+                                    player.auto_functions.auto_craft.swap_remove(&item);
+                                } else {
+                                    player.auto_functions.auto_craft.insert(item);
+                                }
+                            }
+                        }
+                        ClientEvent::ToggleAutoStore(item) => {
+                            if is_premium {
+                                if player.auto_functions.auto_store.contains(&item) {
+                                    player.auto_functions.auto_store.swap_remove(&item);
+                                } else {
+                                    player.auto_functions.auto_store.insert(item);
+                                }
+                            }
+                        }
+                        ClientEvent::ToggleAutoIdle => {
+                            if is_premium {
+                                player.auto_functions.auto_idle = !player.auto_functions.auto_idle;
+                            }
+                        }
                         ClientEvent::Restart => {
                             if player.dwarfs.len() == 0 {
                                 let mut player = Player::new(self.time, rng);
@@ -101,14 +156,7 @@ impl engine_shared::State for State {
                             }
                         }
                         ClientEvent::Craft(item, qty) => {            
-                            if let Some(requires) = item.requires() {
-                                if player.inventory.items.remove_checked(requires.mul(qty)) {
-                                    player
-                                        .inventory
-                                        .items
-                                        .add_checked(Bundle::new().add(item, qty));
-                                }
-                            }
+                            Self::craft(player, item, qty);
                         }
                         ClientEvent::UpgradeBase => {            
                             if let Some(requires) = player.base.upgrade_cost() {
@@ -186,16 +234,7 @@ impl engine_shared::State for State {
                             }
                         }
                         ClientEvent::AddToFoodStorage(item, qty) => {
-                            if let Some(food) = item.nutritional_value() {
-                                if player
-                                    .inventory
-                                    .items
-                                    .remove_checked(Bundle::new().add(item, qty))
-                                {
-                                    player.base.food += food * qty;
-                                    
-                                }
-                            }
+                            Self::add_to_food_storage(player, item, qty);
                         }
                         ClientEvent::Prestige => {            
                             if player.can_prestige() {
@@ -208,8 +247,44 @@ impl engine_shared::State for State {
                     match event {
                         ServerEvent::Tick => {
                             self.time += 1;
-                        
+
                             for (user_id, player) in self.players.iter_mut() {
+
+                                let is_premium = user_data.get(user_id).map(|user_data| user_data.premium).unwrap_or(false);
+
+                                if is_premium {
+                                    // Auto-craft!
+                                    for &item in &player.auto_functions.auto_craft {
+                                        if let Some(requires) = item.requires() {
+                                            if let Some(qty) = player.inventory.items.can_remove_x_times(&requires) {
+                                                if player.inventory.items.remove_checked(requires.mul(qty)) {
+                                                    player
+                                                        .inventory
+                                                        .items
+                                                        .add_checked(Bundle::new().add(item, qty));
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Auto-store!
+                                    for &item in &player.auto_functions.auto_store {
+                                        if let Some(&qty) = player.inventory.items.get(&item) {
+                                            if let Some(food) = item.nutritional_value() {
+                                                if player
+                                                    .inventory
+                                                    .items
+                                                    .remove_checked(Bundle::new().add(item, qty))
+                                                {
+                                                    player.base.food += food * qty;
+                                                    
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+
                                 // Chance for a new dwarf!
                                 if rng.gen_ratio(1, ONE_DAY as u32 / 20 * (21 - player.base.prestige) as u32) {
                                     player.new_dwarf(rng, &mut self.next_dwarf_id, self.time);
@@ -220,12 +295,20 @@ impl engine_shared::State for State {
                                 sorted_by_health.sort_by_key(|dwarf| dwarf.health);
                                 for dwarf in sorted_by_health {
                                     dwarf.decr_health(dwarf.occupation.health_cost_per_second());
-                                    if dwarf.occupation == Occupation::Idling {
-                                        if player.base.food > 0
-                                            && dwarf.health <= MAX_HEALTH - MAX_HEALTH / 1000
-                                        {
-                                            player.base.food -= 1;
-                                            dwarf.incr_health(MAX_HEALTH / 1000);
+                                    if dwarf.occupation == Occupation::Idling || dwarf.auto_idle {
+                                        if player.base.food > 0 {
+                                            if dwarf.health <= MAX_HEALTH - MAX_HEALTH / 1000 {
+                                                player.base.food -= 1;
+                                                dwarf.incr_health(MAX_HEALTH / 1000);
+                                            } else {
+                                                if player.auto_functions.auto_idle {
+                                                    dwarf.auto_idle = false;
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        if is_premium && player.auto_functions.auto_idle && dwarf.health <= MAX_HEALTH / 10 && dwarf.occupation != Occupation::Idling {
+                                            dwarf.auto_idle = true;
                                         }
                                     }
                                     if dwarf.dead() {
@@ -482,6 +565,23 @@ impl<T: BundleType> Bundle<T> {
         self
     }
 
+    pub fn can_remove_x_times(&self, other: &Self) -> Option<u64> {
+        let mut bound: Option<u64> = None;
+
+        for (t, n) in &self.0 {
+            if let Some(other_n) = other.0.get(t) {
+                if *other_n > 0 {
+                    if let Some(bound) = &mut bound {
+                        *bound = (*bound).min(n / other_n);
+                    } else {
+                        bound = Some(n / other_n);
+                    }
+                }
+            }
+        }
+        
+        bound
+    }
 
     pub fn check_add(&self, to_add: &Self) -> bool {
         for (t, n) in &to_add.0 {
@@ -618,6 +718,24 @@ pub struct Player {
     pub log: Log,
     pub money: Money,
     pub last_online: Time,
+    pub auto_functions: AutoFunctions,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
+pub struct AutoFunctions {
+    pub auto_idle: bool,
+    pub auto_craft: CustomSet<Item>,
+    pub auto_store: CustomSet<Item>,
+}
+
+impl Default for AutoFunctions {
+    fn default() -> Self {
+        Self {
+            auto_idle: false,
+            auto_craft: CustomSet::new(),
+            auto_store: CustomSet::new(),
+        }
+    }
 }
 
 impl Player {
@@ -633,6 +751,7 @@ impl Player {
             log: Log::default(),
             money: 0,
             last_online: time,
+            auto_functions: AutoFunctions::default(),
         }
     }
 
@@ -1605,6 +1724,7 @@ pub struct Dwarf {
     pub name: String,
     pub participates_in_quest: Option<(QuestType, usize, usize)>,
     pub occupation: Occupation,
+    pub auto_idle: bool,
     pub occupation_duration: u64,
     pub stats: Stats,
     pub equipment: CustomMap<ItemType, Option<Item>>,
@@ -1667,6 +1787,7 @@ impl Dwarf {
         Dwarf {
             name,
             occupation: Occupation::Idling,
+            auto_idle: false,
             occupation_duration: 0,
             stats: Stats::random(rng, prestige),
             equipment: enum_iterator::all()
@@ -1939,6 +2060,9 @@ pub enum ClientEvent {
     AddToFoodStorage(Item, u64),
     Prestige,
     Restart,
+    ToggleAutoCraft(Item),
+    ToggleAutoStore(Item),
+    ToggleAutoIdle,
 }
 
 impl engine_shared::ClientEvent for ClientEvent {

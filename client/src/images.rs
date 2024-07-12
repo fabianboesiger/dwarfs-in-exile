@@ -133,6 +133,7 @@ pub enum Image {
     Fabric,
     Gloves,
     Leather,
+    Headlamp,
 }
 
 
@@ -252,7 +253,7 @@ impl From<Item> for Image {
             Item::Fabric => Image::Fabric,
             Item::Gloves => Image::Gloves,
             Item::Bag => Image::Bag,
-            Item::Headlamp => Image::HeadLamp,
+            Item::Headlamp => Image::Headlamp,
         }
     }
 }

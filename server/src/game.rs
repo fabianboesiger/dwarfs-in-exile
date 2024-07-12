@@ -54,9 +54,9 @@ impl engine_server::BackendStore<shared::State> for GameStore {
     }
 
     async fn load_user_data(&self) -> CustomMap<UserId, UserData> {
-        let users: Vec<(i64, String)> = sqlx::query_as(
+        let users: Vec<(i64, String, i64)> = sqlx::query_as(
             r#"
-                        SELECT user_id, username
+                        SELECT user_id, username, premium
                         FROM users
                     "#,
         )
@@ -66,7 +66,10 @@ impl engine_server::BackendStore<shared::State> for GameStore {
 
         let users = users
             .into_iter()
-            .map(|(id, username)| (id.into(), username.into()))
+            .map(|(id, username, premium)| (id.into(), UserData {
+                username,
+                premium: premium == 1,
+            }))
             .collect::<CustomMap<shared::UserId, shared::UserData>>();
 
         users

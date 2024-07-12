@@ -10,7 +10,7 @@ use std::str::FromStr;
 use itertools::Itertools;
 
 #[cfg(not(debug_assertions))]
-const WS_URL: &str = "ws://boesiger.internet-box.ch/game/ws";
+const WS_URL: &str = "ws://localhost:3000/game/ws";
 #[cfg(debug_assertions)]
 const WS_URL: &str = "ws://localhost:3000/game/ws";
 
@@ -279,7 +279,7 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
             ],
             main![match model.page {
                 Page::Dwarfs(mode) => dwarfs(state, user_id, mode),
-                Page::Dwarf(dwarf_id) => dwarf(state, user_id, dwarf_id),
+                Page::Dwarf(dwarf_id) => dwarf(model, state, user_id, dwarf_id),
                 Page::Base => base(state, user_id),
                 Page::Inventory(mode) => inventory(model, state, user_id, mode),
                 Page::Ranking => ranking(state, client_state),
@@ -407,82 +407,13 @@ fn dwarfs(state: &shared::State, user_id: &shared::UserId, mode: DwarfsMode) -> 
     let player = state.players.get(user_id).unwrap();
 
     if player.dwarfs.len() > 0 {
-        div![
+        table![
             C!["dwarfs", "list"],
-            player.dwarfs.iter().map(|(&id, dwarf)| div![
+            player.dwarfs.iter().map(|(&id, dwarf)| tr![
                 C!["dwarf", format!("dwarf-{}", id)],
-                div![
-                    C!["list-item-row"],
-                    img![C!["list-item-image"], attrs! {At::Src => Image::dwarf_from_name(&dwarf.name).as_at_value()}],
-                    div![
-                        C!["list-item-content"],
-                        h3![C!["title"], &dwarf.name],
-                        p![C!["subtitle"],
-                        if let Some((quest_type, _, _)) = dwarf.participates_in_quest {
-                            format!(
-                                "Participating in quest {} since {}.",
-                                quest_type,
-                                fmt_time(dwarf.occupation_duration)
-                            )
-                        } else {
-                            format!(
-                                "{} since {}.",
-                                dwarf.occupation,
-                                fmt_time(dwarf.occupation_duration)
-                            )
-                        }],
-                        health_bar(dwarf.health, MAX_HEALTH),
-                        p![
-                            match mode {
-                                DwarfsMode::Overview => {
-                                    a![
-                                        C!["button"],
-                                        attrs!{ At::Href => format!("/game/dwarfs/{}", id) },
-                                        "Details"
-                                    ]
-                                }
-                                DwarfsMode::Select(DwarfsSelect::Quest(quest_idx, dwarf_idx)) => {
-                                    div![button![
-                                        ev(Ev::Click, move |_| Msg::AssignToQuest(
-                                            quest_idx,
-                                            dwarf_idx,
-                                            Some(id)
-                                        )),
-                                        format!("Assign to Quest {}", state.quests.get(quest_idx).unwrap().quest_type),
-                                        br![],
-                                        stars(dwarf.effectiveness(state.quests.get(quest_idx).unwrap().quest_type.occupation()) as i8, true)
-                                    ]]
-                                }
-                            }
-                        ]
-                    ],
-                ],
-            ])
-        ]
-    } else {
-        div![
-            C!["content"],
-            h2!["There's Noone Here!"],
-            p!["All your dwarfs have died! You can wait until a new dwarf finds your settlement or start over with a new settlement."],
-            button![
-                ev(Ev::Click, move |_| Msg::send_event(ClientEvent::Restart)),
-                "Restart your Settlement",
-            ],
-        ]
-    }
-}
-
-fn dwarf(state: &shared::State, user_id: &shared::UserId, dwarf_id: DwarfId) -> Node<Msg> {
-    let player = state.players.get(user_id).unwrap();
-    let dwarf = player.dwarfs.get(&dwarf_id);
-
-    if let Some(dwarf) = dwarf {
-        div![
-            C!["dwarf", "content", format!("dwarf-{}", dwarf_id)],
-            div![
                 C!["list-item-row"],
-                img![C!["list-item-image"], attrs! {At::Src => Image::dwarf_from_name(&dwarf.name).as_at_value()}],
-                div![
+                td![img![C!["list-item-image"], attrs! {At::Src => Image::dwarf_from_name(&dwarf.name).as_at_value()}]],
+                td![
                     C!["list-item-content"],
                     h3![C!["title"], &dwarf.name],
                     p![C!["subtitle"],
@@ -500,6 +431,87 @@ fn dwarf(state: &shared::State, user_id: &shared::UserId, dwarf_id: DwarfId) -> 
                         )
                     }],
                     health_bar(dwarf.health, MAX_HEALTH),
+                    p![
+                        match mode {
+                            DwarfsMode::Overview => {
+                                a![
+                                    C!["button"],
+                                    attrs!{ At::Href => format!("/game/dwarfs/{}", id) },
+                                    "Details"
+                                ]
+                            }
+                            DwarfsMode::Select(DwarfsSelect::Quest(quest_idx, dwarf_idx)) => {
+                                div![button![
+                                    ev(Ev::Click, move |_| Msg::AssignToQuest(
+                                        quest_idx,
+                                        dwarf_idx,
+                                        Some(id)
+                                    )),
+                                    format!("Assign to Quest {}", state.quests.get(quest_idx).unwrap().quest_type),
+                                    br![],
+                                    stars(dwarf.effectiveness(state.quests.get(quest_idx).unwrap().quest_type.occupation()) as i8, true)
+                                ]]
+                            }
+                        }
+                    ]
+                ],
+            ])
+        ]
+    } else {
+        div![
+            C!["content"],
+            h2!["There's Noone Here!"],
+            p!["All your dwarfs have died! You can wait until a new dwarf finds your settlement or start over with a new settlement."],
+            button![
+                ev(Ev::Click, move |_| Msg::send_event(ClientEvent::Restart)),
+                "Restart your Settlement",
+            ],
+        ]
+    }
+}
+
+fn dwarf(model: &Model, state: &shared::State, user_id: &shared::UserId, dwarf_id: DwarfId) -> Node<Msg> {
+    let player = state.players.get(user_id).unwrap();
+    let dwarf = player.dwarfs.get(&dwarf_id);
+    let is_premium = model.state.get_user_data(user_id).map(|user_data| user_data.premium).unwrap_or(false);
+
+    if let Some(dwarf) = dwarf {
+        table![
+            C!["dwarf", "content", format!("dwarf-{}", dwarf_id)],
+            tr![
+                C!["list-item-row"],
+                td![img![C!["list-item-image"], attrs! {At::Src => Image::dwarf_from_name(&dwarf.name).as_at_value()}]],
+                td![
+                    C!["list-item-content"],
+                    h3![C!["title"], &dwarf.name],
+                    p![C!["subtitle"],
+                    if let Some((quest_type, _, _)) = dwarf.participates_in_quest {
+                        format!(
+                            "Participating in quest {} since {}.",
+                            quest_type,
+                            fmt_time(dwarf.occupation_duration)
+                        )
+                    } else {
+                        format!(
+                            "{} since {}.",
+                            dwarf.occupation,
+                            fmt_time(dwarf.occupation_duration)
+                        )
+                    }],
+                    health_bar(dwarf.health, MAX_HEALTH),
+                    p![
+                        button![
+                            if is_premium {
+                                attrs! {}
+                            } else {
+                                attrs! {At::Disabled => "true"}
+                            },
+                            ev(Ev::Click, move |_| Msg::send_event(
+                                ClientEvent::ToggleAutoIdle
+                            )),
+                            if player.auto_functions.auto_idle && is_premium { "Disable Auto Idling" } else { "Enable Auto Idling" },
+                        ]
+                    ]
                 ],
             ],
             div![
@@ -530,17 +542,17 @@ fn dwarf(state: &shared::State, user_id: &shared::UserId, dwarf_id: DwarfId) -> 
             ],
             div![
                 h4!["Equipment"],
-                div![C!["list"],
+                table![C!["list"],
                     enum_iterator::all::<ItemType>().map(|item_type| {
                         let equipment = dwarf.equipment.get(&item_type).unwrap();
 
-                        div![C!["list-item-row"],
+                        tr![C!["list-item-row"],
                             if let Some(equipment) = equipment {
-                                img![C!["list-item-image"], attrs! { At::Src => Image::from(*equipment).as_at_value() } ]
+                                td![img![C!["list-item-image"], attrs! { At::Src => Image::from(*equipment).as_at_value() } ]]
                             } else {
-                                div![C!["list-item-image-placeholder"]]
+                                td![div![C!["list-item-image-placeholder"]]]
                             },
-                            div![C!["list-item-content", "grow"],
+                            td![C!["list-item-content", "grow"],
                                 h3![C!["title"],
                                     equipment.map(|equipment| format!("{equipment}")).unwrap_or("None".to_owned())
                                 ],
@@ -593,7 +605,7 @@ fn dwarf(state: &shared::State, user_id: &shared::UserId, dwarf_id: DwarfId) -> 
                                 }
                                 
                             ],
-                            div![C!["list-item-content", "shrink"],
+                            td![C!["list-item-content", "shrink"],
                                 button![
                                     ev(Ev::Click, move |_| Msg::ChangePage(Page::Inventory(
                                         InventoryMode::Select(InventorySelect::Equipment(
@@ -670,12 +682,12 @@ fn dwarf(state: &shared::State, user_id: &shared::UserId, dwarf_id: DwarfId) -> 
                         ]]
                     ]
                 } else {
-                    div![C!["list"],
+                    table![C!["list"],
                         enum_iterator::all::<Occupation>().filter(|occupation| player.base.curr_level >= occupation.unlocked_at_level()).map(|occupation| {
                             let all_items = enum_iterator::all::<Item>().filter_map(|item| item.item_probability(occupation).map(|_| item)).collect::<Vec<_>>();
-                            div![C!["list-item-row"],
-                                img![C!["list-item-image"], attrs! { At::Src => Image::from(occupation).as_at_value() } ],
-                                div![C!["list-item-content", "grow"],
+                            tr![C!["list-item-row"],
+                                td![img![C!["list-item-image"], attrs! { At::Src => Image::from(occupation).as_at_value() } ]],
+                                td![C!["list-item-content", "grow"],
                                     h3![C!["title"],
                                         format!("{}", occupation),
                                         /*if all_items.len() == 0 {
@@ -713,7 +725,7 @@ fn dwarf(state: &shared::State, user_id: &shared::UserId, dwarf_id: DwarfId) -> 
                                         Node::Empty
                                     },*/
                                 ],
-                                div![C!["list-item-content", "shrink"],
+                                td![C!["list-item-content", "shrink"],
                                     h4![C!["title"], "Requires"],
                                     p![C!["subtitle"],stats_simple(&occupation.requires_stats())],
                                     h4![C!["title"], "Provides"],
@@ -769,14 +781,14 @@ fn dwarf(state: &shared::State, user_id: &shared::UserId, dwarf_id: DwarfId) -> 
 fn quests(state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     let _player = state.players.get(user_id).unwrap();
 
-    div![
+    table![
         C!["quests", "list"],
         state.quests.iter().enumerate().map(|(quest_idx, quest)| {
-            div![
+            tr![
                 C!["list-item-row"],
-                img![C!["list-item-image"], attrs! {At::Src => Image::from(quest.quest_type).as_at_value()}],
+                td![img![C!["list-item-image"], attrs! {At::Src => Image::from(quest.quest_type).as_at_value()}]],
                 
-                div![
+                td![
                     C!["list-item-content"],
                     h3![C!["title"], format!("{}", quest.quest_type)],
                     p![C!["subtitle"], format!("{} remaining.", fmt_time(quest.time_left))],
@@ -877,7 +889,7 @@ fn quest(state: &shared::State, user_id: &shared::UserId, quest_idx: usize) -> N
             Node::Empty
         },
 
-        div![C!["list"],
+        table![C!["list"],
         (0..quest
             .quest_type
             .max_dwarfs())
@@ -890,14 +902,14 @@ fn quest(state: &shared::State, user_id: &shared::UserId, quest_idx: usize) -> N
             .map(|(dwarf_idx, dwarf_id)| {
                 let dwarf = dwarf_id.map(|dwarf_id| player.dwarfs.get(&dwarf_id).unwrap());
 
-                div![
+                tr![
                     C!["list-item-row"],
                     if let Some(dwarf) = dwarf {
-                        img![C!["list-item-image"], attrs! {At::Src => Image::dwarf_from_name(&dwarf.name).as_at_value()}]
+                        td![img![C!["list-item-image"], attrs! {At::Src => Image::dwarf_from_name(&dwarf.name).as_at_value()}]]
                     } else {
-                        div![C!["list-item-image-placeholder"]]
+                        td![div![C!["list-item-image-placeholder"]]]
                     },
-                    div![
+                    td![
                         C!["list-item-content"],
                         if let Some(dwarf) = dwarf {
                             vec![
@@ -1036,6 +1048,7 @@ fn inventory(
     mode: InventoryMode,
 ) -> Node<Msg> {
     let player = state.players.get(user_id).unwrap();
+    let is_premium = model.state.get_user_data(user_id).map(|user_data| user_data.premium).unwrap_or(false);
 
     let items: Bundle<Item> = enum_iterator::all::<Item>()
         .map(|t| (t, 0))
@@ -1108,7 +1121,7 @@ fn inventory(
                 ],
             ]
         ],
-        div![
+        table![
             C!["items", "list"],
             items
                 .sorted_by_rarity()
@@ -1159,8 +1172,9 @@ fn inventory(
                             true
                         }
                 })
-                .map(|(item, n)| div![
+                .map(|(item, n)| tr![
                     C!["item"],
+                    C!["list-item-row"],
                     match item.item_rarity() {
                         ItemRarity::Common => C!["item-common"],
                         ItemRarity::Uncommon => C!["item-uncommon"],
@@ -1168,85 +1182,91 @@ fn inventory(
                         ItemRarity::Epic => C!["item-epic"],
                         ItemRarity::Legendary => C!["item-legendary"],
                     },
-                    div![
-                        C!["list-item-row"],
-                        img![C!["list-item-image"], attrs! {At::Src => Image::from(item).as_at_value()}],
-                        div![
-                            C!["list-item-content", "grow"],
-                            
-                            h3![C!["title"], format!("{n}x {item}")],
-                            p![
-                                C!["subtitle"], if let Some(food) = item.nutritional_value() {
-                                    format!("Food ({food}) | {}", item.item_rarity())
-                                } else if let Some(item_type) = item.item_type() {
-                                    format!("{item_type} | {}", item.item_rarity())
-                                } else {
-                                    format!("Item | {}", item.item_rarity())
-                                }
-                            ],
-
-                            // Show stats
-                            if !item.provides_stats().is_zero() {
-                                div![
-                                    h4!["Provides"],
-                                    stats(&item.provides_stats()),
-                                ]
+                    td![img![C!["list-item-image"], attrs! {At::Src => Image::from(item).as_at_value()}]],
+                    td![
+                        C!["list-item-content", "grow"],
+                        
+                        h3![C!["title"], format!("{n}x {item}")],
+                        p![
+                            C!["subtitle"], if let Some(food) = item.nutritional_value() {
+                                format!("Food ({food}) | {}", item.item_rarity())
+                            } else if let Some(item_type) = item.item_type() {
+                                format!("{item_type} | {}", item.item_rarity())
                             } else {
-                                Node::Empty
-                            },
-                            if enum_iterator::all::<Occupation>()
-                                .filter(|occupation| {
-                                    let usefulness = item.usefulness_for(*occupation);
-                                    usefulness > 0
-                                })
-                                .count()
-                                > 0
-                            {
-                                div![
-                                    h4!["Utility"],
-                                    enum_iterator::all::<Occupation>().filter_map(
-                                        |occupation| {
-                                            let usefulness =
-                                                item.usefulness_for(occupation) as i8;
-                                            if usefulness > 0 {
-                                                Some(span![
-                                                    format!("{} ", occupation),
-                                                    stars(usefulness, true)
-                                                ])
-                                            } else {
-                                                None
-                                            }
-                                        }
-                                    ).intersperse(br![])
-                                ]
-                            } else {
-                                Node::Empty
-                            },
-
+                                format!("Item | {}", item.item_rarity())
+                            }
                         ],
 
-                        if let InventoryMode::Select(InventorySelect::Equipment(
-                            dwarf_id,
-                            item_type,
-                        )) = mode {
+                        // Show stats
+                        if !item.provides_stats().is_zero() {
                             div![
-                                C!["list-item-content", "shrink"],
-                                button![
-                                    ev(Ev::Click, move |_| Msg::ChangeEquipment(
-                                        dwarf_id,
-                                        item_type,
-                                        Some(item)
-                                    )),
-                                    "Equip"
-                                ]
+                                h4!["Provides"],
+                                stats(&item.provides_stats()),
                             ]
-                        } else {     
+                        } else {
+                            Node::Empty
+                        },
+                        if enum_iterator::all::<Occupation>()
+                            .filter(|occupation| {
+                                let usefulness = item.usefulness_for(*occupation);
+                                usefulness > 0
+                            })
+                            .count()
+                            > 0
+                        {
                             div![
-                                C!["list-item-content", "shrink"],
-                                if let Some(requires) = item.requires() {
-                                    vec![
-                                        h4!["Crafting"],
-                                        bundle(&requires, player, true),
+                                h4!["Utility"],
+                                enum_iterator::all::<Occupation>().filter_map(
+                                    |occupation| {
+                                        let usefulness =
+                                            item.usefulness_for(occupation) as i8;
+                                        if usefulness > 0 {
+                                            Some(span![
+                                                format!("{} ", occupation),
+                                                stars(usefulness, true)
+                                            ])
+                                        } else {
+                                            None
+                                        }
+                                    }
+                                ).intersperse(br![])
+                            ]
+                        } else {
+                            Node::Empty
+                        },
+
+                    ],
+
+                    if let InventoryMode::Select(InventorySelect::Equipment(
+                        dwarf_id,
+                        item_type,
+                    )) = mode {
+                        td![
+                            C!["list-item-content", "shrink"],
+                            button![
+                                ev(Ev::Click, move |_| Msg::ChangeEquipment(
+                                    dwarf_id,
+                                    item_type,
+                                    Some(item)
+                                )),
+                                "Equip"
+                            ]
+                        ]
+                    } else {     
+                        td![
+                            C!["list-item-content", "shrink"],
+                            if let Some(requires) = item.requires() {
+                                vec![
+                                    h4!["Crafting"],
+                                    bundle(&requires, player, true),
+                                    if player.auto_functions.auto_craft.contains(&item) && is_premium {
+                                        button![
+                                            ev(Ev::Click, move |_| Msg::send_event(
+                                                ClientEvent::ToggleAutoCraft(item)
+                                            )),
+                                            "Disable Auto",
+                                        ]
+                                    } else {
                                         div![C!["button-row"],
                                             button![
                                                 if player.inventory.items.check_remove(&requires) {
@@ -1280,16 +1300,37 @@ fn inventory(
                                                     ClientEvent::Craft(item, 100)
                                                 )),
                                                 "100x",
+                                            ],
+                                            button![
+                                                if is_premium {
+                                                    attrs! {}
+                                                } else {
+                                                    attrs! {At::Disabled => "true"}
+                                                },
+                                                ev(Ev::Click, move |_| Msg::send_event(
+                                                    ClientEvent::ToggleAutoCraft(item)
+                                                )),
+                                                "Auto",
                                             ]
                                         ]
-                                    ]
-                                } else {
-                                    Vec::new()
-                                },
+                                    }
 
-                                if let Some(_) = item.nutritional_value() {
-                                    vec![
-                                        h4!["Food Storage"],
+                                ]
+                            } else {
+                                Vec::new()
+                            },
+
+                            if let Some(_) = item.nutritional_value() {
+                                vec![
+                                    h4!["Food Storage"],
+                                    if player.auto_functions.auto_store.contains(&item) && is_premium {
+                                        button![
+                                            ev(Ev::Click, move |_| Msg::send_event(
+                                                ClientEvent::ToggleAutoStore(item)
+                                            )),
+                                            "Disable Auto"
+                                        ]
+                                    } else {
                                         div![C!["button-row"],
                                             button![
                                                 if player
@@ -1335,17 +1376,27 @@ fn inventory(
                                                     ClientEvent::AddToFoodStorage(item, 100)
                                                 )),
                                                 format!("100x"),
-                                            ] 
+                                            ],
+                                            button![
+                                                if is_premium {
+                                                    attrs! {}
+                                                } else {
+                                                    attrs! {At::Disabled => "true"}
+                                                },
+                                                ev(Ev::Click, move |_| Msg::send_event(
+                                                    ClientEvent::ToggleAutoStore(item)
+                                                )),
+                                                "Auto"
+                                            ]
                                         ]
-                                    ]
-                                    
-                                } else {
-                                    Vec::new()
-                                },
-                            
-                            ]
-                        }
-                    ],
+                                    }
+                                ] 
+                            } else {
+                                Vec::new()
+                            },
+                        
+                        ]
+                    }
                 ]),
         ]
     ]
