@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use crate::ServerError;
 use askama::{DynTemplate, Template};
 use askama_axum::Response;
@@ -7,10 +5,10 @@ use axum::{
     response::{IntoResponse, Redirect},
     Extension,
 };
-use axum_sessions::extractors::WritableSession;
 use bcrypt::verify;
 use serde::Deserialize;
 use sqlx::SqlitePool;
+use tower_sessions::Session;
 use validator::{Validate, ValidationErrors};
 
 use super::{form_error, ToTemplate, ValidatedForm};
@@ -58,7 +56,7 @@ pub async fn get_login() -> LoginTemplate {
 }
 
 pub async fn post_login(
-    mut session: WritableSession,
+    session: Session,
     Extension(pool): Extension<SqlitePool>,
     ValidatedForm(login): ValidatedForm<LoginForm>,
 ) -> Result<Response, ServerError> {
@@ -81,29 +79,33 @@ pub async fn post_login(
                 .unwrap();
 
             if verify {
-                session.expire_in(Duration::from_secs(60 * 60 * 24 * 7));
-
                 sqlx::query(
                     r#"
                         INSERT OR REPLACE INTO sessions (session_id, user_id, expires)
                         VALUES ($1, $2, $3)
                     "#,
                 )
-                .bind(&session.id())
+                .bind(session.id().unwrap().0 as i64)
                 .bind(user_id)
-                .bind(&session.expiry().map(|expiry| expiry.timestamp()))
+                .bind(session.expiry_age().whole_seconds())
                 .execute(&pool)
                 .await?;
 
                 Ok(Redirect::to("/game").into_response())
             } else {
-                Ok(
-                    form_error(login, "verify", "password", "The password is incorrect"),
-                )
+                Ok(form_error(
+                    login,
+                    "verify",
+                    "password",
+                    "The password is incorrect",
+                ))
             }
         }
-        Err(_err) => Ok(
-            form_error(login, "inexistent", "username", "This username does not exist"),
-        ),
+        Err(_err) => Ok(form_error(
+            login,
+            "inexistent",
+            "username",
+            "This username does not exist",
+        )),
     }
 }

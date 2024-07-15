@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use crate::{game::GameState, ServerError};
 use askama::{DynTemplate, Template};
 use askama_axum::Response;
@@ -7,10 +5,10 @@ use axum::{
     response::{IntoResponse, Redirect},
     Extension,
 };
-use axum_sessions::extractors::WritableSession;
 use bcrypt::hash;
 use serde::Deserialize;
 use sqlx::SqlitePool;
+use tower_sessions::Session;
 use validator::{Validate, ValidationErrors};
 
 use super::{form_error, ToTemplate, ValidatedForm};
@@ -68,7 +66,7 @@ pub async fn get_register() -> RegisterTemplate {
 }
 
 pub async fn post_register(
-    mut session: WritableSession,
+    session: Session,
     Extension(pool): Extension<SqlitePool>,
     Extension(game_state): Extension<GameState>,
     ValidatedForm(register): ValidatedForm<RegisterForm>,
@@ -94,24 +92,25 @@ pub async fn post_register(
         Ok((user_id,)) => {
             game_state.new_server_connection().await.updated_user_data();
 
-            session.expire_in(Duration::from_secs(60 * 60 * 24 * 7));
-
             sqlx::query(
                 r#"
                     INSERT OR REPLACE INTO sessions (session_id, user_id, expires)
                     VALUES ($1, $2, $3)
                 "#,
             )
-            .bind(&session.id())
+            .bind(session.id().unwrap().0 as i64)
             .bind(user_id)
-            .bind(&session.expiry().map(|expiry| expiry.timestamp()))
+            .bind(session.expiry_age().whole_seconds())
             .execute(&pool)
             .await?;
 
             Ok(Redirect::to("/game").into_response())
         }
-        Err(_err) => Ok(
-            form_error(register, "unique", "username", "This username is already taken"),
-        ),
+        Err(_err) => Ok(form_error(
+            register,
+            "unique",
+            "username",
+            "This username is already taken",
+        )),
     }
 }

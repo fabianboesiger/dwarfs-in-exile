@@ -2,12 +2,13 @@ mod images;
 
 use engine_client::{ClientState, EventWrapper, Msg as EngineMsg};
 use images::Image;
+use itertools::Itertools;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, QuestType, RewardMode, Stats, Time, LOOT_CRATE_COST, MAX_HEALTH, SPEED
+    Bundle, ClientEvent, Craftable, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg,
+    Occupation, Player, QuestType, RewardMode, Stats, Time, LOOT_CRATE_COST, MAX_HEALTH, SPEED,
 };
 use std::str::FromStr;
-use itertools::Itertools;
 use web_sys::js_sys::Date;
 
 #[cfg(not(debug_assertions))]
@@ -37,12 +38,12 @@ impl Page {
             Some("dwarfs") => match url.next_path_part() {
                 None => Page::Dwarfs(DwarfsMode::Overview),
                 Some(id) => Page::Dwarf(id.parse().unwrap()),
-            }
+            },
             Some("inventory") => Page::Inventory(InventoryMode::Overview),
             Some("quests") => match url.next_path_part() {
                 None => Page::Quests,
                 Some(id) => Page::Quest(id.parse().unwrap()),
-            }
+            },
             Some("ranking") => Page::Ranking,
             _ => Page::Base,
         }
@@ -93,7 +94,6 @@ impl Default for InventoryFilter {
             tools: false,
         }
     }
-
 }
 
 pub struct Model {
@@ -134,9 +134,7 @@ fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
         }
         //url_request.handled()
     });
-    orders.subscribe(|subs::UrlChanged(url)| {
-        Msg::ChangePage(Page::from_url(url))
-    });
+    orders.subscribe(|subs::UrlChanged(url)| Msg::ChangePage(Page::from_url(url)));
 
     Model {
         state: ClientState::init(orders, WS_URL.to_owned()),
@@ -152,7 +150,7 @@ fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
 // ------ ------
 //    Update
 // ------ ------
-/* 
+/*
 #[derive(Debug)]
 pub enum Msg {
     WebSocketOpened,
@@ -163,7 +161,7 @@ pub enum Msg {
     SendGameEvent(ClientEvent),
     ReceiveGameEvent(EventData),
     InitGameState(SyncData),
-    
+
 }
 
 impl EngineMsg<shared::State> for Msg {}
@@ -197,7 +195,6 @@ impl From<EventWrapper<shared::State>> for Msg {
         Self::GameStateEvent(event)
     }
 }
-
 
 fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
     match msg {
@@ -252,21 +249,30 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
         }
         Msg::AssignToQuest(quest_idx, dwarf_idx, dwarf_id) => {
             if dwarf_id.is_some() {
-                orders.notify(subs::UrlRequested::new(Url::from_str(&format!("/game/quests/{}", quest_idx)).unwrap())); 
+                orders.notify(subs::UrlRequested::new(
+                    Url::from_str(&format!("/game/quests/{}", quest_idx)).unwrap(),
+                ));
             }
-            orders.send_msg(Msg::send_event(ClientEvent::AssignToQuest(quest_idx, dwarf_idx, dwarf_id)));
-
+            orders.send_msg(Msg::send_event(ClientEvent::AssignToQuest(
+                quest_idx, dwarf_idx, dwarf_id,
+            )));
         }
         Msg::ChangeEquipment(dwarf_id, item_type, item) => {
             if item.is_some() {
-                orders.notify(subs::UrlRequested::new(Url::from_str(&format!("/game/dwarfs/{}", dwarf_id)).unwrap())); 
+                orders.notify(subs::UrlRequested::new(
+                    Url::from_str(&format!("/game/dwarfs/{}", dwarf_id)).unwrap(),
+                ));
             }
-            orders.send_msg(Msg::send_event(ClientEvent::ChangeEquipment(dwarf_id, item_type, item)));
+            orders.send_msg(Msg::send_event(ClientEvent::ChangeEquipment(
+                dwarf_id, item_type, item,
+            )));
         }
         Msg::GoToItem(item) => {
             model.inventory_filter = InventoryFilter::default();
             model.inventory_filter.item_name = item.to_string();
-            orders.notify(subs::UrlRequested::new(Url::from_str("/game/inventory").unwrap())); 
+            orders.notify(subs::UrlRequested::new(
+                Url::from_str("/game/inventory").unwrap(),
+            ));
         }
     }
 }
@@ -276,12 +282,14 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
 // ------ ------
 
 fn view(model: &Model) -> Vec<Node<Msg>> {
-    if let (Some(state), Some(user_id), client_state) = (model.state.get_state(), model.state.get_user_id(), &model.state) {
+    if let (Some(state), Some(user_id), client_state) = (
+        model.state.get_state(),
+        model.state.get_user_id(),
+        &model.state,
+    ) {
         vec![
             div![id!["background"]],
-            header![
-                h1![a![attrs!{ At::Href => "/" }, "Dwarfs in Exile"]]
-            ],
+            header![h1![a![attrs! { At::Href => "/" }, "Dwarfs in Exile"]]],
             nav(model),
             #[cfg(debug_assertions)]
             div![
@@ -313,12 +321,8 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
     } else {
         vec![
             div![id!["background"]],
-            header![
-                h1![a![attrs!{ At::Href => "/" }, "Dwarfs in Exile"]]
-            ],
-            div![C!["loading"],
-                "Loading ..."
-            ]
+            header![h1![a![attrs! { At::Href => "/" }, "Dwarfs in Exile"]]],
+            div![C!["loading"], "Loading ..."],
         ]
     }
 }
@@ -326,7 +330,7 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
 fn ranking(state: &shared::State, client_state: &ClientState<shared::State>) -> Node<Msg> {
     let mut players: Vec<_> = state.players.iter().collect();
     players.sort_by_key(|(_, p)| (-(p.base.prestige as i64), -(p.dwarfs.len() as i64)));
-    
+
     div![
         C!["content"],
         h2!["Ranking"],
@@ -346,7 +350,26 @@ fn ranking(state: &shared::State, client_state: &ClientState<shared::State>) -> 
                 let rank = i + 1;
                 tr![
                     td![rank],
-                    td![format!("{} ", client_state.get_user_data(&user_id).map(|data| data.username.clone()).unwrap_or_default()), span![C!["symbols", if player.is_online(state.time) { "online" } else { "offline" }], "●"]],
+                    td![
+                        format!(
+                            "{} ",
+                            client_state
+                                .get_user_data(&user_id)
+                                .map(|data| data.username.clone())
+                                .unwrap_or_default()
+                        ),
+                        span![
+                            C![
+                                "symbols",
+                                if player.is_online(state.time) {
+                                    "online"
+                                } else {
+                                    "offline"
+                                }
+                            ],
+                            "●"
+                        ]
+                    ],
                     td![format!("{}", player.base.village_type())],
                     td![player.dwarfs.len()]
                 ]
@@ -388,41 +411,45 @@ fn fmt_time(mut time: u64) -> String {
     }
 }
 
-fn last_received_items(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
+fn last_received_items(
+    model: &Model,
+    state: &shared::State,
+    user_id: &shared::UserId,
+) -> Node<Msg> {
     let player = state.players.get(user_id).unwrap();
-    
 
-    div![C!["received-item-popup"],
-        player.inventory.last_received
-        .iter()
-        .enumerate()
-        .filter_map(|(idx, (item, qty, time))| {
-            let time_diff_millis = model.get_timestamp_millis_diff_now(*time)?;
- 
-            if time_diff_millis > 3000.0 {
-                None
-            } else {
-                Some(div![
-                    C!["received-item"],
-                    style![St::Opacity => format!("{}", 1.0 - time_diff_millis / 3000.0)],
-                    match item.item_rarity() {
-                        ItemRarity::Common => C!["item-common"],
-                        ItemRarity::Uncommon => C!["item-uncommon"],
-                        ItemRarity::Rare => C!["item-rare"],
-                        ItemRarity::Epic => C!["item-epic"],
-                        ItemRarity::Legendary => C!["item-legendary"],
-                    },
-                    img![C!["received-item-image"],
-                        attrs!{At::Src => Image::from(*item).as_at_value()},
-                    ],
-                    div![C!["received-item-content"],
-                        format!("+{}", qty)
-                    ]
-                ])
-            }
-        })
+    div![
+        C!["received-item-popup"],
+        player
+            .inventory
+            .last_received
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, (item, qty, time))| {
+                let time_diff_millis = model.get_timestamp_millis_diff_now(*time)?;
+
+                if time_diff_millis > 3000.0 {
+                    None
+                } else {
+                    Some(div![
+                        C!["received-item"],
+                        style![St::Opacity => format!("{}", 1.0 - time_diff_millis / 3000.0)],
+                        match item.item_rarity() {
+                            ItemRarity::Common => C!["item-common"],
+                            ItemRarity::Uncommon => C!["item-uncommon"],
+                            ItemRarity::Rare => C!["item-rare"],
+                            ItemRarity::Epic => C!["item-epic"],
+                            ItemRarity::Legendary => C!["item-legendary"],
+                        },
+                        img![
+                            C!["received-item-image"],
+                            attrs! {At::Src => Image::from(*item).as_at_value()},
+                        ],
+                        div![C!["received-item-content"], format!("+{}", qty)]
+                    ])
+                }
+            })
     ]
-    
 }
 
 fn health_bar(curr: Health, max: Health) -> Node<Msg> {
@@ -453,9 +480,20 @@ fn score_bar(curr: u64, max: u64, rank: usize, max_rank: usize) -> Node<Msg> {
         div![
             C!["score-bar-overlay"],
             if curr == max {
-                format!("{} XP ({} place of {})", big_number(curr), enumerate(rank), max_rank)
+                format!(
+                    "{} XP ({} place of {})",
+                    big_number(curr),
+                    enumerate(rank),
+                    max_rank
+                )
             } else {
-                format!("{} / {}XP ({} place of {})", big_number(curr), big_number(max), enumerate(rank), max_rank)
+                format!(
+                    "{} / {}XP ({} place of {})",
+                    big_number(curr),
+                    big_number(max),
+                    enumerate(rank),
+                    max_rank
+                )
             }
         ],
     ]
@@ -470,48 +508,64 @@ fn dwarfs(state: &shared::State, user_id: &shared::UserId, mode: DwarfsMode) -> 
             player.dwarfs.iter().map(|(&id, dwarf)| tr![
                 C!["dwarf", format!("dwarf-{}", id)],
                 C!["list-item-row"],
-                td![img![C!["list-item-image"], attrs! {At::Src => Image::dwarf_from_name(&dwarf.name).as_at_value()}]],
+                td![img![
+                    C!["list-item-image"],
+                    attrs! {At::Src => Image::dwarf_from_name(&dwarf.name).as_at_value()}
+                ]],
                 td![
                     C!["list-item-content"],
                     h3![C!["title"], &dwarf.name],
-                    p![C!["subtitle"],
-                    if let Some((quest_type, _, _)) = dwarf.participates_in_quest {
-                        format!(
-                            "Participating in quest {} since {}.",
-                            quest_type,
-                            fmt_time(dwarf.occupation_duration)
-                        )
-                    } else {
-                        format!(
-                            "{} since {}.",
-                            dwarf.occupation,
-                            fmt_time(dwarf.occupation_duration)
-                        )
-                    }],
-                    health_bar(dwarf.health, MAX_HEALTH),
                     p![
-                        match mode {
-                            DwarfsMode::Overview => {
-                                a![
-                                    C!["button"],
-                                    attrs!{ At::Href => format!("/game/dwarfs/{}", id) },
-                                    "Details"
-                                ]
-                            }
-                            DwarfsMode::Select(DwarfsSelect::Quest(quest_idx, dwarf_idx)) => {
-                                div![button![
-                                    ev(Ev::Click, move |_| Msg::AssignToQuest(
-                                        quest_idx,
-                                        dwarf_idx,
-                                        Some(id)
-                                    )),
-                                    format!("Assign to Quest {}", state.quests.get(quest_idx).unwrap().quest_type),
-                                    br![],
-                                    stars(dwarf.effectiveness(state.quests.get(quest_idx).unwrap().quest_type.occupation()) as i8, true)
-                                ]]
-                            }
+                        C!["subtitle"],
+                        if let Some((quest_type, _, _)) = dwarf.participates_in_quest {
+                            format!(
+                                "Participating in quest {} since {}.",
+                                quest_type,
+                                fmt_time(dwarf.occupation_duration)
+                            )
+                        } else {
+                            format!(
+                                "{} since {}.",
+                                dwarf.occupation,
+                                fmt_time(dwarf.occupation_duration)
+                            )
                         }
-                    ]
+                    ],
+                    health_bar(dwarf.health, MAX_HEALTH),
+                    p![match mode {
+                        DwarfsMode::Overview => {
+                            a![
+                                C!["button"],
+                                attrs! { At::Href => format!("/game/dwarfs/{}", id) },
+                                "Details"
+                            ]
+                        }
+                        DwarfsMode::Select(DwarfsSelect::Quest(quest_idx, dwarf_idx)) => {
+                            div![button![
+                                ev(Ev::Click, move |_| Msg::AssignToQuest(
+                                    quest_idx,
+                                    dwarf_idx,
+                                    Some(id)
+                                )),
+                                format!(
+                                    "Assign to Quest {}",
+                                    state.quests.get(quest_idx).unwrap().quest_type
+                                ),
+                                br![],
+                                stars(
+                                    dwarf.effectiveness(
+                                        state
+                                            .quests
+                                            .get(quest_idx)
+                                            .unwrap()
+                                            .quest_type
+                                            .occupation()
+                                    ) as i8,
+                                    true
+                                )
+                            ]]
+                        }
+                    }]
                 ],
             ])
         ]
@@ -528,10 +582,19 @@ fn dwarfs(state: &shared::State, user_id: &shared::UserId, mode: DwarfsMode) -> 
     }
 }
 
-fn dwarf(model: &Model, state: &shared::State, user_id: &shared::UserId, dwarf_id: DwarfId) -> Node<Msg> {
+fn dwarf(
+    model: &Model,
+    state: &shared::State,
+    user_id: &shared::UserId,
+    dwarf_id: DwarfId,
+) -> Node<Msg> {
     let player = state.players.get(user_id).unwrap();
     let dwarf = player.dwarfs.get(&dwarf_id);
-    let is_premium = model.state.get_user_data(user_id).map(|user_data| user_data.premium).unwrap_or(false);
+    let is_premium = model
+        .state
+        .get_user_data(user_id)
+        .map(|user_data| user_data.premium)
+        .unwrap_or(false);
 
     if let Some(dwarf) = dwarf {
         div![
@@ -825,17 +888,15 @@ fn dwarf(model: &Model, state: &shared::State, user_id: &shared::UserId, dwarf_i
                 }                     
             ]
         ]
-        
     } else {
         div![
             C!["content"],
             h2!["There's Noone Here!"],
             p!["All dwarf has died!"],
-            a![attrs!{ At::Href => "/game/dwarfs" }, "Go back"],
+            a![attrs! { At::Href => "/game/dwarfs" }, "Go back"],
         ]
     }
 }
-
 
 fn quests(state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     let _player = state.players.get(user_id).unwrap();
@@ -845,34 +906,42 @@ fn quests(state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
         state.quests.iter().enumerate().map(|(quest_idx, quest)| {
             tr![
                 C!["list-item-row"],
-                td![img![C!["list-item-image"], attrs! {At::Src => Image::from(quest.quest_type).as_at_value()}]],
-                
+                td![img![
+                    C!["list-item-image"],
+                    attrs! {At::Src => Image::from(quest.quest_type).as_at_value()}
+                ]],
                 td![
                     C!["list-item-content"],
                     h3![C!["title"], format!("{}", quest.quest_type)],
-                    p![C!["subtitle"], format!("{} remaining.", fmt_time(quest.time_left))],
-
+                    p![
+                        C!["subtitle"],
+                        format!("{} remaining.", fmt_time(quest.time_left))
+                    ],
                     if let Some(contestant) = quest.contestants.get(user_id) {
-                        let rank = quest.contestants.values().filter(|c| c.achieved_score >= contestant.achieved_score).count();
+                        let rank = quest
+                            .contestants
+                            .values()
+                            .filter(|c| c.achieved_score >= contestant.achieved_score)
+                            .count();
                         let mut contestants = quest.contestants.values().collect::<Vec<_>>();
                         contestants.sort_by_key(|c| c.achieved_score);
                         let best_score = contestants.last().unwrap().achieved_score;
-                        p![
-                            score_bar(contestant.achieved_score, best_score, rank, quest.contestants.len())
-                        ]
+                        p![score_bar(
+                            contestant.achieved_score,
+                            best_score,
+                            rank,
+                            quest.contestants.len()
+                        )]
                     } else {
                         Node::Empty
                     },
-            
                     a![
                         C!["button"],
-                        attrs!{ At::Href => format!("/game/quests/{}", quest_idx) },
+                        attrs! { At::Href => format!("/game/quests/{}", quest_idx) },
                         "Details"
                     ]
                 ]
             ]
-            
-            
         })
     ]
 }
@@ -881,7 +950,6 @@ fn quest(state: &shared::State, user_id: &shared::UserId, quest_idx: usize) -> N
     let player = state.players.get(user_id).unwrap();
     let quest = state.quests.get(quest_idx).unwrap();
 
-    
     div![
         C!["content"],
         div![
@@ -1019,7 +1087,6 @@ fn quest(state: &shared::State, user_id: &shared::UserId, quest_idx: usize) -> N
             })
         ]
     ]
-        
 }
 
 fn big_number(mut num: u64) -> String {
@@ -1046,7 +1113,11 @@ fn enumerate(num: usize) -> String {
 
 fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     let player = state.players.get(user_id).unwrap();
-    let is_premium = model.state.get_user_data(user_id).map(|user_data| user_data.premium).unwrap_or(false);
+    let is_premium = model
+        .state
+        .get_user_data(user_id)
+        .map(|user_data| user_data.premium)
+        .unwrap_or(false);
 
     div![C!["content"],
         h2!["Your Settlement"],
@@ -1113,7 +1184,11 @@ fn inventory(
     mode: InventoryMode,
 ) -> Node<Msg> {
     let player = state.players.get(user_id).unwrap();
-    let is_premium = model.state.get_user_data(user_id).map(|user_data| user_data.premium).unwrap_or(false);
+    let is_premium = model
+        .state
+        .get_user_data(user_id)
+        .map(|user_data| user_data.premium)
+        .unwrap_or(false);
 
     let items: Bundle<Item> = enum_iterator::all::<Item>()
         .map(|t| (t, 0))
@@ -1477,7 +1552,11 @@ fn inventory(
     ]
 }
 
-fn chat(model: &Model, state: &shared::State, client_state: &ClientState<shared::State>) -> Node<Msg> {
+fn chat(
+    model: &Model,
+    state: &shared::State,
+    client_state: &ClientState<shared::State>,
+) -> Node<Msg> {
     let message = model.message.clone();
 
     div![
@@ -1493,7 +1572,10 @@ fn chat(model: &Model, state: &shared::State, client_state: &ClientState<shared:
                 div![
                     C!["messages"],
                     state.chat.messages.iter().map(|(user_id, message)| {
-                        let username = &client_state.get_user_data(&user_id).map(|data| data.username.clone()).unwrap_or_default();
+                        let username = &client_state
+                            .get_user_data(&user_id)
+                            .map(|data| data.username.clone())
+                            .unwrap_or_default();
                         div![
                             C!["message"],
                             span![C!["username"], format!("{username}")],
@@ -1525,7 +1607,12 @@ fn chat(model: &Model, state: &shared::State, client_state: &ClientState<shared:
     ]
 }
 
-fn history(model: &Model, state: &shared::State, user_id: &shared::UserId, client_state: &ClientState<shared::State>) -> Node<Msg> {
+fn history(
+    model: &Model,
+    state: &shared::State,
+    user_id: &shared::UserId,
+    client_state: &ClientState<shared::State>,
+) -> Node<Msg> {
     let player = state.players.get(user_id).unwrap();
 
     div![
@@ -1544,19 +1631,21 @@ fn history(model: &Model, state: &shared::State, user_id: &shared::UserId, clien
                         span![C!["time"], format!("{} ago: ", fmt_time(state.time - time))],
                         match msg {
                             LogMsg::NotEnoughSpaceForDwarf => {
-                                span![format!("You got a dwarf but don't have enough space for him.")]
+                                span![format!(
+                                    "You got a dwarf but don't have enough space for him."
+                                )]
                             }
                             LogMsg::NewPlayer(user_id) => {
                                 span![format!(
                                     "A new player has joined the game, say hi to {}!",
-                                    client_state.get_user_data(&user_id).map(|data| data.username.clone()).unwrap_or_default()
+                                    client_state
+                                        .get_user_data(&user_id)
+                                        .map(|data| data.username.clone())
+                                        .unwrap_or_default()
                                 )]
                             }
                             LogMsg::MoneyForKing(money) => {
-                                span![format!(
-                                    "You are the king and earned {}!",
-                                    money
-                                )]
+                                span![format!("You are the king and earned {}!", money)]
                             }
                             LogMsg::NewDwarf(dwarf_id) => {
                                 span![format!(
@@ -1669,23 +1758,37 @@ fn bundle(requires: &Bundle<Item>, player: &Player, requirement: bool) -> Node<M
         .into_iter()
         .map(|(item, n)| {
             if requirement {
-                let available = player.inventory.items.check_remove(&Bundle::new().add(item, n));
-                li![C!["clickable-item"],
+                let available = player
+                    .inventory
+                    .items
+                    .check_remove(&Bundle::new().add(item, n));
+                li![
+                    C!["clickable-item"],
                     span![
-                        if available { C![] } else { C!["unavailable"]},
-                        format!("{n}x {item}"), ev(Ev::Click, move |_| Msg::GoToItem(item))
+                        if available { C![] } else { C!["unavailable"] },
+                        format!("{n}x {item}"),
+                        ev(Ev::Click, move |_| Msg::GoToItem(item))
                     ],
-                    span![format!(" ({})", player.inventory.items.get(&item).copied().unwrap_or_default())]
+                    span![format!(
+                        " ({})",
+                        player
+                            .inventory
+                            .items
+                            .get(&item)
+                            .copied()
+                            .unwrap_or_default()
+                    )]
                 ]
             } else {
                 //let available = player.inventory.items.check_remove(&Bundle::new().add(item, n));
-                li![C!["clickable-item"],
+                li![
+                    C!["clickable-item"],
                     span![
-                        format!("{n}x {item}"), ev(Ev::Click, move |_| Msg::GoToItem(item))
+                        format!("{n}x {item}"),
+                        ev(Ev::Click, move |_| Msg::GoToItem(item))
                     ],
                 ]
             }
-            
         })]
 }
 
@@ -1714,7 +1817,10 @@ fn stats(stats: &Stats) -> Node<Msg> {
 
     v.sort_by_key(|t| -t.0);
 
-    span![v.into_iter().map(|(num, abv)| span![format!("{abv} "), stars(num, false)]).intersperse(br![])]
+    span![v
+        .into_iter()
+        .map(|(num, abv)| span![format!("{abv} "), stars(num, false)])
+        .intersperse(br![])]
 }
 
 fn stats_simple(stats: &Stats) -> String {
@@ -1763,7 +1869,7 @@ fn stars(stars: i8, padded: bool) -> Node<Msg> {
 }
 
 fn nav(model: &Model) -> Node<Msg> {
-    /* 
+    /*
     nav![div![
         button![
             if let Page::Base = model.page {
@@ -1819,7 +1925,8 @@ fn nav(model: &Model) -> Node<Msg> {
     */
 
     nav![div![
-        a![C!["button"],
+        a![
+            C!["button"],
             if let Page::Base = model.page {
                 attrs! {At::Disabled => "true", At::Href => "/game"}
             } else {
@@ -1827,7 +1934,8 @@ fn nav(model: &Model) -> Node<Msg> {
             },
             "Settlement"
         ],
-        a![C!["button"],
+        a![
+            C!["button"],
             if let Page::Dwarfs(DwarfsMode::Overview) = model.page {
                 attrs! {At::Disabled => "true", At::Href => "/game/dwarfs"}
             } else {
@@ -1835,7 +1943,8 @@ fn nav(model: &Model) -> Node<Msg> {
             },
             "Dwarfs",
         ],
-        a![C!["button"],
+        a![
+            C!["button"],
             if let Page::Inventory(InventoryMode::Overview) = model.page {
                 attrs! {At::Disabled => "true",  At::Href => "/game/inventory"}
             } else {
@@ -1843,7 +1952,8 @@ fn nav(model: &Model) -> Node<Msg> {
             },
             "Inventory",
         ],
-        a![C!["button"],
+        a![
+            C!["button"],
             if let Page::Quests = model.page {
                 attrs! {At::Disabled => "true", At::Href => "/game/quests"}
             } else {
@@ -1851,7 +1961,8 @@ fn nav(model: &Model) -> Node<Msg> {
             },
             "Quests",
         ],
-        a![C!["button"],
+        a![
+            C!["button"],
             if let Page::Ranking = model.page {
                 attrs! {At::Disabled => "true", At::Href => "/game/ranking"}
             } else {

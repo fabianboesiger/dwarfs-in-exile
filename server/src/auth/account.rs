@@ -1,12 +1,9 @@
 use crate::ServerError;
 use askama::Template;
 use askama_axum::{IntoResponse, Response};
-use axum::{
-    response::{IntoResponse, Redirect},
-    Extension,
-};
-use axum_sessions::extractors::ReadableSession;
+use axum::{response::Redirect, Extension};
 use sqlx::SqlitePool;
+use tower_sessions::Session;
 
 #[derive(Template, Default)]
 #[template(path = "account.html")]
@@ -17,7 +14,7 @@ pub struct AccountTemplate {
 }
 
 pub async fn get_account(
-    session: ReadableSession,
+    session: Session,
     Extension(pool): Extension<SqlitePool>,
 ) -> Result<Response, ServerError> {
     let result: Option<(String, i64, i64)> = sqlx::query_as(
@@ -28,7 +25,7 @@ pub async fn get_account(
             WHERE session_id = $1
         "#,
     )
-    .bind(&session.id())
+    .bind(session.id().unwrap().0 as i64)
     .fetch_optional(&pool)
     .await?;
 

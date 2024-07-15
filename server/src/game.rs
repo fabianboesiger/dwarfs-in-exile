@@ -5,12 +5,12 @@ use axum::{
     response::Redirect,
     Extension,
 };
-use axum_sessions::extractors::ReadableSession;
 use engine_shared::utils::custom_map::CustomMap;
 use futures_util::{sink::SinkExt, stream::StreamExt};
+use serde::{Deserialize, Serialize};
 use shared::{ClientEvent, UserData, UserId};
 use sqlx::SqlitePool;
-use serde::{Serialize, Deserialize};
+use tower_sessions::Session;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PartialEventData {
@@ -66,10 +66,15 @@ impl engine_server::BackendStore<shared::State> for GameStore {
 
         let users = users
             .into_iter()
-            .map(|(id, username, premium)| (id.into(), UserData {
-                username,
-                premium: premium == 1,
-            }))
+            .map(|(id, username, premium)| {
+                (
+                    id.into(),
+                    UserData {
+                        username,
+                        premium: premium == 1,
+                    },
+                )
+            })
             .collect::<CustomMap<shared::UserId, shared::UserData>>();
 
         users
@@ -91,7 +96,7 @@ impl engine_server::BackendStore<shared::State> for GameStore {
 
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
-    session: ReadableSession,
+    session: Session,
     Extension(pool): Extension<SqlitePool>,
     Extension(game_state): Extension<GameState>,
 ) -> Result<Response, ServerError> {
@@ -102,7 +107,7 @@ pub async fn ws_handler(
             WHERE session_id = $1
         "#,
     )
-    .bind(&session.id())
+    .bind(session.id().unwrap().0 as i64)
     .fetch_optional(&pool)
     .await?
     .map(|(id,): (i64,)| id.into());
@@ -145,7 +150,7 @@ pub async fn ws_handler(
 pub struct GameTemplate {}
 
 pub async fn get_game(
-    session: ReadableSession,
+    session: Session,
     Extension(pool): Extension<SqlitePool>,
 ) -> Result<Response, ServerError> {
     let result: Option<(i64,)> = sqlx::query_as(
@@ -155,7 +160,7 @@ pub async fn get_game(
             WHERE session_id = $1
         "#,
     )
-    .bind(&session.id())
+    .bind(session.id().unwrap().0 as i64)
     .fetch_optional(&pool)
     .await?;
 

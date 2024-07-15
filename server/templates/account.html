@@ -12,7 +12,9 @@
         <h2>Premium Account</h2>
 
         {% if premium > 0 %}
-        <p>You have an active premium account unitl .</p>
+        <p>You have an active premium account with {{ premium }} hours remaining.</p>
+        {% else if premium >= 24 %}
+        <p>You have an active premium account with {{ premium / 24 }} days remaining.</p>
         {% endif %}
 
         <script async src="https://js.stripe.com/v3/buy-button.js"></script>

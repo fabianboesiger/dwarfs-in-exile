@@ -6,23 +6,23 @@ edition = "2021"
 [dependencies]
 shared = { path = "../shared" }
 axum = { version = "0.7", features = ["ws", "macros"] }
-headers = "0.3"
+headers = "0.4"
 tokio = { version = "1.0", features = ["full"] }
-tower-http = { version = "0.4", features = ["fs", "trace"] }
+tower-http = { version = "0.5", features = ["fs", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 serde = { version = "1.0.137", features = ["derive"] }
 serde_json = "1.0.81"
 rmp-serde = "1.1.0"
 futures-util = "0.3"
-axum-sessions = "0.5"
-validator = { version = "0.15.0", features = ["derive"] }
+tower-sessions = "0.12"
+validator = { version = "0.18.0", features = ["derive"] }
 async-trait = "0.1"
-http-body = "0.4.3"
+http-body = "1.0"
 thiserror = "1.0"
 sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "sqlite"] }
 dotenv = "0.15"
-askama_axum = { version = "0.3" }
+askama_axum = { version = "0.4" }
 askama = { version = "0.12", features = ["with-axum"] }
 bcrypt = "0.15.0"
 rand = {version = "0.8", features = ["small_rng"] }

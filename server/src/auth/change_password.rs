@@ -5,10 +5,10 @@ use axum::{
     response::{IntoResponse, Redirect},
     Extension,
 };
-use axum_sessions::extractors::ReadableSession;
 use bcrypt::hash;
 use serde::Deserialize;
 use sqlx::SqlitePool;
+use tower_sessions::Session;
 use validator::{Validate, ValidationErrors};
 
 use super::{ToTemplate, ValidatedForm};
@@ -50,7 +50,7 @@ pub struct ChangePasswordTemplate {
 }
 
 pub async fn get_change_password(
-    session: ReadableSession,
+    session: Session,
     Extension(pool): Extension<SqlitePool>,
 ) -> Result<Response, ServerError> {
     let result: Option<(String,)> = sqlx::query_as(
@@ -61,7 +61,7 @@ pub async fn get_change_password(
             WHERE session_id = $1
         "#,
     )
-    .bind(&session.id())
+    .bind(session.id().unwrap().0 as i64)
     .fetch_optional(&pool)
     .await?;
 
@@ -76,7 +76,7 @@ pub async fn get_change_password(
 }
 
 pub async fn post_change_password(
-    session: ReadableSession,
+    session: Session,
     Extension(pool): Extension<SqlitePool>,
     ValidatedForm(change_password): ValidatedForm<ChangePasswordForm>,
 ) -> Result<Response, ServerError> {
@@ -95,7 +95,7 @@ pub async fn post_change_password(
         "#,
     )
     .bind(&hashed)
-    .bind(&session.id())
+    .bind(session.id().unwrap().0 as i64)
     .execute(&pool)
     .await?;
 

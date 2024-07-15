@@ -12,13 +12,13 @@ use axum::{
     routing::{get, get_service, post},
     Extension, Router,
 };
-use axum_sessions::{async_session::MemoryStore, SessionLayer};
 use game::{GameState, GameStore};
 use std::{net::SocketAddr, path::PathBuf};
 use tower_http::{
     services::ServeDir,
     trace::{DefaultMakeSpan, TraceLayer},
 };
+use tower_sessions::{cookie::time::Duration, Expiry, MemoryStore, SessionManagerLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
@@ -37,11 +37,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let assets_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("public");
 
-    let store = MemoryStore::new();
-    let secret = b"7w!z%C*F-JaNdRgUjXn2r5u8x/A?D(G+KbPeShVmYp3s6v9y$B&E)H@McQfTjWnZ";
-    let session_layer = SessionLayer::new(store, secret)
+    let store = MemoryStore::default();
+    let session_layer = SessionManagerLayer::new(store)
         .with_secure(false)
-        .with_http_only(false);
+        .with_http_only(false)
+        .with_expiry(Expiry::OnInactivity(Duration::seconds(10)));
 
     let store = GameStore::new(pool.clone());
     let game_state = GameState::new(store).await;
@@ -49,15 +49,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // build our application with some routes
     let app = Router::new()
         .fallback(
-            get_service(ServeDir::new(assets_dir).append_index_html_on_directories(true))
-                /*
-                .handle_error(|error: std::io::Error| async move {
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        format!("Unhandled internal error: {}", error),
-                    )
-                }),
-                */
+            get_service(ServeDir::new(assets_dir).append_index_html_on_directories(true)), /*
+                                                                                           .handle_error(|error: std::io::Error| async move {
+                                                                                               (
+                                                                                                   StatusCode::INTERNAL_SERVER_ERROR,
+                                                                                                   format!("Unhandled internal error: {}", error),
+                                                                                               )
+                                                                                           }),
+                                                                                           */
         )
         .route("/", get(index::get_index))
         .route("/about", get(about::get_about))
@@ -102,10 +101,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     tracing::debug!("listening on {}", addr);
 
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
+    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    axum::serve(listener, app).await.unwrap();
 
     Ok(())
 }

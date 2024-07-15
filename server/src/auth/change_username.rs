@@ -1,13 +1,13 @@
-use crate::{ServerError, game::GameState};
+use crate::{game::GameState, ServerError};
 use askama::{DynTemplate, Template};
 use askama_axum::Response;
 use axum::{
     response::{IntoResponse, Redirect},
     Extension,
 };
-use axum_sessions::extractors::ReadableSession;
 use serde::Deserialize;
 use sqlx::SqlitePool;
+use tower_sessions::Session;
 use validator::{Validate, ValidationErrors};
 
 use super::{form_error, ToTemplate, ValidatedForm};
@@ -17,7 +17,6 @@ pub struct ChangeUsernameForm {
     #[validate(length(min = 1, message = "The username must not be empty"))]
     username: String,
 }
-
 
 impl ToTemplate for ChangeUsernameForm {
     fn to_template(self, errors: ValidationErrors) -> Box<dyn DynTemplate> {
@@ -42,7 +41,7 @@ pub struct ChangeUsernameTemplate {
 }
 
 pub async fn get_change_username(
-    session: ReadableSession,
+    session: Session,
     Extension(pool): Extension<SqlitePool>,
 ) -> Result<Response, ServerError> {
     let result: Option<(String,)> = sqlx::query_as(
@@ -53,7 +52,7 @@ pub async fn get_change_username(
             WHERE session_id = $1
         "#,
     )
-    .bind(&session.id())
+    .bind(session.id().unwrap().0 as i64)
     .fetch_optional(&pool)
     .await?;
 
@@ -69,7 +68,7 @@ pub async fn get_change_username(
 }
 
 pub async fn post_change_username(
-    session: ReadableSession,
+    session: Session,
     Extension(pool): Extension<SqlitePool>,
     Extension(game_state): Extension<GameState>,
     ValidatedForm(change_username): ValidatedForm<ChangeUsernameForm>,
@@ -81,7 +80,7 @@ pub async fn post_change_username(
                 WHERE session_id = $1
         "#,
     )
-    .bind(&session.id())
+    .bind(session.id().unwrap().0 as i64)
     .fetch_one(&pool)
     .await;
 
@@ -89,9 +88,7 @@ pub async fn post_change_username(
         Err(err) => {
             return Err(ServerError::SqliteError(err));
         }
-        Ok((user_id, )) => {
-            user_id
-        },
+        Ok((user_id,)) => user_id,
     };
 
     let result = sqlx::query(
@@ -116,6 +113,6 @@ pub async fn post_change_username(
         Ok(_) => {
             game_state.new_server_connection().await.updated_user_data();
             Ok(Redirect::to("/account").into_response())
-        },
+        }
     }
 }

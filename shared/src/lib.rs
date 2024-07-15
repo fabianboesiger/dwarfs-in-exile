@@ -1,16 +1,19 @@
-use engine_shared::{utils::custom_map::{CustomMap, CustomSet}, Event};
+use engine_shared::{
+    utils::custom_map::{CustomMap, CustomSet},
+    Event,
+};
 use enum_iterator::Sequence;
 use rand::{
     seq::{IteratorRandom, SliceRandom},
     Rng,
 };
 use serde::{Deserialize, Serialize};
-use strum::Display;
 use std::{
     collections::{HashSet, VecDeque},
     hash::Hash,
     ops::Deref,
 };
+use strum::Display;
 
 #[cfg(not(debug_assertions))]
 pub const SPEED: u64 = 2;
@@ -74,7 +77,6 @@ impl State {
                 .remove_checked(Bundle::new().add(item, qty))
             {
                 player.base.food += food * qty;
-                
             }
         }
     }
@@ -96,23 +98,32 @@ impl engine_shared::State for State {
     type ClientEvent = ClientEvent;
     type UserId = UserId;
     type UserData = UserData;
-    
-    const DURATION_PER_TICK: std::time::Duration = std::time::Duration::from_millis(1000 / SPEED);
-    
-   
-    fn update(&mut self, rng: &mut impl Rng, event: Event<Self>, user_data: &CustomMap<UserId, UserData>) {
 
+    const DURATION_PER_TICK: std::time::Duration = std::time::Duration::from_millis(1000 / SPEED);
+
+    fn update(
+        &mut self,
+        rng: &mut impl Rng,
+        event: Event<Self>,
+        user_data: &CustomMap<UserId, UserData>,
+    ) {
         move || -> Option<()> {
             match event {
                 Event::ClientEvent(event, user_id) => {
                     if !self.players.contains_key(&user_id) {
-                        self.players.insert(user_id, Player::new(self.time, rng, &mut self.next_dwarf_id));
+                        self.players.insert(
+                            user_id,
+                            Player::new(self.time, rng, &mut self.next_dwarf_id),
+                        );
                     }
                     let player = self.players.get_mut(&user_id)?;
                     player.last_online = self.time;
 
-                    let is_premium = user_data.get(&user_id).map(|user_data| user_data.premium).unwrap_or(false);
-    
+                    let is_premium = user_data
+                        .get(&user_id)
+                        .map(|user_data| user_data.premium)
+                        .unwrap_or(false);
+
                     match event {
                         ClientEvent::Init => {}
                         ClientEvent::ToggleAutoCraft(item) => {
@@ -140,7 +151,8 @@ impl engine_shared::State for State {
                         }
                         ClientEvent::Restart => {
                             if player.dwarfs.len() == 0 {
-                                let mut player = Player::new(self.time, rng, &mut self.next_dwarf_id);
+                                let mut player =
+                                    Player::new(self.time, rng, &mut self.next_dwarf_id);
                                 player.new_dwarf(rng, &mut self.next_dwarf_id, self.time);
                                 self.players.insert(user_id, player);
                             }
@@ -148,30 +160,32 @@ impl engine_shared::State for State {
                         ClientEvent::Message(message) => {
                             self.chat.add_message(user_id, message);
                         }
-                        ClientEvent::ChangeOccupation(dwarf_id, occupation) => {            
+                        ClientEvent::ChangeOccupation(dwarf_id, occupation) => {
                             let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
-            
-                            if dwarf.participates_in_quest.is_none() && player.base.curr_level >= occupation.unlocked_at_level() {
+
+                            if dwarf.participates_in_quest.is_none()
+                                && player.base.curr_level >= occupation.unlocked_at_level()
+                            {
                                 dwarf.change_occupation(occupation);
                             }
                         }
-                        ClientEvent::Craft(item, qty) => {            
+                        ClientEvent::Craft(item, qty) => {
                             Self::craft(player, item, qty);
                         }
-                        ClientEvent::UpgradeBase => {            
+                        ClientEvent::UpgradeBase => {
                             if let Some(requires) = player.base.upgrade_cost() {
                                 if player.inventory.items.remove_checked(requires) {
                                     player.base.upgrade();
                                 }
                             }
                         }
-                        ClientEvent::ChangeEquipment(dwarf_id, item_type, item) => {            
+                        ClientEvent::ChangeEquipment(dwarf_id, item_type, item) => {
                             let equipment = player
                                 .dwarfs
                                 .get_mut(&dwarf_id)?
                                 .equipment
                                 .get_mut(&item_type)?;
-            
+
                             let old_item = if let Some(item) = item {
                                 if player
                                     .inventory
@@ -185,7 +199,7 @@ impl engine_shared::State for State {
                             } else {
                                 equipment.take()
                             };
-            
+
                             if let Some(old_item) = old_item {
                                 player
                                     .inventory
@@ -196,26 +210,30 @@ impl engine_shared::State for State {
                         ClientEvent::OpenLootCrate => {
                             if is_premium {
                                 player.open_loot_crate(rng, self.time);
-                            }            
+                            }
                         }
-                        ClientEvent::AssignToQuest(quest_idx, dwarf_idx, dwarf_id) => {            
+                        ClientEvent::AssignToQuest(quest_idx, dwarf_idx, dwarf_id) => {
                             if let Some(dwarf_id) = dwarf_id {
                                 let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
-            
-                                if let Some((_, old_quest_idx, old_dwarf_idx)) = dwarf.participates_in_quest {
+
+                                if let Some((_, old_quest_idx, old_dwarf_idx)) =
+                                    dwarf.participates_in_quest
+                                {
                                     let old_quest = self.quests.get_mut(old_quest_idx)?;
                                     let old_contestant =
                                         old_quest.contestants.entry(user_id).or_default();
                                     old_contestant.dwarfs.swap_remove(&old_dwarf_idx);
                                 }
-            
+
                                 let quest = self.quests.get_mut(quest_idx)?;
                                 let contestant = quest.contestants.entry(user_id).or_default();
-            
+
                                 dwarf.change_occupation(quest.quest_type.occupation());
-                                dwarf.participates_in_quest = Some((quest.quest_type, quest_idx, dwarf_idx));
+                                dwarf.participates_in_quest =
+                                    Some((quest.quest_type, quest_idx, dwarf_idx));
                                 if dwarf_idx < quest.quest_type.max_dwarfs() {
-                                    let old_dwarf_id = contestant.dwarfs.insert(dwarf_idx, dwarf_id);
+                                    let old_dwarf_id =
+                                        contestant.dwarfs.insert(dwarf_idx, dwarf_id);
                                     if let Some(old_dwarf_id) = old_dwarf_id {
                                         let dwarf = player.dwarfs.get_mut(&old_dwarf_id)?;
                                         dwarf.change_occupation(Occupation::Idling);
@@ -225,9 +243,9 @@ impl engine_shared::State for State {
                             } else {
                                 let quest = self.quests.get_mut(quest_idx)?;
                                 let contestant = quest.contestants.entry(user_id).or_default();
-            
+
                                 let old_dwarf_id = contestant.dwarfs.swap_remove(&dwarf_idx);
-            
+
                                 if let Some(old_dwarf_id) = old_dwarf_id {
                                     let dwarf = player.dwarfs.get_mut(&old_dwarf_id)?;
                                     dwarf.change_occupation(Occupation::Idling);
@@ -238,7 +256,7 @@ impl engine_shared::State for State {
                         ClientEvent::AddToFoodStorage(item, qty) => {
                             Self::add_to_food_storage(player, item, qty);
                         }
-                        ClientEvent::Prestige => {            
+                        ClientEvent::Prestige => {
                             if player.can_prestige() {
                                 player.prestige();
                             }
@@ -251,15 +269,23 @@ impl engine_shared::State for State {
                             self.time += 1;
 
                             for (user_id, player) in self.players.iter_mut() {
-
-                                let is_premium = user_data.get(user_id).map(|user_data| user_data.premium).unwrap_or(false);
+                                let is_premium = user_data
+                                    .get(user_id)
+                                    .map(|user_data| user_data.premium)
+                                    .unwrap_or(false);
 
                                 if is_premium {
                                     // Auto-craft!
                                     for &item in &player.auto_functions.auto_craft {
                                         if let Some(requires) = item.requires() {
-                                            if let Some(qty) = player.inventory.items.can_remove_x_times(&requires) {
-                                                if player.inventory.items.remove_checked(requires.mul(qty)) {
+                                            if let Some(qty) =
+                                                player.inventory.items.can_remove_x_times(&requires)
+                                            {
+                                                if player
+                                                    .inventory
+                                                    .items
+                                                    .remove_checked(requires.mul(qty))
+                                                {
                                                     player
                                                         .inventory
                                                         .items
@@ -279,21 +305,23 @@ impl engine_shared::State for State {
                                                     .remove_checked(Bundle::new().add(item, qty))
                                                 {
                                                     player.base.food += food * qty;
-                                                    
                                                 }
                                             }
                                         }
                                     }
                                 }
 
-
                                 // Chance for a new dwarf!
-                                if rng.gen_ratio(1, ONE_DAY as u32 / 20 * (21 - player.base.prestige) as u32) {
+                                if rng.gen_ratio(
+                                    1,
+                                    ONE_DAY as u32 / 20 * (21 - player.base.prestige) as u32,
+                                ) {
                                     player.new_dwarf(rng, &mut self.next_dwarf_id, self.time);
                                 }
-            
+
                                 // Let the dwarfs eat!
-                                let mut sorted_by_health = player.dwarfs.values_mut().collect::<Vec<_>>();
+                                let mut sorted_by_health =
+                                    player.dwarfs.values_mut().collect::<Vec<_>>();
                                 sorted_by_health.sort_by_key(|dwarf| dwarf.health);
                                 for dwarf in sorted_by_health {
                                     dwarf.decr_health(dwarf.occupation.health_cost_per_second());
@@ -309,40 +337,49 @@ impl engine_shared::State for State {
                                             }
                                         }
                                     } else {
-                                        if is_premium && player.auto_functions.auto_idle && dwarf.health <= MAX_HEALTH / 10 && dwarf.occupation != Occupation::Idling {
+                                        if is_premium
+                                            && player.auto_functions.auto_idle
+                                            && dwarf.health <= MAX_HEALTH / 10
+                                            && dwarf.occupation != Occupation::Idling
+                                        {
                                             dwarf.auto_idle = true;
                                         }
                                     }
                                     if dwarf.dead() {
-                                        player.log.add(self.time, LogMsg::DwarfDied(dwarf.name.clone()));
+                                        player
+                                            .log
+                                            .add(self.time, LogMsg::DwarfDied(dwarf.name.clone()));
                                     }
                                 }
-            
+
                                 // Let the dwarfs work!
                                 for (_, dwarf) in player.dwarfs.iter_mut() {
                                     if !dwarf.dead() {
                                         dwarf.work(&mut player.inventory, rng, self.time);
                                     }
                                 }
-            
+
                                 // Remove dead dwarfs.
                                 for quest in &mut self.quests {
                                     if let Some(contestant) = quest.contestants.get_mut(user_id) {
-                                        contestant.dwarfs.retain(|_, dwarf_id| !player.dwarfs.get(&*dwarf_id).unwrap().dead());
+                                        contestant.dwarfs.retain(|_, dwarf_id| {
+                                            !player.dwarfs.get(&*dwarf_id).unwrap().dead()
+                                        });
                                     }
                                 }
                                 player.dwarfs.retain(|_, dwarf| !dwarf.dead());
                             }
-            
+
                             // Continue the active quests.
                             for quest in &mut self.quests {
                                 quest.run(&self.players);
-            
+
                                 if quest.done() {
                                     match quest.quest_type.reward_mode() {
                                         RewardMode::BestGetsAll(money) => {
                                             if let Some(user_id) = quest.best() {
-                                                if let Some(player) = self.players.get_mut(&user_id) {
+                                                if let Some(player) = self.players.get_mut(&user_id)
+                                                {
                                                     if self.king.is_some() {
                                                         player.money += money * 9 / 10;
                                                     } else {
@@ -350,11 +387,16 @@ impl engine_shared::State for State {
                                                     }
                                                     player.log.add(
                                                         self.time,
-                                                        LogMsg::QuestCompletedMoney(quest.quest_type, money),
+                                                        LogMsg::QuestCompletedMoney(
+                                                            quest.quest_type,
+                                                            money,
+                                                        ),
                                                     );
                                                 }
                                                 if let Some(king) = self.king {
-                                                    if let Some(player) = self.players.get_mut(&king) {
+                                                    if let Some(player) =
+                                                        self.players.get_mut(&king)
+                                                    {
                                                         player.money += money / 10;
                                                         player.log.add(
                                                             self.time,
@@ -364,10 +406,14 @@ impl engine_shared::State for State {
                                                 }
                                                 for contestant_id in quest.contestants.keys() {
                                                     if *contestant_id != user_id {
-                                                        let player = self.players.get_mut(contestant_id)?;
+                                                        let player =
+                                                            self.players.get_mut(contestant_id)?;
                                                         player.log.add(
                                                             self.time,
-                                                            LogMsg::QuestCompletedMoney(quest.quest_type, 0),
+                                                            LogMsg::QuestCompletedMoney(
+                                                                quest.quest_type,
+                                                                0,
+                                                            ),
                                                         );
                                                     }
                                                 }
@@ -375,35 +421,49 @@ impl engine_shared::State for State {
                                         }
                                         RewardMode::BecomeKing => {
                                             if let Some(user_id) = quest.best() {
-                                                if let Some(player) = self.players.get_mut(&user_id) {
+                                                if let Some(player) = self.players.get_mut(&user_id)
+                                                {
                                                     self.king = Some(user_id);
                                                     player.log.add(
                                                         self.time,
-                                                        LogMsg::QuestCompletedKing(quest.quest_type, true),
+                                                        LogMsg::QuestCompletedKing(
+                                                            quest.quest_type,
+                                                            true,
+                                                        ),
                                                     );
                                                 }
                                                 for contestant_id in quest.contestants.keys() {
                                                     if *contestant_id != user_id {
-                                                        let player = self.players.get_mut(contestant_id)?;
+                                                        let player =
+                                                            self.players.get_mut(contestant_id)?;
                                                         player.log.add(
                                                             self.time,
-                                                            LogMsg::QuestCompletedKing(quest.quest_type, false),
+                                                            LogMsg::QuestCompletedKing(
+                                                                quest.quest_type,
+                                                                false,
+                                                            ),
                                                         );
                                                     }
                                                 }
                                             }
                                         }
                                         RewardMode::SplitFairly(money) => {
-                                            for (user_id, money) in quest.split_by_score(if self.king.is_some() {
-                                                money * 9 / 10
-                                            } else {
-                                                money
-                                            }) {
-                                                if let Some(player) = self.players.get_mut(&user_id) {
+                                            for (user_id, money) in
+                                                quest.split_by_score(if self.king.is_some() {
+                                                    money * 9 / 10
+                                                } else {
+                                                    money
+                                                })
+                                            {
+                                                if let Some(player) = self.players.get_mut(&user_id)
+                                                {
                                                     player.money += money;
                                                     player.log.add(
                                                         self.time,
-                                                        LogMsg::QuestCompletedMoney(quest.quest_type, money),
+                                                        LogMsg::QuestCompletedMoney(
+                                                            quest.quest_type,
+                                                            money,
+                                                        ),
                                                     );
                                                 }
                                             }
@@ -419,7 +479,8 @@ impl engine_shared::State for State {
                                         }
                                         RewardMode::BestGetsItems(items) => {
                                             if let Some(user_id) = quest.best() {
-                                                if let Some(player) = self.players.get_mut(&user_id) {
+                                                if let Some(player) = self.players.get_mut(&user_id)
+                                                {
                                                     player.inventory.add(items.clone(), self.time);
                                                     player.log.add(
                                                         self.time,
@@ -431,10 +492,14 @@ impl engine_shared::State for State {
                                                 }
                                                 for contestant_id in quest.contestants.keys() {
                                                     if *contestant_id != user_id {
-                                                        let player = self.players.get_mut(contestant_id)?;
+                                                        let player =
+                                                            self.players.get_mut(contestant_id)?;
                                                         player.log.add(
                                                             self.time,
-                                                            LogMsg::QuestCompletedItems(quest.quest_type, None),
+                                                            LogMsg::QuestCompletedItems(
+                                                                quest.quest_type,
+                                                                None,
+                                                            ),
                                                         );
                                                     }
                                                 }
@@ -442,18 +507,23 @@ impl engine_shared::State for State {
                                         }
                                         RewardMode::Prestige => {
                                             if let Some(user_id) = quest.chance_by_score(rng) {
-                                                if let Some(player) = self.players.get_mut(&user_id) {
+                                                if let Some(player) = self.players.get_mut(&user_id)
+                                                {
                                                     if player.can_prestige() {
                                                         player.prestige();
                                                     }
                                                     player.log.add(
                                                         self.time,
-                                                        LogMsg::QuestCompletedPrestige(quest.quest_type, true),
+                                                        LogMsg::QuestCompletedPrestige(
+                                                            quest.quest_type,
+                                                            true,
+                                                        ),
                                                     );
                                                 }
                                                 for contestant_id in quest.contestants.keys() {
                                                     if *contestant_id != user_id {
-                                                        let player = self.players.get_mut(contestant_id)?;
+                                                        let player =
+                                                            self.players.get_mut(contestant_id)?;
                                                         player.log.add(
                                                             self.time,
                                                             LogMsg::QuestCompletedPrestige(
@@ -467,7 +537,8 @@ impl engine_shared::State for State {
                                         }
                                         RewardMode::NewDwarf(num_dwarfs) => {
                                             if let Some(user_id) = quest.chance_by_score(rng) {
-                                                if let Some(player) = self.players.get_mut(&user_id) {
+                                                if let Some(player) = self.players.get_mut(&user_id)
+                                                {
                                                     player.log.add(
                                                         self.time,
                                                         LogMsg::QuestCompletedDwarfs(
@@ -476,13 +547,17 @@ impl engine_shared::State for State {
                                                         ),
                                                     );
                                                     for _ in 0..num_dwarfs {
-                                                        player
-                                                            .new_dwarf(rng, &mut self.next_dwarf_id, self.time);
+                                                        player.new_dwarf(
+                                                            rng,
+                                                            &mut self.next_dwarf_id,
+                                                            self.time,
+                                                        );
                                                     }
                                                 }
                                                 for contestant_id in quest.contestants.keys() {
                                                     if *contestant_id != user_id {
-                                                        let player = self.players.get_mut(contestant_id)?;
+                                                        let player =
+                                                            self.players.get_mut(contestant_id)?;
                                                         player.log.add(
                                                             self.time,
                                                             LogMsg::QuestCompletedDwarfs(
@@ -495,37 +570,40 @@ impl engine_shared::State for State {
                                             }
                                         }
                                     }
-            
+
                                     for (contestant_id, contestant) in quest.contestants.iter() {
                                         let player = self.players.get_mut(contestant_id)?;
-                                        for dwarf_id in contestant.dwarfs.values() {   
-                                            let dwarf = player
-                                                .dwarfs
-                                                .get_mut(dwarf_id)?;
+                                        for dwarf_id in contestant.dwarfs.values() {
+                                            let dwarf = player.dwarfs.get_mut(dwarf_id)?;
                                             dwarf.participates_in_quest = None;
                                             dwarf.change_occupation(Occupation::Idling);
                                         }
                                     }
                                 }
                             }
-            
+
                             self.quests.retain(|quest| !quest.done());
-            
+
                             // Add quests.
-                            let active_players = self.players.iter().filter(|(_, player)| player.is_active(self.time)).count();
+                            let active_players = self
+                                .players
+                                .iter()
+                                .filter(|(_, player)| player.is_active(self.time))
+                                .count();
                             while self.quests.len() < 3.max(active_players / 5) {
                                 let active_quests = self
                                     .quests
                                     .iter()
                                     .map(|q| q.quest_type)
                                     .collect::<HashSet<_>>();
-                                let all_quests = enum_iterator::all::<QuestType>().collect::<HashSet<_>>();
+                                let all_quests =
+                                    enum_iterator::all::<QuestType>().collect::<HashSet<_>>();
                                 let potential_quests = &all_quests - &active_quests;
-            
+
                                 if potential_quests.is_empty() {
                                     break;
                                 }
-            
+
                                 self.quests.push(Quest::new(
                                     *potential_quests
                                         .into_iter()
@@ -540,8 +618,8 @@ impl engine_shared::State for State {
             }
 
             Some(())
-        }().unwrap();
-        
+        }()
+        .unwrap();
     }
 }
 
@@ -581,7 +659,7 @@ impl<T: BundleType> Bundle<T> {
                 }
             }
         }
-        
+
         bound
     }
 
@@ -709,7 +787,7 @@ pub enum LogMsg {
     QuestCompletedDwarfs(QuestType, Option<usize>),
     OpenedLootCrate(Bundle<Item>),
     MoneyForKing(Money),
-    NotEnoughSpaceForDwarf
+    NotEnoughSpaceForDwarf,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
@@ -768,13 +846,11 @@ impl Player {
     pub fn new_dwarf(&mut self, rng: &mut impl Rng, next_dwarf_id: &mut DwarfId, time: Time) {
         if self.dwarfs.len() < self.base.num_dwarfs() {
             self.log.add(time, LogMsg::NewDwarf(*next_dwarf_id));
-            self.dwarfs.insert(*next_dwarf_id, Dwarf::new(rng, self.base.prestige));
+            self.dwarfs
+                .insert(*next_dwarf_id, Dwarf::new(rng, self.base.prestige));
             *next_dwarf_id += 1;
         } else {
-            self.log.add(
-                time,
-                LogMsg::NotEnoughSpaceForDwarf,
-            );
+            self.log.add(time, LogMsg::NotEnoughSpaceForDwarf);
         }
     }
 
@@ -937,16 +1013,16 @@ pub enum Item {
     GoldOre,
     Gold,
     GoldenRing,
-    Fluorite, // Intelligence
-    Agate, // Strength 
-    Sodalite, // Perception
-    Ruby, // Endurance
-    Selenite, // Agility
+    Fluorite,           // Intelligence
+    Agate,              // Strength
+    Sodalite,           // Perception
+    Ruby,               // Endurance
+    Selenite,           // Agility
     RingOfIntelligence, // Intelligence
-    RingOfStrength, // Strength 
-    RingOfPerception, // Perception
-    RingOfEndurance, // Endurance
-    RingOfAgility, // Agility
+    RingOfStrength,     // Strength
+    RingOfPerception,   // Perception
+    RingOfEndurance,    // Endurance
+    RingOfAgility,      // Agility
     CrystalNecklace,
     TigerFang,
     Dagger,
@@ -968,7 +1044,9 @@ impl Into<usize> for Item {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash, PartialEq, Eq, Sequence, PartialOrd, Ord)]
+#[derive(
+    Serialize, Deserialize, Clone, Copy, Debug, Hash, PartialEq, Eq, Sequence, PartialOrd, Ord,
+)]
 pub enum ItemType {
     Tool,
     Clothing,
@@ -1072,41 +1150,41 @@ impl Item {
                 endurance: 4,
                 ..Default::default()
             },
-            Item::Boots | Item::BearClawBoots => Stats { 
+            Item::Boots | Item::BearClawBoots => Stats {
                 endurance: 4,
-                .. Default::default()
+                ..Default::default()
             },
-            Item::Gloves | Item::BearClawGloves => Stats { 
+            Item::Gloves | Item::BearClawGloves => Stats {
                 agility: 4,
-                .. Default::default()
+                ..Default::default()
             },
-            Item::Map => Stats { 
+            Item::Map => Stats {
                 intelligence: 2,
-                .. Default::default()
+                ..Default::default()
             },
-            Item::Lantern | Item::Headlamp => Stats { 
+            Item::Lantern | Item::Headlamp => Stats {
                 perception: 4,
-                .. Default::default()
+                ..Default::default()
             },
-            Item::RingOfIntelligence => Stats { 
+            Item::RingOfIntelligence => Stats {
                 intelligence: 8,
-                .. Default::default()
+                ..Default::default()
             },
-            Item::RingOfStrength => Stats { 
+            Item::RingOfStrength => Stats {
                 strength: 8,
-                .. Default::default()
+                ..Default::default()
             },
-            Item::RingOfPerception => Stats { 
+            Item::RingOfPerception => Stats {
                 perception: 8,
-                .. Default::default()
+                ..Default::default()
             },
-            Item::RingOfEndurance => Stats { 
+            Item::RingOfEndurance => Stats {
                 endurance: 8,
-                .. Default::default()
+                ..Default::default()
             },
-            Item::RingOfAgility => Stats { 
+            Item::RingOfAgility => Stats {
                 agility: 8,
-                .. Default::default()
+                ..Default::default()
             },
             Item::CrystalNecklace => Stats {
                 strength: 6,
@@ -1323,7 +1401,7 @@ impl Item {
                     starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
-                _ => None
+                _ => None,
             },
             Occupation::Exploring => match self {
                 Item::Cat => Some(ItemProbability {
@@ -1518,30 +1596,13 @@ impl Craftable for Item {
             Item::PoisonedBow => Some(Bundle::new().add(Item::Bow, 1).add(Item::Poison, 1)),
             Item::String => Some(Bundle::new().add(Item::Hemp, 3)),
             Item::LeatherArmor => Some(Bundle::new().add(Item::Leather, 8).add(Item::String, 3)),
-            Item::Sword => Some(
-                Bundle::new()
-                    .add(Item::Wood, 1)
-                    .add(Item::Iron, 5)
-            ),
-            Item::Longsword => Some(
-                Bundle::new()
-                    .add(Item::Wood, 1)
-                    .add(Item::Iron, 10)
-            ),
-            Item::Spear => Some(
-                Bundle::new()
-                    .add(Item::Wood, 3)
-                    .add(Item::Iron, 2)
-            ),
-            Item::Dagger => Some(
-                Bundle::new()
-                    .add(Item::Iron, 3)
-            ),
-            Item::TigerFangDagger => Some(
-                Bundle::new()
-                    .add(Item::TigerFang, 1)
-                    .add(Item::Dagger, 1)
-            ),
+            Item::Sword => Some(Bundle::new().add(Item::Wood, 1).add(Item::Iron, 5)),
+            Item::Longsword => Some(Bundle::new().add(Item::Wood, 1).add(Item::Iron, 10)),
+            Item::Spear => Some(Bundle::new().add(Item::Wood, 3).add(Item::Iron, 2)),
+            Item::Dagger => Some(Bundle::new().add(Item::Iron, 3)),
+            Item::TigerFangDagger => {
+                Some(Bundle::new().add(Item::TigerFang, 1).add(Item::Dagger, 1))
+            }
             Item::PoisonedSpear => Some(Bundle::new().add(Item::Spear, 1).add(Item::Poison, 1)),
             Item::Dragon => Some(Bundle::new().add(Item::DragonsEgg, 1).add(Item::Coal, 100)),
             Item::BakedPotato => Some(Bundle::new().add(Item::Potato, 1).add(Item::Coal, 1)),
@@ -1562,157 +1623,94 @@ impl Craftable for Item {
             Item::Bread => Some(Bundle::new().add(Item::Flour, 3)),
             Item::Flour => Some(Bundle::new().add(Item::Wheat, 3)),
             Item::Soup => Some(Bundle::new().add(Item::Potato, 3).add(Item::Carrot, 3)),
-            Item::Pickaxe => Some(
-                Bundle::new()
-                    .add(Item::Wood, 5)
-                    .add(Item::Iron, 10)
-            ),
-            Item::Axe => Some(
-                Bundle::new()
-                    .add(Item::Wood, 5)
-                    .add(Item::Iron, 10)
-            ),
-            Item::Pitchfork => Some(
-                Bundle::new()
-                    .add(Item::Wood, 5)
-                    .add(Item::Iron, 10)
-            ),
+            Item::Pickaxe => Some(Bundle::new().add(Item::Wood, 5).add(Item::Iron, 10)),
+            Item::Axe => Some(Bundle::new().add(Item::Wood, 5).add(Item::Iron, 10)),
+            Item::Pitchfork => Some(Bundle::new().add(Item::Wood, 5).add(Item::Iron, 10)),
             Item::Crossbow => Some(
                 Bundle::new()
                     .add(Item::Wood, 5)
                     .add(Item::Iron, 10)
-                    .add(Item::Nail, 3)
+                    .add(Item::Nail, 3),
             ),
-            Item::BlackPowder => Some(
-                Bundle::new()
-                    .add(Item::Coal, 2)
-                    .add(Item::Sulfur, 1)
-            ),
+            Item::BlackPowder => Some(Bundle::new().add(Item::Coal, 2).add(Item::Sulfur, 1)),
             Item::Musket => Some(
                 Bundle::new()
                     .add(Item::Wood, 10)
                     .add(Item::Iron, 20)
-                    .add(Item::BlackPowder, 5)
+                    .add(Item::BlackPowder, 5),
             ),
             Item::Dynamite => Some(
                 Bundle::new()
                     .add(Item::BlackPowder, 10)
-                    .add(Item::Fabric, 1)
+                    .add(Item::Fabric, 1),
             ),
-            Item::Fabric => Some(
-                Bundle::new()
-                    .add(Item::String, 3)
-            ),
-            Item::Backpack => Some(
-                Bundle::new()
-                    .add(Item::String, 2)
-                    .add(Item::Leather, 5)
-            ),
-            Item::Bag => Some(
-                Bundle::new()
-                    .add(Item::String, 1)
-                    .add(Item::Fabric, 2)
-            ),
+            Item::Fabric => Some(Bundle::new().add(Item::String, 3)),
+            Item::Backpack => Some(Bundle::new().add(Item::String, 2).add(Item::Leather, 5)),
+            Item::Bag => Some(Bundle::new().add(Item::String, 1).add(Item::Fabric, 2)),
             Item::Helmet => Some(
                 Bundle::new()
                     .add(Item::Iron, 3)
                     .add(Item::Leather, 1)
-                    .add(Item::String, 1)
+                    .add(Item::String, 1),
             ),
-            Item::RhinoHornHelmet => Some(
-                Bundle::new()
-                    .add(Item::RhinoHorn, 1)
-                    .add(Item::Helmet, 1)
-            ),
+            Item::RhinoHornHelmet => {
+                Some(Bundle::new().add(Item::RhinoHorn, 1).add(Item::Helmet, 1))
+            }
             Item::FishingRod => Some(
                 Bundle::new()
                     .add(Item::Wood, 3)
                     .add(Item::String, 3)
-                    .add(Item::Iron, 1)
+                    .add(Item::Iron, 1),
             ),
-            Item::FishingHat => Some(
-                Bundle::new()
-                    .add(Item::Fabric, 5)
-            ),
-            Item::Map => Some(
-                Bundle::new()
-                    .add(Item::Fabric, 5)
-            ),
-            Item::Overall => Some(
-                Bundle::new()
-                    .add(Item::Fabric, 5)
-                    .add(Item::String, 5)
-            ),
-            Item::Boots => Some(
-                Bundle::new()
-                    .add(Item::Leather, 5)
-                    .add(Item::String, 2)
-            ),
-            Item::BearClawBoots => Some(
-                Bundle::new()
-                    .add(Item::BearClaw, 1)
-                    .add(Item::Boots, 1)
-            ),
-            Item::Gloves => Some(
-                Bundle::new()
-                    .add(Item::Leather, 5)
-                    .add(Item::String, 2)
-            ),
-            Item::BearClawGloves => Some(
-                Bundle::new()
-                    .add(Item::BearClaw, 1)
-                    .add(Item::Gloves, 1)
-            ),
+            Item::FishingHat => Some(Bundle::new().add(Item::Fabric, 5)),
+            Item::Map => Some(Bundle::new().add(Item::Fabric, 5)),
+            Item::Overall => Some(Bundle::new().add(Item::Fabric, 5).add(Item::String, 5)),
+            Item::Boots => Some(Bundle::new().add(Item::Leather, 5).add(Item::String, 2)),
+            Item::BearClawBoots => Some(Bundle::new().add(Item::BearClaw, 1).add(Item::Boots, 1)),
+            Item::Gloves => Some(Bundle::new().add(Item::Leather, 5).add(Item::String, 2)),
+            Item::BearClawGloves => Some(Bundle::new().add(Item::BearClaw, 1).add(Item::Gloves, 1)),
             Item::Wheel => Some(
                 Bundle::new()
                     .add(Item::Iron, 3)
                     .add(Item::Wood, 5)
-                    .add(Item::Nail, 5)
+                    .add(Item::Nail, 5),
             ),
             Item::Wheelbarrow => Some(
                 Bundle::new()
                     .add(Item::Wheel, 1)
                     .add(Item::Iron, 2)
-                    .add(Item::Nail, 5)
+                    .add(Item::Nail, 5),
             ),
             Item::Plough => Some(
                 Bundle::new()
                     .add(Item::Wheel, 2)
                     .add(Item::Iron, 10)
                     .add(Item::Nail, 5)
-                    .add(Item::Chain, 5)
+                    .add(Item::Chain, 5),
             ),
-            Item::Lantern => Some(
-                Bundle::new()
-                    .add(Item::Iron, 3)
-                    .add(Item::String, 1)
-            ),
+            Item::Lantern => Some(Bundle::new().add(Item::Iron, 3).add(Item::String, 1)),
             Item::Gold => Some(Bundle::new().add(Item::GoldOre, 1).add(Item::Coal, 1)),
             Item::GoldenRing => Some(Bundle::new().add(Item::Gold, 3)),
             Item::RingOfIntelligence => Some(
                 Bundle::new()
                     .add(Item::GoldenRing, 1)
-                    .add(Item::Fluorite, 1)
+                    .add(Item::Fluorite, 1),
             ),
-            Item::RingOfStrength => Some(
-                Bundle::new()
-                    .add(Item::GoldenRing, 1)
-                    .add(Item::Agate, 1)
-            ),
+            Item::RingOfStrength => {
+                Some(Bundle::new().add(Item::GoldenRing, 1).add(Item::Agate, 1))
+            }
             Item::RingOfPerception => Some(
                 Bundle::new()
                     .add(Item::GoldenRing, 1)
-                    .add(Item::Sodalite, 1)
+                    .add(Item::Sodalite, 1),
             ),
-            Item::RingOfEndurance => Some(
-                Bundle::new()
-                    .add(Item::GoldenRing, 1)
-                    .add(Item::Ruby, 1)
-            ),
+            Item::RingOfEndurance => {
+                Some(Bundle::new().add(Item::GoldenRing, 1).add(Item::Ruby, 1))
+            }
             Item::RingOfAgility => Some(
                 Bundle::new()
                     .add(Item::GoldenRing, 1)
-                    .add(Item::Selenite, 1)
+                    .add(Item::Selenite, 1),
             ),
             Item::CrystalNecklace => Some(
                 Bundle::new()
@@ -1721,18 +1719,10 @@ impl Craftable for Item {
                     .add(Item::Agate, 1)
                     .add(Item::Sodalite, 1)
                     .add(Item::Ruby, 1)
-                    .add(Item::Selenite, 1)
+                    .add(Item::Selenite, 1),
             ),
-            Item::FishingNet => Some(
-                Bundle::new()
-                    .add(Item::String, 20)
-                    .add(Item::Iron, 2)
-            ),
-            Item::Headlamp => Some(
-                Bundle::new()
-                    .add(Item::Helmet, 1)
-                    .add(Item::Lantern, 1)
-            ),
+            Item::FishingNet => Some(Bundle::new().add(Item::String, 20).add(Item::Iron, 2)),
+            Item::Headlamp => Some(Bundle::new().add(Item::Helmet, 1).add(Item::Lantern, 1)),
             _ => None,
         }
     }
@@ -1852,7 +1842,6 @@ impl Dwarf {
         stats
     }
 
-
     // output 0 - 10
     pub fn effectiveness(&self, occupation: Occupation) -> u64 {
         let mut usefulness = 0;
@@ -1863,7 +1852,8 @@ impl Dwarf {
 
         debug_assert!(usefulness <= 10);
 
-        let effectiveness = usefulness * self.effective_stats().cross(occupation.requires_stats()) / 200;
+        let effectiveness =
+            usefulness * self.effective_stats().cross(occupation.requires_stats()) / 200;
 
         debug_assert!(effectiveness <= 10);
 
@@ -1903,7 +1893,7 @@ pub enum Occupation {
     Fighting,
     Exploring,
     Farming,
-    Rockhounding
+    Rockhounding,
 }
 
 impl Occupation {
@@ -1936,7 +1926,6 @@ impl Occupation {
             Occupation::Rockhounding => 10,
         }
     }
-
 
     pub fn requires_stats(self) -> Stats {
         match self {
@@ -2149,9 +2138,7 @@ impl Quest {
         let total_score: u64 = self.contestants.values().map(|c| c.achieved_score).sum();
         self.contestants
             .iter()
-            .map(|(user_id, c)| {
-                (*user_id, num * c.achieved_score / total_score)
-            })
+            .map(|(user_id, c)| (*user_id, num * c.achieved_score / total_score))
             .collect()
     }
 

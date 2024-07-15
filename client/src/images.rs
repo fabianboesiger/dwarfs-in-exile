@@ -1,8 +1,11 @@
 use std::convert::TryInto;
 
-use rand_chacha::{rand_core::{RngCore, SeedableRng}, ChaCha8Rng};
+use rand_chacha::{
+    rand_core::{RngCore, SeedableRng},
+    ChaCha8Rng,
+};
 use seed::virtual_dom::{AsAtValue, AtValue};
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 use shared::{Item, Occupation, QuestType, VillageType};
 use strum::Display;
 
@@ -136,13 +139,12 @@ pub enum Image {
     Headlamp,
 }
 
-
 impl AsAtValue for Image {
     fn as_at_value(&self) -> seed::prelude::AtValue {
         match self {
             Image::Placeholder => AtValue::Some(format!("/images/placeholder.png")),
             Image::Dwarf(id) => AtValue::Some(format!("/images/dwarf-{}.jpg", id)),
-            _ => AtValue::Some(format!("/images/{self}.jpg"))
+            _ => AtValue::Some(format!("/images/{self}.jpg")),
         }
     }
 }

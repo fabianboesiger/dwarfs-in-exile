@@ -1,20 +1,20 @@
 pub mod account;
+pub mod change_password;
+pub mod change_username;
 pub mod login;
 pub mod logout;
 pub mod register;
-pub mod change_username;
-pub mod change_password;
 
 use std::borrow::Cow;
 
 use askama::DynTemplate;
 use async_trait::async_trait;
 use axum::{
+    body::Body,
     extract::FromRequest,
-    http::{self, StatusCode, Request},
+    http::{self, Request, StatusCode},
     response::{IntoResponse, Response},
-    BoxError, Form,
-    body::HttpBody
+    Form,
 };
 use serde::de::DeserializeOwned;
 use validator::{Validate, ValidationError, ValidationErrors};
@@ -28,17 +28,14 @@ pub trait ToTemplate {
 }
 
 #[async_trait]
-impl<S, F, B> FromRequest<S, B> for ValidatedForm<F>
+impl<S, F> FromRequest<S> for ValidatedForm<F>
 where
     F: DeserializeOwned + Validate + ToTemplate,
-    B: HttpBody + Send + 'static,
-    B::Data: Send,
-    B::Error: Into<BoxError>,
     S: Send + Sync,
 {
     type Rejection = Response;
 
-    async fn from_request(req: Request<B>, state: &S) -> Result<Self, Self::Rejection> {
+    async fn from_request(req: Request<Body>, state: &S) -> Result<Self, Self::Rejection> {
         let Form(form) = Form::<F>::from_request(req, state)
             .await
             .map_err(|err| err.into_response())?;
@@ -51,7 +48,12 @@ where
     }
 }
 
-pub fn form_error<F: ToTemplate>(form: F, code: &'static str, field: &'static str, message: &'static str) -> Response {
+pub fn form_error<F: ToTemplate>(
+    form: F,
+    code: &'static str,
+    field: &'static str,
+    message: &'static str,
+) -> Response {
     let mut error = ValidationError::new(code);
     error.message = Some(Cow::Borrowed(message));
     let mut errors = ValidationErrors::new();
