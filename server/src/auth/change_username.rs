@@ -44,27 +44,23 @@ pub async fn get_change_username(
     session: Session,
     Extension(pool): Extension<SqlitePool>,
 ) -> Result<Response, ServerError> {
-    let result: Option<(String,)> = sqlx::query_as(
+    let (username,): (String,) = sqlx::query_as(
         r#"
             SELECT username
             FROM users
-            NATURAL JOIN sessions
-            WHERE session_id = $1
+            WHERE user_id = $1
         "#,
     )
-    .bind(session.id().ok_or(ServerError::SessionIdMissing)?.0 as i64)
+    .bind(session.get::<i64>(crate::USER_ID_KEY).await?.ok_or(ServerError::SessionUserMissing)?)
     .fetch_optional(&pool)
-    .await?;
+    .await?
+    .ok_or(ServerError::UserDeleted)?;
 
-    if let Some((username,)) = result {
-        Ok(ChangeUsernameTemplate {
-            username,
-            ..ChangeUsernameTemplate::default()
-        }
-        .into_response())
-    } else {
-        Ok(Redirect::to("/login").into_response())
+    Ok(ChangeUsernameTemplate {
+        username,
+        ..ChangeUsernameTemplate::default()
     }
+    .into_response())
 }
 
 pub async fn post_change_username(
@@ -73,24 +69,6 @@ pub async fn post_change_username(
     Extension(game_state): Extension<GameState>,
     ValidatedForm(change_username): ValidatedForm<ChangeUsernameForm>,
 ) -> Result<Response, ServerError> {
-    let result: Result<(i64,), _> = sqlx::query_as(
-        r#"
-            SELECT user_id
-                FROM sessions
-                WHERE session_id = $1
-        "#,
-    )
-    .bind(session.id().ok_or(ServerError::SessionIdMissing)?.0 as i64)
-    .fetch_one(&pool)
-    .await;
-
-    let user_id = match result {
-        Err(err) => {
-            return Err(ServerError::SqliteError(err));
-        }
-        Ok((user_id,)) => user_id,
-    };
-
     let result = sqlx::query(
         r#"
             UPDATE users
@@ -99,7 +77,7 @@ pub async fn post_change_username(
         "#,
     )
     .bind(&change_username.username)
-    .bind(&user_id)
+    .bind(&session.get::<i64>(crate::USER_ID_KEY).await?.ok_or(ServerError::SessionUserMissing)?)
     .execute(&pool)
     .await;
 

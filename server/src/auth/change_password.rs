@@ -51,28 +51,14 @@ pub struct ChangePasswordTemplate {
 
 pub async fn get_change_password(
     session: Session,
-    Extension(pool): Extension<SqlitePool>,
 ) -> Result<Response, ServerError> {
-    let result: Option<(String,)> = sqlx::query_as(
-        r#"
-            SELECT username
-            FROM users
-            NATURAL JOIN sessions
-            WHERE session_id = $1
-        "#,
-    )
-    .bind(session.id().ok_or(ServerError::SessionIdMissing)?.0 as i64)
-    .fetch_optional(&pool)
-    .await?;
+    session.get::<i64>(crate::USER_ID_KEY).await?.ok_or(ServerError::SessionUserMissing)?;
 
-    if let Some(_) = result {
-        Ok(ChangePasswordTemplate {
-            ..ChangePasswordTemplate::default()
-        }
-        .into_response())
-    } else {
-        Ok(Redirect::to("/login").into_response())
+    Ok(ChangePasswordTemplate {
+        ..ChangePasswordTemplate::default()
     }
+    .into_response())
+
 }
 
 pub async fn post_change_password(
@@ -89,13 +75,11 @@ pub async fn post_change_password(
         r#"
             UPDATE users
             SET password = $1
-            WHERE user_id = (SELECT user_id
-                FROM sessions
-                WHERE session_id = $2)
+            WHERE user_id = $2
         "#,
     )
     .bind(&hashed)
-    .bind(session.id().ok_or(ServerError::SessionIdMissing)?.0 as i64)
+    .bind(session.get::<i64>(crate::USER_ID_KEY).await?.ok_or(ServerError::SessionUserMissing)?)
     .execute(&pool)
     .await?;
 

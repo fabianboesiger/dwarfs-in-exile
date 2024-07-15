@@ -6,14 +6,14 @@ use sqlx::SqlitePool;
 use tower_sessions::Session;
 
 #[derive(Template, Default)]
-#[template(path = "account.html")]
-pub struct AccountTemplate {
+#[template(path = "store.html")]
+pub struct StoreTemplate {
     username: String,
     user_id: i64,
     premium: i64,
 }
 
-pub async fn get_account(
+pub async fn get_store(
     session: Session,
     Extension(pool): Extension<SqlitePool>,
 ) -> Result<Response, ServerError> {
@@ -29,11 +29,11 @@ pub async fn get_account(
     .await?
     .ok_or(ServerError::UserDeleted)?;
 
-    Ok(AccountTemplate {
+    Ok(StoreTemplate {
         username,
         user_id,
         premium,
-        ..AccountTemplate::default()
+        ..StoreTemplate::default()
     }
     .into_response())
    

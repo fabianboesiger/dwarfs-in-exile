@@ -1,5 +1,5 @@
 use askama_axum::IntoResponse;
-use axum::{http::StatusCode, response::Response};
+use axum::{http::StatusCode, response::{Redirect, Response}};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -10,12 +10,16 @@ pub enum ServerError {
     //AxumFormRejection(#[from] axum::extract::rejection::FormRejection),
     #[error(transparent)]
     SqliteError(#[from] sqlx::Error),
-    #[error("stripe error, missing data.")]
+    #[error("stripe error, missing data")]
     StripeErrorMissingData,
     #[error(transparent)]
     ParseError(#[from] std::num::ParseIntError),
-    #[error("session id missing.")]
-    SessionIdMissing
+    #[error(transparent)]
+    SessionError(#[from] tower_sessions::session::Error),
+    #[error("session user missing")]
+    SessionUserMissing,
+    #[error("user deleted")]
+    UserDeleted
 }
 
 impl IntoResponse for ServerError {
@@ -24,7 +28,6 @@ impl IntoResponse for ServerError {
             ServerError::ValidationError(err) => {
                 (StatusCode::BAD_REQUEST, format!("{}", err)).into_response()
             }
-            //ServerError::AxumFormRejection(_) => (StatusCode::BAD_REQUEST, self.to_string()),
             ServerError::SqliteError(err) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, format!("{}", err)).into_response()
             }
@@ -34,8 +37,11 @@ impl IntoResponse for ServerError {
             ServerError::ParseError(err) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, format!("{}", err)).into_response()
             }
-            ServerError::SessionIdMissing => {
-                (StatusCode::INTERNAL_SERVER_ERROR, format!("{}", self)).into_response()
+            ServerError::SessionError(err) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, format!("{}", err)).into_response()
+            }
+            ServerError::SessionUserMissing | ServerError::UserDeleted => {
+                Redirect::to("/login").into_response()
             }
         }
     }

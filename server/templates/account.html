@@ -9,31 +9,17 @@
         <a class="button" href="change-password">Change Password</a>
         <a class="button" href="/logout">Logout</a>
         
-        <h2>Premium Account</h2>
+        <h3>Premium</h3>
 
         {% if premium > 0 %}
         <p>You have an active premium account with {{ premium }} hours remaining.</p>
         {% else if premium >= 24 %}
         <p>You have an active premium account with {{ premium / 24 }} days remaining.</p>
+        {% else %}
+        <p>You have no premium account.</p>
         {% endif %}
 
-        <script async src="https://js.stripe.com/v3/buy-button.js"></script>
+        <a class="button" href="/store">Buy a Premium Account</a>
 
-        <stripe-buy-button
-            buy-button-id="buy_btn_1Pcq8OCJSYyq6ul45QglYe5M"
-            publishable-key="pk_test_51PclDhCJSYyq6ul4shd76Uo28pNWY617Ae8OTV0NXhxZoKCIKEhLkiZRKNnLG635zpSIKJS8eGLPNaKqFtatiZLA00KocaOW8X"
-            client-reference-id="{{ user_id }}"
-        ></stripe-buy-button>
-        <stripe-buy-button
-            buy-button-id="buy_btn_1Pcq8tCJSYyq6ul4f4jhctou"
-            publishable-key="pk_test_51PclDhCJSYyq6ul4shd76Uo28pNWY617Ae8OTV0NXhxZoKCIKEhLkiZRKNnLG635zpSIKJS8eGLPNaKqFtatiZLA00KocaOW8X"
-            client-reference-id="{{ user_id }}"
-        ></stripe-buy-button>
-        <stripe-buy-button
-            buy-button-id="buy_btn_1Pcq9GCJSYyq6ul4PQ5OshG9"
-            publishable-key="pk_test_51PclDhCJSYyq6ul4shd76Uo28pNWY617Ae8OTV0NXhxZoKCIKEhLkiZRKNnLG635zpSIKJS8eGLPNaKqFtatiZLA00KocaOW8X"
-            client-reference-id="{{ user_id }}"
-        >
-        </stripe-buy-button>
 </main>
 {% endblock %}

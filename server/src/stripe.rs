@@ -54,7 +54,7 @@ pub async fn handle_webhook(
     match event.type_ {
         EventType::CheckoutSessionCompleted => {
             if let EventObject::CheckoutSession(session) = event.data.object {
-                //log::info!("Received checkout session completed webhook with id: {:?}", session.id);
+                tracing::info!("Received checkout session completed webhook with id: {:?}", session.id);
 
                 let user_id = session
                     .client_reference_id

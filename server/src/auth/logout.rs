@@ -1,21 +1,11 @@
 use crate::ServerError;
-use axum::{response::Redirect, Extension};
-use sqlx::SqlitePool;
+use axum::response::Redirect;
 use tower_sessions::Session;
 
 pub async fn get_logout(
     session: Session,
-    Extension(pool): Extension<SqlitePool>,
 ) -> Result<Redirect, ServerError> {
-    sqlx::query(
-        r#"
-            DELETE FROM sessions
-            WHERE session_id = $1
-        "#,
-    )
-    .bind(session.id().ok_or(ServerError::SessionIdMissing)?.0 as i64)
-    .fetch_optional(&pool)
-    .await?;
+    session.remove::<i64>(crate::USER_ID_KEY).await?;
 
     Ok(Redirect::to("/"))
 }

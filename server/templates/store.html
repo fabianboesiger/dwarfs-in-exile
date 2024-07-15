@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<main>
+    <div class="content">
+        <h2>Store</h2>
+
+        <script async src="https://js.stripe.com/v3/buy-button.js"></script>
+
+        <stripe-buy-button
+            buy-button-id="buy_btn_1Pcq8OCJSYyq6ul45QglYe5M"
+            publishable-key="pk_test_51PclDhCJSYyq6ul4shd76Uo28pNWY617Ae8OTV0NXhxZoKCIKEhLkiZRKNnLG635zpSIKJS8eGLPNaKqFtatiZLA00KocaOW8X"
+            client-reference-id="{{ user_id }}"
+        ></stripe-buy-button>
+        <stripe-buy-button
+            buy-button-id="buy_btn_1Pcq8tCJSYyq6ul4f4jhctou"
+            publishable-key="pk_test_51PclDhCJSYyq6ul4shd76Uo28pNWY617Ae8OTV0NXhxZoKCIKEhLkiZRKNnLG635zpSIKJS8eGLPNaKqFtatiZLA00KocaOW8X"
+            client-reference-id="{{ user_id }}"
+        ></stripe-buy-button>
+        <stripe-buy-button
+            buy-button-id="buy_btn_1Pcq9GCJSYyq6ul4PQ5OshG9"
+            publishable-key="pk_test_51PclDhCJSYyq6ul4shd76Uo28pNWY617Ae8OTV0NXhxZoKCIKEhLkiZRKNnLG635zpSIKJS8eGLPNaKqFtatiZLA00KocaOW8X"
+            client-reference-id="{{ user_id }}"
+        >
+        </stripe-buy-button>
+    </div>
+</main>
+{% endblock %}

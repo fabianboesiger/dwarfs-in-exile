@@ -6,6 +6,7 @@ mod game;
 mod index;
 mod stripe;
 
+use auth::store;
 use error::*;
 
 use axum::{
@@ -21,6 +22,8 @@ use tower_http::{
 };
 use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+pub const USER_ID_KEY: &str = "user_id";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -78,6 +81,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             get_service(ServeDir::new(assets_dir).append_index_html_on_directories(true))                                                                              
         )
         .route("/", get(index::get_index))
+        .route("/store", get(store::get_store))
         .route("/about", get(about::get_about))
         .route("/game/ws", get(game::ws_handler))
         .route("/game", get(game::get_game))

@@ -92,17 +92,7 @@ pub async fn post_register(
         Ok((user_id,)) => {
             game_state.new_server_connection().await.updated_user_data();
 
-            sqlx::query(
-                r#"
-                    INSERT OR REPLACE INTO sessions (session_id, user_id, expires)
-                    VALUES ($1, $2, $3)
-                "#,
-            )
-            .bind(session.id().ok_or(ServerError::SessionIdMissing)?.0 as i64)
-            .bind(user_id)
-            .bind(session.expiry_age().whole_seconds())
-            .execute(&pool)
-            .await?;
+            session.insert(crate::USER_ID_KEY, user_id).await?;
 
             Ok(Redirect::to("/game").into_response())
         }

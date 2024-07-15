@@ -23,18 +23,6 @@ pub async fn setup() -> Result<SqlitePool, Box<dyn std::error::Error>> {
 
     sqlx::query(
         r#"
-        CREATE TABLE IF NOT EXISTS sessions (
-            session_id TEXT PRIMARY KEY,
-            user_id INTEGER REFERENCES users(user_id),
-            expires INTEGER
-        )
-    "#,
-    )
-    .execute(&mut transaction)
-    .await?;
-
-    sqlx::query(
-        r#"
         CREATE TABLE IF NOT EXISTS games (
             name TEXT PRIMARY KEY,
             data BLOB
