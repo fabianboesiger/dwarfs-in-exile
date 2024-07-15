@@ -107,7 +107,7 @@ pub async fn ws_handler(
             WHERE session_id = $1
         "#,
     )
-    .bind(session.id().unwrap().0 as i64)
+    .bind(session.id().ok_or(ServerError::SessionIdMissing)?.0 as i64)
     .fetch_optional(&pool)
     .await?
     .map(|(id,): (i64,)| id.into());
@@ -160,7 +160,7 @@ pub async fn get_game(
             WHERE session_id = $1
         "#,
     )
-    .bind(session.id().unwrap().0 as i64)
+    .bind(session.id().ok_or(ServerError::SessionIdMissing)?.0 as i64)
     .fetch_optional(&pool)
     .await?;
 

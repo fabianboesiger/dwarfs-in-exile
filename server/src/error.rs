@@ -14,6 +14,8 @@ pub enum ServerError {
     StripeErrorMissingData,
     #[error(transparent)]
     ParseError(#[from] std::num::ParseIntError),
+    #[error("session id missing.")]
+    SessionIdMissing
 }
 
 impl IntoResponse for ServerError {
@@ -31,6 +33,9 @@ impl IntoResponse for ServerError {
             }
             ServerError::ParseError(err) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, format!("{}", err)).into_response()
+            }
+            ServerError::SessionIdMissing => {
+                (StatusCode::INTERNAL_SERVER_ERROR, format!("{}", self)).into_response()
             }
         }
     }

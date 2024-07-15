@@ -13,27 +13,31 @@ use axum::{
     Extension, Router,
 };
 use game::{GameState, GameStore};
-use std::{net::SocketAddr, path::PathBuf};
+use tokio::{task, time};
+use std::{net::SocketAddr, path::PathBuf, time::Duration};
 use tower_http::{
     services::ServeDir,
     trace::{DefaultMakeSpan, TraceLayer},
 };
-use tower_sessions::{cookie::time::Duration, Expiry, MemoryStore, SessionManagerLayer};
+use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv::dotenv().ok();
 
-    let pool = db::setup().await?;
 
     tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::new(
             std::env::var("RUST_LOG")
-                .unwrap_or_else(|_| "example_websockets=debug,tower_http=debug".into()),
+                .unwrap_or_else(|_| "sqlx=warn,info".into()),
         ))
         .with(tracing_subscriber::fmt::layer())
         .init();
+
+    tracing::info!("starting server...");
+    
+    let pool = db::setup().await?;
 
     let assets_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("public");
 
@@ -41,22 +45,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let session_layer = SessionManagerLayer::new(store)
         .with_secure(false)
         .with_http_only(false)
-        .with_expiry(Expiry::OnInactivity(Duration::seconds(10)));
+        .with_expiry(Expiry::OnInactivity(tower_sessions::cookie::time::Duration::days(30)));
 
     let store = GameStore::new(pool.clone());
     let game_state = GameState::new(store).await;
+    
+    let pool_clone = pool.clone();
+    task::spawn(async move {
+        let mut interval = time::interval(Duration::from_secs(60 * 60));
+
+        loop {
+            interval.tick().await;
+
+            sqlx::query(
+                    r#" 
+                        UPDATE users
+                        SET premium = premium - 1
+                        WHERE premium > 0
+                    "#,
+                )
+                .execute(&pool_clone)
+                .await
+                .unwrap();
+
+            tracing::debug!("updated premium usage hours for all users");
+        }
+    });
 
     // build our application with some routes
     let app = Router::new()
         .fallback(
-            get_service(ServeDir::new(assets_dir).append_index_html_on_directories(true)), /*
-                                                                                           .handle_error(|error: std::io::Error| async move {
-                                                                                               (
-                                                                                                   StatusCode::INTERNAL_SERVER_ERROR,
-                                                                                                   format!("Unhandled internal error: {}", error),
-                                                                                               )
-                                                                                           }),
-                                                                                           */
+            get_service(ServeDir::new(assets_dir).append_index_html_on_directories(true))                                                                              
         )
         .route("/", get(index::get_index))
         .route("/about", get(about::get_about))
@@ -99,9 +118,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
-    tracing::debug!("listening on {}", addr);
-
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+
+    tracing::info!("listening on {}", addr);
+
     axum::serve(listener, app).await.unwrap();
 
     Ok(())

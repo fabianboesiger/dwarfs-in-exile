@@ -52,7 +52,7 @@ pub async fn get_change_username(
             WHERE session_id = $1
         "#,
     )
-    .bind(session.id().unwrap().0 as i64)
+    .bind(session.id().ok_or(ServerError::SessionIdMissing)?.0 as i64)
     .fetch_optional(&pool)
     .await?;
 
@@ -80,7 +80,7 @@ pub async fn post_change_username(
                 WHERE session_id = $1
         "#,
     )
-    .bind(session.id().unwrap().0 as i64)
+    .bind(session.id().ok_or(ServerError::SessionIdMissing)?.0 as i64)
     .fetch_one(&pool)
     .await;
 

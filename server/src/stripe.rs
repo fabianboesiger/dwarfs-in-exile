@@ -100,6 +100,8 @@ pub async fn handle_webhook(
                                 .unwrap();
             
                             game_state.new_server_connection().await.updated_user_data();
+
+                            tracing::debug!("updated premium usage hours for user with id: {}", user_id);
                         }
                     }
                 }

@@ -85,7 +85,7 @@ pub async fn post_login(
                         VALUES ($1, $2, $3)
                     "#,
                 )
-                .bind(session.id().unwrap().0 as i64)
+                .bind(session.id().ok_or(ServerError::SessionIdMissing)?.0 as i64)
                 .bind(user_id)
                 .bind(session.expiry_age().whole_seconds())
                 .execute(&pool)
