@@ -106,7 +106,7 @@ impl engine_shared::State for State {
             match event {
                 Event::ClientEvent(event, user_id) => {
                     if !self.players.contains_key(&user_id) {
-                        self.players.insert(user_id, Player::new(self.time, rng));
+                        self.players.insert(user_id, Player::new(self.time, rng, &mut self.next_dwarf_id));
                     }
                     let player = self.players.get_mut(&user_id)?;
                     player.last_online = self.time;
@@ -140,7 +140,7 @@ impl engine_shared::State for State {
                         }
                         ClientEvent::Restart => {
                             if player.dwarfs.len() == 0 {
-                                let mut player = Player::new(self.time, rng);
+                                let mut player = Player::new(self.time, rng, &mut self.next_dwarf_id);
                                 player.new_dwarf(rng, &mut self.next_dwarf_id, self.time);
                                 self.players.insert(user_id, player);
                             }
@@ -193,8 +193,10 @@ impl engine_shared::State for State {
                                     .add_checked(Bundle::new().add(old_item, 1));
                             }
                         }
-                        ClientEvent::OpenLootCrate => {            
-                            player.open_loot_crate(rng, self.time);
+                        ClientEvent::OpenLootCrate => {
+                            if is_premium {
+                                player.open_loot_crate(rng, self.time);
+                            }            
                         }
                         ClientEvent::AssignToQuest(quest_idx, dwarf_idx, dwarf_id) => {            
                             if let Some(dwarf_id) = dwarf_id {
@@ -319,7 +321,7 @@ impl engine_shared::State for State {
                                 // Let the dwarfs work!
                                 for (_, dwarf) in player.dwarfs.iter_mut() {
                                     if !dwarf.dead() {
-                                        dwarf.work(&mut player.inventory, rng);
+                                        dwarf.work(&mut player.inventory, rng, self.time);
                                     }
                                 }
             
@@ -418,7 +420,7 @@ impl engine_shared::State for State {
                                         RewardMode::BestGetsItems(items) => {
                                             if let Some(user_id) = quest.best() {
                                                 if let Some(player) = self.players.get_mut(&user_id) {
-                                                    player.inventory.items.add_checked(items.clone());
+                                                    player.inventory.add(items.clone(), self.time);
                                                     player.log.add(
                                                         self.time,
                                                         LogMsg::QuestCompletedItems(
@@ -739,20 +741,20 @@ impl Default for AutoFunctions {
 }
 
 impl Player {
-    pub fn new(time: Time, rng: &mut impl Rng) -> Self {
-        Player {
-            dwarfs: {
-                let mut map = CustomMap::new();
-                map.insert(0, Dwarf::new(rng, 1));
-                map
-            },
+    pub fn new(time: Time, rng: &mut impl Rng, next_dwarf_id: &mut DwarfId) -> Self {
+        let mut player = Player {
+            dwarfs: CustomMap::new(),
             base: Base::new(),
             inventory: Inventory::new(),
             log: Log::default(),
             money: 0,
             last_online: time,
             auto_functions: AutoFunctions::default(),
-        }
+        };
+
+        player.new_dwarf(rng, next_dwarf_id, time);
+
+        player
     }
 
     pub fn is_online(&self, time: Time) -> bool {
@@ -787,7 +789,7 @@ impl Player {
             let item = *possible_items.choose(rng).unwrap();
             let bundle = Bundle::new().add(item, 1);
             self.log.add(time, LogMsg::OpenedLootCrate(bundle.clone()));
-            self.inventory.items.add_checked(bundle);
+            self.inventory.add(bundle, time);
         }
     }
 
@@ -812,13 +814,32 @@ impl Player {
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 pub struct Inventory {
     pub items: Bundle<Item>,
+    pub last_received: VecDeque<(Item, u64, Time)>,
 }
 
 impl Inventory {
     fn new() -> Self {
         Inventory {
             items: Bundle::new(),
+            last_received: VecDeque::new(),
         }
+    }
+
+    pub fn add(&mut self, bundle: Bundle<Item>, time: Time) {
+        for (item, qty) in bundle.iter() {
+            if let Some((back_item, back_qty, back_time)) = self.last_received.back_mut() {
+                if back_item == item {
+                    *back_qty += qty;
+                    *back_time = time;
+                    continue;
+                }
+            }
+            self.last_received.push_back((*item, *qty, time));
+            if self.last_received.len() > 8 {
+                self.last_received.pop_front();
+            }
+        }
+        self.items.add_checked(bundle);
     }
 
     pub fn by_type(&self, item_type: Option<ItemType>) -> Vec<Item> {
@@ -1849,7 +1870,7 @@ impl Dwarf {
         effectiveness
     }
 
-    pub fn work(&mut self, inventory: &mut Inventory, rng: &mut impl Rng) {
+    pub fn work(&mut self, inventory: &mut Inventory, rng: &mut impl Rng, time: Time) {
         for _ in 0..=self.effectiveness(self.occupation) {
             for item in enum_iterator::all::<Item>() {
                 if let Some(ItemProbability {
@@ -1859,7 +1880,7 @@ impl Dwarf {
                 {
                     if self.occupation_duration >= starting_from_tick {
                         if rng.gen_ratio(1, expected_ticks_per_drop as u32) {
-                            inventory.items.add_checked(Bundle::new().add(item, 1));
+                            inventory.add(Bundle::new().add(item, 1), time);
                         }
                     }
                 }

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<main>
+    <div class="form-wrapper">
+        <h2>Change Username</h2>
+        <form method="POST">
+            <div>
+                <label for="username">Username</label>
+                <input id="username" type="text" name="username" value="{{ username }}">
+                {% for err in username_error %}
+                    <span class="error">{{ err }}</span>
+                {% endfor %}
+            </div>
+
+            <input type="submit" value="Submit">
+        </form>
+        <a href="/account" class="button">Back</a>
+    </div>
+</main>
+{% endblock %}

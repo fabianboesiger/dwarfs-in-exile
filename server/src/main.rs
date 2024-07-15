@@ -4,6 +4,7 @@ mod db;
 mod error;
 mod game;
 mod index;
+mod stripe;
 
 use error::*;
 
@@ -74,14 +75,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/logout", get(auth::logout::get_logout))
         .route("/account", get(auth::account::get_account))
         .route(
-            "/account/username",
-            post(auth::account::post_change_username),
+            "/change-username",
+            get(auth::change_username::get_change_username),
         )
-        //.route("/account/email", post(auth::account::post_change_email))
         .route(
-            "/account/password",
-            post(auth::account::post_change_password),
+            "/change-username",
+            post(auth::change_username::post_change_username),
         )
+        .route(
+            "/change-password",
+            get(auth::change_password::get_change_password),
+        )
+        .route(
+            "/change-password",
+            post(auth::change_password::post_change_password),
+        )
+        .route("/stripe-webhook", post(stripe::handle_webhook))
         .layer(Extension(game_state))
         .layer(Extension(pool.clone()))
         .layer(session_layer)

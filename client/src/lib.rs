@@ -4,10 +4,11 @@ use engine_client::{ClientState, EventWrapper, Msg as EngineMsg};
 use images::Image;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, QuestType, RewardMode, Stats, LOOT_CRATE_COST, MAX_HEALTH, SPEED
+    Bundle, ClientEvent, Craftable, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, QuestType, RewardMode, Stats, Time, LOOT_CRATE_COST, MAX_HEALTH, SPEED
 };
 use std::str::FromStr;
 use itertools::Itertools;
+use web_sys::js_sys::Date;
 
 #[cfg(not(debug_assertions))]
 const WS_URL: &str = "ws://localhost:3000/game/ws";
@@ -102,6 +103,21 @@ pub struct Model {
     chat_visible: bool,
     history_visible: bool,
     inventory_filter: InventoryFilter,
+    map_time: Option<(Time, f64)>,
+}
+
+impl Model {
+    fn sync_timestamp_millis_now(&mut self, time: Time) {
+        self.map_time = Some((time, Date::now()));
+    }
+
+    fn get_timestamp_millis_of(&self, time: Time) -> Option<f64> {
+        Some(self.map_time?.1 + (time as f64 - self.map_time?.0 as f64) * 1000.0 / SPEED as f64)
+    }
+
+    fn get_timestamp_millis_diff_now(&self, time: Time) -> Option<f64> {
+        Some(Date::now() - self.get_timestamp_millis_of(time)?)
+    }
 }
 
 // ------ ------
@@ -129,6 +145,7 @@ fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
         chat_visible: false,
         history_visible: false,
         inventory_filter: InventoryFilter::default(),
+        map_time: None,
     }
 }
 
@@ -185,6 +202,9 @@ impl From<EventWrapper<shared::State>> for Msg {
 fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
     match msg {
         Msg::GameStateEvent(ev) => {
+            if let EventWrapper::InitGameState(sync_data) = &ev {
+                model.sync_timestamp_millis_now(sync_data.state.state.time);
+            }
             model.state.update(ev, orders);
         }
         Msg::ChangePage(page) => {
@@ -280,7 +300,7 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
             main![match model.page {
                 Page::Dwarfs(mode) => dwarfs(state, user_id, mode),
                 Page::Dwarf(dwarf_id) => dwarf(model, state, user_id, dwarf_id),
-                Page::Base => base(state, user_id),
+                Page::Base => base(model, state, user_id),
                 Page::Inventory(mode) => inventory(model, state, user_id, mode),
                 Page::Ranking => ranking(state, client_state),
                 Page::Quests => quests(state, user_id),
@@ -288,6 +308,7 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
             }],
             chat(model, state, client_state),
             history(model, state, user_id, client_state),
+            last_received_items(model, state, user_id),
         ]
     } else {
         vec![
@@ -365,6 +386,43 @@ fn fmt_time(mut time: u64) -> String {
     } else {
         return format!("{} seconds", time);
     }
+}
+
+fn last_received_items(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
+    let player = state.players.get(user_id).unwrap();
+    
+
+    div![C!["received-item-popup"],
+        player.inventory.last_received
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, (item, qty, time))| {
+            let time_diff_millis = model.get_timestamp_millis_diff_now(*time)?;
+ 
+            if time_diff_millis > 3000.0 {
+                None
+            } else {
+                Some(div![
+                    C!["received-item"],
+                    style![St::Opacity => format!("{}", 1.0 - time_diff_millis / 3000.0)],
+                    match item.item_rarity() {
+                        ItemRarity::Common => C!["item-common"],
+                        ItemRarity::Uncommon => C!["item-uncommon"],
+                        ItemRarity::Rare => C!["item-rare"],
+                        ItemRarity::Epic => C!["item-epic"],
+                        ItemRarity::Legendary => C!["item-legendary"],
+                    },
+                    img![C!["received-item-image"],
+                        attrs!{At::Src => Image::from(*item).as_at_value()},
+                    ],
+                    div![C!["received-item-content"],
+                        format!("+{}", qty)
+                    ]
+                ])
+            }
+        })
+    ]
+    
 }
 
 fn health_bar(curr: Health, max: Health) -> Node<Msg> {
@@ -476,43 +534,44 @@ fn dwarf(model: &Model, state: &shared::State, user_id: &shared::UserId, dwarf_i
     let is_premium = model.state.get_user_data(user_id).map(|user_data| user_data.premium).unwrap_or(false);
 
     if let Some(dwarf) = dwarf {
-        table![
-            C!["dwarf", "content", format!("dwarf-{}", dwarf_id)],
-            tr![
-                C!["list-item-row"],
-                td![img![C!["list-item-image"], attrs! {At::Src => Image::dwarf_from_name(&dwarf.name).as_at_value()}]],
-                td![
-                    C!["list-item-content"],
-                    h3![C!["title"], &dwarf.name],
-                    p![C!["subtitle"],
-                    if let Some((quest_type, _, _)) = dwarf.participates_in_quest {
-                        format!(
-                            "Participating in quest {} since {}.",
-                            quest_type,
-                            fmt_time(dwarf.occupation_duration)
-                        )
+        div![
+            C!["content"],
+            C!["dwarf", format!("dwarf-{}", dwarf_id)],
+            img![attrs! {At::Src => Image::dwarf_from_name(&dwarf.name).as_at_value()}],
+                    
+            h3![C!["title"], &dwarf.name],
+            p![C!["subtitle"],
+            if let Some((quest_type, _, _)) = dwarf.participates_in_quest {
+                format!(
+                    "Participating in quest {} since {}.",
+                    quest_type,
+                    fmt_time(dwarf.occupation_duration)
+                )
+            } else {
+                format!(
+                    "{} since {}.",
+                    dwarf.occupation,
+                    fmt_time(dwarf.occupation_duration)
+                )
+            }],
+            health_bar(dwarf.health, MAX_HEALTH),
+            p![
+                button![
+                    if is_premium {
+                        attrs! {}
                     } else {
-                        format!(
-                            "{} since {}.",
-                            dwarf.occupation,
-                            fmt_time(dwarf.occupation_duration)
-                        )
-                    }],
-                    health_bar(dwarf.health, MAX_HEALTH),
-                    p![
-                        button![
-                            if is_premium {
-                                attrs! {}
-                            } else {
-                                attrs! {At::Disabled => "true"}
-                            },
-                            ev(Ev::Click, move |_| Msg::send_event(
-                                ClientEvent::ToggleAutoIdle
-                            )),
-                            if player.auto_functions.auto_idle && is_premium { "Disable Auto Idling" } else { "Enable Auto Idling" },
-                        ]
-                    ]
-                ],
+                        attrs! {At::Disabled => "true"}
+                    },
+                    ev(Ev::Click, move |_| Msg::send_event(
+                        ClientEvent::ToggleAutoIdle
+                    )),
+                    if player.auto_functions.auto_idle && is_premium { "Disable Auto Idling" } else { "Enable Auto Idling" },
+                    if !is_premium {
+                        tip("This functionality requires a premium account.")
+                    } else {
+                        Node::Empty
+                    }
+                ]
             ],
             div![
                 h4!["Stats"],
@@ -985,8 +1044,9 @@ fn enumerate(num: usize) -> String {
     }
 }
 
-fn base(state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
+fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     let player = state.players.get(user_id).unwrap();
+    let is_premium = model.state.get_user_data(user_id).map(|user_data| user_data.premium).unwrap_or(false);
 
     div![C!["content"],
         h2!["Your Settlement"],
@@ -1027,15 +1087,20 @@ fn base(state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
         },
         div![
             h3!["Open Loot Crate"],
-            p!["A loot crate contains a random rare or legendary item. You can earn loot crates by completing quests."],
+            p!["A loot crate contains a random epic or legendary item. You can earn loot crates by completing quests."],
             button![
-                if player.money >= LOOT_CRATE_COST {
+                if player.money >= LOOT_CRATE_COST && is_premium {
                     attrs! {}
                 } else {
                     attrs! {At::Disabled => "true"}
                 },
                 ev(Ev::Click, move |_| Msg::send_event(ClientEvent::OpenLootCrate)),
                 format!("Buy and Open ({})", LOOT_CRATE_COST),
+                if !is_premium {
+                    tip("This functionality requires a premium account.")
+                } else {
+                    Node::Empty
+                }
             ]
         ]
     ]
@@ -1311,6 +1376,11 @@ fn inventory(
                                                     ClientEvent::ToggleAutoCraft(item)
                                                 )),
                                                 "Auto",
+                                                if !is_premium {
+                                                    tip("This functionality requires a premium account.")
+                                                } else {
+                                                    Node::Empty
+                                                }
                                             ]
                                         ]
                                     }
@@ -1386,7 +1456,12 @@ fn inventory(
                                                 ev(Ev::Click, move |_| Msg::send_event(
                                                     ClientEvent::ToggleAutoStore(item)
                                                 )),
-                                                "Auto"
+                                                "Auto",
+                                                if !is_premium {
+                                                    tip("This functionality requires a premium account.")
+                                                } else {
+                                                    Node::Empty
+                                                }
                                             ]
                                         ]
                                     }

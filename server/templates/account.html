@@ -4,39 +4,34 @@
     <div class="form-wrapper">
         <h2>Account</h2>
         <p>Hi {{ username }}, thanks for playing the game!</p>
+
+        <a class="button" href="/change-username">Change Username</a>
+        <a class="button" href="change-password">Change Password</a>
         <a class="button" href="/logout">Logout</a>
-    
-        <h3>Change Username</h3>
-        <form method="POST" action="/account/username">
-            <div>
-                <label for="username">Username</label>
-                <input id="username" type="text" name="username" value="{{ username }}">
-                {% for err in username_error %}
-                    <span class="error">{{ err }}</span>
-                {% endfor %}
-            </div>
-            <input type="submit" value="Apply Changes">
-        </form>
-   
-        <h3>Change Password</h3>
-        <form method="POST" action="/account/password">
-            <div>
-                <label for="password">Password</label>
-                <input id="password" type="password" name="password">
-                {% for err in password_error %}
-                    <span class="error">{{ err }}</span>
-                {% endfor %}
-            </div>
-            <div>
-                <label for="password-repeat">Repeat Password</label>
-                <input id="password-repeat" name="password_repeat" type="password">
-                {% for err in password_repeat_error %}
-                    <span class="error">{{ err }}</span>
-                {% endfor %}
-            </div>
-            <input type="hidden" name="username" value="{{ username }}">
-            <input type="submit" value="Apply Changes">
-        </form>
-    </div>
+        
+        <h2>Premium Account</h2>
+
+        {% if premium > 0 %}
+        <p>You have an active premium account unitl .</p>
+        {% endif %}
+
+        <script async src="https://js.stripe.com/v3/buy-button.js"></script>
+
+        <stripe-buy-button
+            buy-button-id="buy_btn_1Pcq8OCJSYyq6ul45QglYe5M"
+            publishable-key="pk_test_51PclDhCJSYyq6ul4shd76Uo28pNWY617Ae8OTV0NXhxZoKCIKEhLkiZRKNnLG635zpSIKJS8eGLPNaKqFtatiZLA00KocaOW8X"
+            client-reference-id="{{ user_id }}"
+        ></stripe-buy-button>
+        <stripe-buy-button
+            buy-button-id="buy_btn_1Pcq8tCJSYyq6ul4f4jhctou"
+            publishable-key="pk_test_51PclDhCJSYyq6ul4shd76Uo28pNWY617Ae8OTV0NXhxZoKCIKEhLkiZRKNnLG635zpSIKJS8eGLPNaKqFtatiZLA00KocaOW8X"
+            client-reference-id="{{ user_id }}"
+        ></stripe-buy-button>
+        <stripe-buy-button
+            buy-button-id="buy_btn_1Pcq9GCJSYyq6ul4PQ5OshG9"
+            publishable-key="pk_test_51PclDhCJSYyq6ul4shd76Uo28pNWY617Ae8OTV0NXhxZoKCIKEhLkiZRKNnLG635zpSIKJS8eGLPNaKqFtatiZLA00KocaOW8X"
+            client-reference-id="{{ user_id }}"
+        >
+        </stripe-buy-button>
 </main>
 {% endblock %}

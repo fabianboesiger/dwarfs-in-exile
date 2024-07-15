@@ -23,10 +23,12 @@
 html {
     font-family: Georgia, 'Times New Roman', Times, serif;
     font-size: 12px;
+    overflow-x: hidden;
 }
 
 body {
     margin: 0;
+    overflow-x: hidden;
 }
 
 header {
@@ -350,6 +352,9 @@ input[type=checkbox] {
 .tooltip .tooltiptext {
     visibility: hidden;
     position: absolute;
+    width: 128px;
+    bottom: 16px;
+    left: -64px;
     z-index: 5000;
     background: white;    
     backdrop-filter: blur(16px);
@@ -359,7 +364,6 @@ input[type=checkbox] {
     font-family: Georgia, 'Times New Roman', Times, serif;
     font-size: 12px;
     font-weight: normal;
-    width: 256px;
     color: black;
 }
   
@@ -490,3 +494,31 @@ h3, h4 {
     margin-top: 0;
 }
 
+.received-item-popup {
+    position: fixed;
+    left: 0;
+    bottom: 32px;
+    width: 64px;
+    z-index: 1000;
+}
+
+.received-item {
+    width: 64px;
+    height: 32px;
+    display: flex;
+    vertical-align: middle;
+    background: rgba(255, 255, 255, 0.3);    
+    backdrop-filter: blur(16px);
+}
+
+.received-item-image {
+    width: 32px;
+    height: 32px;
+}
+
+.received-item-content {
+    font-size: 12px;
+    text-align: center;
+    vertical-align: middle;
+    line-height: 32px;
+}
