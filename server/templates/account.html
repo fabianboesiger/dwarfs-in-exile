@@ -11,15 +11,15 @@
         
         <h3>Premium</h3>
 
-        {% if premium > 0 %}
+        {% if premium >= 24 %}
+        <p>You have an active premium account with {{ premium / 24 }} days and {{ premium % 24 }} hours remaining.</p>
+        {% else if premium > 0 %}
         <p>You have an active premium account with {{ premium }} hours remaining.</p>
-        {% else if premium >= 24 %}
-        <p>You have an active premium account with {{ premium / 24 }} days remaining.</p>
         {% else %}
         <p>You have no premium account.</p>
         {% endif %}
 
-        <a class="button" href="/store">Buy a Premium Account</a>
+        <a class="button" href="/store">Visit Store</a>
 
 </main>
 {% endblock %}

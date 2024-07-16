@@ -1,5 +1,6 @@
 use askama_axum::IntoResponse;
 use axum::{http::StatusCode, response::{Redirect, Response}};
+use stripe::StripeError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -10,39 +11,31 @@ pub enum ServerError {
     //AxumFormRejection(#[from] axum::extract::rejection::FormRejection),
     #[error(transparent)]
     SqliteError(#[from] sqlx::Error),
-    #[error("stripe error, missing data")]
-    StripeErrorMissingData,
+    #[error("stripe error, missing data: {0}")]
+    StripeErrorMissingData(String),
+    #[error(transparent)]
+    StripeError(#[from] StripeError),
     #[error(transparent)]
     ParseError(#[from] std::num::ParseIntError),
     #[error(transparent)]
     SessionError(#[from] tower_sessions::session::Error),
-    #[error("session user missing")]
-    SessionUserMissing,
+    #[error("invalid session")]
+    InvalidSession,
     #[error("user deleted")]
     UserDeleted
 }
 
 impl IntoResponse for ServerError {
     fn into_response(self) -> Response {
-        match self {
-            ServerError::ValidationError(err) => {
-                (StatusCode::BAD_REQUEST, format!("{}", err)).into_response()
-            }
-            ServerError::SqliteError(err) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, format!("{}", err)).into_response()
-            }
-            ServerError::StripeErrorMissingData => {
-                (StatusCode::INTERNAL_SERVER_ERROR, format!("{}", self)).into_response()
-            }
-            ServerError::ParseError(err) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, format!("{}", err)).into_response()
-            }
-            ServerError::SessionError(err) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, format!("{}", err)).into_response()
-            }
-            ServerError::SessionUserMissing | ServerError::UserDeleted => {
+        match &self {
+            ServerError::InvalidSession | ServerError::UserDeleted => {
                 Redirect::to("/login").into_response()
             }
+            ServerError::ValidationError(_) => (StatusCode::BAD_REQUEST, format!("{self}")).into_response(),
+            _ => {
+                tracing::error!("an internal server error occurred: {self}");
+                (StatusCode::INTERNAL_SERVER_ERROR, format!("{self}")).into_response()
+            },
         }
     }
 }

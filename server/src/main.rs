@@ -53,9 +53,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let store = GameStore::new(pool.clone());
     let game_state = GameState::new(store).await;
     
+    // Manage the number of hours for premium accounts.
     let pool_clone = pool.clone();
     task::spawn(async move {
         let mut interval = time::interval(Duration::from_secs(60 * 60));
+        // The first tick fires immediately, we don't want that so we await it directly.
+        interval.tick().await;
 
         loop {
             interval.tick().await;
@@ -112,7 +115,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/change-password",
             post(auth::change_password::post_change_password),
         )
-        .route("/stripe-webhook", post(stripe::handle_webhook))
+        .route("/stripe-webhooks", post(stripe::handle_webhook))
         .layer(Extension(game_state))
         .layer(Extension(pool.clone()))
         .layer(session_layer)

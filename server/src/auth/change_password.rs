@@ -52,7 +52,7 @@ pub struct ChangePasswordTemplate {
 pub async fn get_change_password(
     session: Session,
 ) -> Result<Response, ServerError> {
-    session.get::<i64>(crate::USER_ID_KEY).await?.ok_or(ServerError::SessionUserMissing)?;
+    session.get::<i64>(crate::USER_ID_KEY).await?.ok_or(ServerError::InvalidSession)?;
 
     Ok(ChangePasswordTemplate {
         ..ChangePasswordTemplate::default()
@@ -79,7 +79,7 @@ pub async fn post_change_password(
         "#,
     )
     .bind(&hashed)
-    .bind(session.get::<i64>(crate::USER_ID_KEY).await?.ok_or(ServerError::SessionUserMissing)?)
+    .bind(session.get::<i64>(crate::USER_ID_KEY).await?.ok_or(ServerError::InvalidSession)?)
     .execute(&pool)
     .await?;
 

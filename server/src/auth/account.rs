@@ -24,7 +24,7 @@ pub async fn get_account(
             WHERE user_id = $1
         "#,
     )
-    .bind(session.get::<i64>(crate::USER_ID_KEY).await?.ok_or(ServerError::SessionUserMissing)?)
+    .bind(session.get::<i64>(crate::USER_ID_KEY).await?.ok_or(ServerError::InvalidSession)?)
     .fetch_optional(&pool)
     .await?
     .ok_or(ServerError::UserDeleted)?;

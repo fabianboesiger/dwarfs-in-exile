@@ -99,7 +99,7 @@ pub async fn ws_handler(
     Extension(game_state): Extension<GameState>,
 ) -> Result<Response, ServerError> {
     tracing::info!("new websocket connection");
-    let user_id = UserId(session.get::<i64>(crate::USER_ID_KEY).await?.ok_or(ServerError::SessionUserMissing)?);
+    let user_id = UserId(session.get::<i64>(crate::USER_ID_KEY).await?.ok_or(ServerError::InvalidSession)?);
 
     Ok(ws.on_upgrade(move |socket: WebSocket| async move {
         let (conn_req, mut conn_res) = game_state.new_connection(user_id).await;
@@ -137,7 +137,7 @@ pub struct GameTemplate {}
 pub async fn get_game(
     session: Session,
 ) -> Result<Response, ServerError> {
-    session.get::<i64>(crate::USER_ID_KEY).await?.ok_or(ServerError::SessionUserMissing)?;
+    session.get::<i64>(crate::USER_ID_KEY).await?.ok_or(ServerError::InvalidSession)?;
 
     Ok(GameTemplate::default().into_response())
 }
