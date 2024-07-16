@@ -2,7 +2,7 @@
  "name": "Dwarfs in Exile",
  "short_name": "Dwarfs in Exile",
  "display": "standalone",
- "start_url": "/",
+ "start_url": "/game",
  "background_color": "#ffffff",
  "theme_color": "#ffffff",
  "description": "Dwarfs in Exile is a text-based multiplayer management game where you have control over a dwarfen settlement and its inhabitants.",

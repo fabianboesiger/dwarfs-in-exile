@@ -592,7 +592,7 @@ fn dwarf(
     let is_premium = model
         .state
         .get_user_data(user_id)
-        .map(|user_data| user_data.premium)
+        .map(|user_data| user_data.premium > 0)
         .unwrap_or(false);
 
     if let Some(dwarf) = dwarf {
@@ -1125,7 +1125,7 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
     let is_premium = model
         .state
         .get_user_data(user_id)
-        .map(|user_data| user_data.premium)
+        .map(|user_data| user_data.premium > 0)
         .unwrap_or(false);
 
     div![C!["content"],
@@ -1196,7 +1196,7 @@ fn inventory(
     let is_premium = model
         .state
         .get_user_data(user_id)
-        .map(|user_data| user_data.premium)
+        .map(|user_data| user_data.premium > 0)
         .unwrap_or(false);
 
     let items: Bundle<Item> = enum_iterator::all::<Item>()
@@ -1335,7 +1335,7 @@ fn inventory(
                     td![
                         C!["list-item-content", "grow"],
                         
-                        h3![C!["title"], format!("{n}x {item}")],
+                        h3![C!["title"], format!("{}x {item}", big_number(n))],
                         p![
                             C!["subtitle"], if let Some(food) = item.nutritional_value() {
                                 format!("Food ({food}) | {}", item.item_rarity())

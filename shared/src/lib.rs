@@ -47,7 +47,7 @@ impl From<i64> for UserId {
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct UserData {
     pub username: String,
-    pub premium: bool,
+    pub premium: u64,
 }
 
 impl engine_shared::UserData for UserData {}
@@ -124,7 +124,7 @@ impl engine_shared::State for State {
 
                     let is_premium = user_data
                         .get(&user_id)
-                        .map(|user_data| user_data.premium)
+                        .map(|user_data| user_data.premium > 0)
                         .unwrap_or(false);
 
                     match event {
@@ -274,7 +274,7 @@ impl engine_shared::State for State {
                             for (user_id, player) in self.players.iter_mut() {
                                 let is_premium = user_data
                                     .get(user_id)
-                                    .map(|user_data| user_data.premium)
+                                    .map(|user_data| user_data.premium > 0)
                                     .unwrap_or(false);
 
                                 if is_premium {

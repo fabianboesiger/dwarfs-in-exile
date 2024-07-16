@@ -70,7 +70,7 @@ impl engine_server::BackendStore<shared::State> for GameStore {
                     id.into(),
                     UserData {
                         username,
-                        premium: premium == 1,
+                        premium: premium as u64,
                     },
                 )
             })
