@@ -5,8 +5,7 @@ use images::Image;
 use itertools::Itertools;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg,
-    Occupation, Player, QuestType, RewardMode, Stats, Time, LOOT_CRATE_COST, MAX_HEALTH, SPEED,
+    Bundle, ClientEvent, Craftable, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, QuestId, QuestType, RewardMode, Stats, Time, LOOT_CRATE_COST, MAX_HEALTH, SPEED
 };
 use std::str::FromStr;
 use web_sys::js_sys::Date;
@@ -27,7 +26,7 @@ pub enum Page {
     Base,
     Inventory(InventoryMode),
     Quests,
-    Quest(usize),
+    Quest(QuestId),
     Ranking,
 }
 
@@ -69,7 +68,7 @@ pub enum DwarfsMode {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum DwarfsSelect {
-    Quest(usize, usize),
+    Quest(QuestId, usize),
 }
 
 pub struct InventoryFilter {
@@ -176,7 +175,7 @@ pub enum Msg {
     ToggleChat,
     ToggleHistory,
     ChangeEquipment(DwarfId, ItemType, Option<Item>),
-    AssignToQuest(usize, usize, Option<DwarfId>),
+    AssignToQuest(QuestId, usize, Option<DwarfId>),
     InventoryFilterFood,
     InventoryFilterOwned,
     InventoryFilterCraftable,
@@ -247,14 +246,14 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
         Msg::InventoryFilterReset => {
             model.inventory_filter = InventoryFilter::default();
         }
-        Msg::AssignToQuest(quest_idx, dwarf_idx, dwarf_id) => {
+        Msg::AssignToQuest(quest_id, dwarf_idx, dwarf_id) => {
             if dwarf_id.is_some() {
                 orders.notify(subs::UrlRequested::new(
-                    Url::from_str(&format!("/game/quests/{}", quest_idx)).unwrap(),
+                    Url::from_str(&format!("/game/quests/{}", quest_id)).unwrap(),
                 ));
             }
             orders.send_msg(Msg::send_event(ClientEvent::AssignToQuest(
-                quest_idx, dwarf_idx, dwarf_id,
+                quest_id, dwarf_idx, dwarf_id,
             )));
         }
         Msg::ChangeEquipment(dwarf_id, item_type, item) => {
@@ -312,7 +311,7 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
                 Page::Inventory(mode) => inventory(model, state, user_id, mode),
                 Page::Ranking => ranking(state, client_state),
                 Page::Quests => quests(state, user_id),
-                Page::Quest(quest_idx) => quest(state, user_id, quest_idx),
+                Page::Quest(quest_id) => quest(state, user_id, quest_id),
             }],
             chat(model, state, client_state),
             history(model, state, user_id, client_state),
@@ -540,23 +539,23 @@ fn dwarfs(state: &shared::State, user_id: &shared::UserId, mode: DwarfsMode) -> 
                                 "Details"
                             ]
                         }
-                        DwarfsMode::Select(DwarfsSelect::Quest(quest_idx, dwarf_idx)) => {
+                        DwarfsMode::Select(DwarfsSelect::Quest(quest_id, dwarf_idx)) => {
                             div![button![
                                 ev(Ev::Click, move |_| Msg::AssignToQuest(
-                                    quest_idx,
+                                    quest_id,
                                     dwarf_idx,
                                     Some(id)
                                 )),
                                 format!(
                                     "Assign to Quest {}",
-                                    state.quests.get(quest_idx).unwrap().quest_type
+                                    state.quests.get(&quest_id).unwrap().quest_type
                                 ),
                                 br![],
                                 stars(
                                     dwarf.effectiveness(
                                         state
                                             .quests
-                                            .get(quest_idx)
+                                            .get(&quest_id)
                                             .unwrap()
                                             .quest_type
                                             .occupation()
@@ -593,7 +592,7 @@ fn dwarf(
     let is_premium = model
         .state
         .get_user_data(user_id)
-        .map(|user_data| user_data.premium)
+        .map(|user_data| user_data.premium > 0)
         .unwrap_or(false);
 
     if let Some(dwarf) = dwarf {
@@ -892,7 +891,7 @@ fn dwarf(
         div![
             C!["content"],
             h2!["There's Noone Here!"],
-            p!["All dwarf has died!"],
+            p!["This dwarf has died!"],
             a![attrs! { At::Href => "/game/dwarfs" }, "Go back"],
         ]
     }
@@ -903,7 +902,7 @@ fn quests(state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
 
     table![
         C!["quests", "list"],
-        state.quests.iter().enumerate().map(|(quest_idx, quest)| {
+        state.quests.iter().map(|(quest_id, quest)| {
             tr![
                 C!["list-item-row"],
                 td![img![
@@ -937,7 +936,7 @@ fn quests(state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
                     },
                     a![
                         C!["button"],
-                        attrs! { At::Href => format!("/game/quests/{}", quest_idx) },
+                        attrs! { At::Href => format!("/game/quests/{}", quest_id) },
                         "Details"
                     ]
                 ]
@@ -946,147 +945,157 @@ fn quests(state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     ]
 }
 
-fn quest(state: &shared::State, user_id: &shared::UserId, quest_idx: usize) -> Node<Msg> {
+fn quest(state: &shared::State, user_id: &shared::UserId, quest_id: QuestId) -> Node<Msg> {
     let player = state.players.get(user_id).unwrap();
-    let quest = state.quests.get(quest_idx).unwrap();
+    let quest = state.quests.get(&quest_id);
 
-    div![
-        C!["content"],
+    if let Some(quest) = quest {
         div![
-            C!["list-item-row"],
-            img![C!["list-item-image"], attrs! {At::Src => Image::from(quest.quest_type).as_at_value()}],
-            
+            C!["content"],
             div![
-                C!["list-item-content"],
-                h3![C!["title"], format!("{}", quest.quest_type)],
-                p![C!["subtitle"], format!("{} remaining.", fmt_time(quest.time_left))],
-               
-            ]
-        ],
-
-        p![  
-            match quest.quest_type {
-                QuestType::KillTheDragon => p!["A dragon was found high up in the mountains in the forbidden lands. Send your best warriors to defeat it."],
-                QuestType::ArenaFight => p!["The King of the Dwarfs has invited the exilants to compete in an arena fight against monsters and creatures from the forbidden lands. The toughest warrior will be rewarded with a gift from the king personally."],
-                QuestType::ExploreNewLands => p!["Send dwarfs to explore new lands and find a place for a new settlement. The new settlement will be a better version of your previous settlement that allows a larger maximal population. Additionally, the new settlement will attract more and better dwarfs. Keep in mind that if this quest is sucessful, you will loose all of your dwarfs that you left back home."],
-                QuestType::FeastForAGuest => p!["Your village is visted by an ominous guest. Go hunting and organize a feast for the guest, and he may stay."],
-                QuestType::FreeTheVillage => p!["The Elven Village was raided by the Orks. Free the Elves to earn a reward!"],
-                QuestType::ADwarfGotLost => p!["Search for a dwarf that got lost in the wilderness. If you find him first, he may stay in your settlement!"],
-                QuestType::AFishingFriend => p!["Go fishing and make friends!"],
-                QuestType::ADwarfInDanger => p!["Free a dwarf that gets robbed by Orks. If you free him first, he may stay in your settlement!"],
-                QuestType::ForTheKing => p!["Fight a ruthless battle to become the king over all of Exile Island!"],
-                QuestType::DrunkFishing => p!["Participate in the drunk fishing contest! The dwarf that is the most successful drunk fisher gets a reward."],
-                QuestType::CollapsedCave => p!["A cave has collapsed and a dwarf is trapped inside. Be the first to save is life and he will move into your settlement."]
-            },
-        ], 
-        
-        p![format!("This quest requires {}.", quest.quest_type.occupation().to_string().to_lowercase())],
-        h4!["Rewards"],
-        match quest.quest_type.reward_mode() {
-            RewardMode::BestGetsAll(money) => div![p![format!("The best player gets {money}, the rest gets nothing.")]],
-            RewardMode::SplitFairly(money) => div![p![format!("A total of {money} are split fairly between the players.")]],
-            RewardMode::Prestige => div![
-                p![format!("The participating players will have the chance to start over with a better settlement. For this quest to be successful, your settlement needs to be fully upgraded.")],
-                if player.can_prestige() {
-                    p![format!("Your settlement is fully upgraded!")]
-                } else {
-                    p![format!("Your settelemnt is not fully upgraded!")]
-                }
-            ],
-            RewardMode::BecomeKing => div![
-                p![format!("The best player will become the king and get one tenth of all money that is earned during his reign.")],
-            ],
-            RewardMode::BestGetsItems(items) => div![
-                p![format!("The best player will get the following items:")],
-                p![bundle(&items, player, false)]
-            ],
-            RewardMode::NewDwarf(num) => div![p![format!("The best participant gets {num} new dwarf for their settlement.")]],
-        },
-        h4!["Participate"],
-        
-        if let Some(contestant) = quest.contestants.get(user_id) {
-            let rank = quest.contestants.values().filter(|c| c.achieved_score >= contestant.achieved_score).count();
-            let mut contestants = quest.contestants.values().collect::<Vec<_>>();
-            contestants.sort_by_key(|c| c.achieved_score);
-            let best_score = contestants.last().unwrap().achieved_score;
-            p![
-                score_bar(contestant.achieved_score, best_score, rank, quest.contestants.len())
-            ]
-        } else {
-            Node::Empty
-        },
-
-        table![C!["list"],
-        (0..quest
-            .quest_type
-            .max_dwarfs())
-            .map(|dwarf_idx| {
-                (dwarf_idx, quest
-                    .contestants
-                    .get(user_id)
-                    .and_then(|contestant| contestant.dwarfs.get(&dwarf_idx).copied()))
-            })
-            .map(|(dwarf_idx, dwarf_id)| {
-                let dwarf = dwarf_id.map(|dwarf_id| player.dwarfs.get(&dwarf_id).unwrap());
-
-                tr![
-                    C!["list-item-row"],
-                    if let Some(dwarf) = dwarf {
-                        td![img![C!["list-item-image"], attrs! {At::Src => Image::dwarf_from_name(&dwarf.name).as_at_value()}]]
-                    } else {
-                        td![div![C!["list-item-image-placeholder"]]]
-                    },
-                    td![
-                        C!["list-item-content"],
-                        if let Some(dwarf) = dwarf {
-                            vec![
-                                h3![C!["title"], &dwarf.name],
-                                stars(dwarf.effectiveness(state.quests.get(quest_idx).unwrap().quest_type.occupation()) as i8, true),
-                            ]
-                        } else {
-                            vec![
-                                h3![C!["title"], "None"]
-                            ]
-                        },
-                        /*span![
-                            C!["subtitle"], 
-                        ],*/
-                        button![
-                            ev(Ev::Click, move |_| Msg::ChangePage(Page::Dwarfs(DwarfsMode::Select(DwarfsSelect::Quest(quest_idx, dwarf_idx))))),
-                            "Change"
-                        ],
-                        if dwarf_id.is_some() {
-                            button![
-                                ev(Ev::Click, move |_| Msg::AssignToQuest(quest_idx, dwarf_idx, None)),
-                                "Remove"
-                            ]
-                        } else {
-                            Node::Empty
-                        }
-                    ]
+                C!["list-item-row"],
+                img![C!["list-item-image"], attrs! {At::Src => Image::from(quest.quest_type).as_at_value()}],
+                
+                div![
+                    C!["list-item-content"],
+                    h3![C!["title"], format!("{}", quest.quest_type)],
+                    p![C!["subtitle"], format!("{} remaining.", fmt_time(quest.time_left))],
+                   
                 ]
-                /*tr![
-                    td![
-                        .unwrap_or(String::from("None"))
-                    ],
-                    td![
-                        button![
-                            ev(Ev::Click, move |_| Msg::ChangePage(Page::Dwarfs(DwarfsMode::Select(DwarfsSelect::Quest(quest_idx, dwarf_idx))))),
-                            "Change"
-                        ],
-                        if dwarf_id.is_some() {
-                            button![
-                                ev(Ev::Click, move |_| Msg::AssignToQuest(quest_idx, dwarf_idx, None)),
-                                "Remove"
-                            ]
+            ],
+    
+            p![  
+                match quest.quest_type {
+                    QuestType::KillTheDragon => p!["A dragon was found high up in the mountains in the forbidden lands. Send your best warriors to defeat it."],
+                    QuestType::ArenaFight => p!["The King of the Dwarfs has invited the exilants to compete in an arena fight against monsters and creatures from the forbidden lands. The toughest warrior will be rewarded with a gift from the king personally."],
+                    QuestType::ExploreNewLands => p!["Send dwarfs to explore new lands and find a place for a new settlement. The new settlement will be a better version of your previous settlement that allows a larger maximal population. Additionally, the new settlement will attract more and better dwarfs. Keep in mind that if this quest is sucessful, you will loose all of your dwarfs that you left back home."],
+                    QuestType::FeastForAGuest => p!["Your village is visted by an ominous guest. Go hunting and organize a feast for the guest, and he may stay."],
+                    QuestType::FreeTheVillage => p!["The Elven Village was raided by the Orks. Free the Elves to earn a reward!"],
+                    QuestType::ADwarfGotLost => p!["Search for a dwarf that got lost in the wilderness. If you find him first, he may stay in your settlement!"],
+                    QuestType::AFishingFriend => p!["Go fishing and make friends!"],
+                    QuestType::ADwarfInDanger => p!["Free a dwarf that gets robbed by Orks. If you free him first, he may stay in your settlement!"],
+                    QuestType::ForTheKing => p!["Fight a ruthless battle to become the king over all of Exile Island!"],
+                    QuestType::DrunkFishing => p!["Participate in the drunk fishing contest! The dwarf that is the most successful drunk fisher gets a reward."],
+                    QuestType::CollapsedCave => p!["A cave has collapsed and a dwarf is trapped inside. Be the first to save is life and he will move into your settlement."]
+                },
+            ], 
+            
+            p![format!("This quest requires {}.", quest.quest_type.occupation().to_string().to_lowercase())],
+            h4!["Rewards"],
+            match quest.quest_type.reward_mode() {
+                RewardMode::BestGetsAll(money) => div![p![format!("The best player gets {money} coins, the rest gets nothing.")]],
+                RewardMode::SplitFairly(money) => div![p![format!("A total of {money} coins are split fairly between the players.")]],
+                RewardMode::Prestige => div![
+                    p![format!("The participating players will have the chance to start over with a better settlement. For this quest to be successful, your settlement needs to be fully upgraded.")],
+                    if player.can_prestige() {
+                        p![format!("Your settlement is fully upgraded!")]
+                    } else {
+                        p![format!("Your settelemnt is not fully upgraded!")]
+                    }
+                ],
+                RewardMode::BecomeKing => div![
+                    p![format!("The best player will become the king and get one tenth of all money that is earned during his reign.")],
+                ],
+                RewardMode::BestGetsItems(items) => div![
+                    p![format!("The best player will get the following items:")],
+                    p![bundle(&items, player, false)]
+                ],
+                RewardMode::NewDwarf(num) => div![p![format!("The best participant gets {num} new dwarf for their settlement.")]],
+            },
+            h4!["Participate"],
+            
+            if let Some(contestant) = quest.contestants.get(user_id) {
+                let rank = quest.contestants.values().filter(|c| c.achieved_score >= contestant.achieved_score).count();
+                let mut contestants = quest.contestants.values().collect::<Vec<_>>();
+                contestants.sort_by_key(|c| c.achieved_score);
+                let best_score = contestants.last().unwrap().achieved_score;
+                p![
+                    score_bar(contestant.achieved_score, best_score, rank, quest.contestants.len())
+                ]
+            } else {
+                Node::Empty
+            },
+    
+            table![C!["list"],
+            (0..quest
+                .quest_type
+                .max_dwarfs())
+                .map(|dwarf_idx| {
+                    (dwarf_idx, quest
+                        .contestants
+                        .get(user_id)
+                        .and_then(|contestant| contestant.dwarfs.get(&dwarf_idx).copied()))
+                })
+                .map(|(dwarf_idx, dwarf_id)| {
+                    let dwarf = dwarf_id.map(|dwarf_id| player.dwarfs.get(&dwarf_id).unwrap());
+    
+                    tr![
+                        C!["list-item-row"],
+                        if let Some(dwarf) = dwarf {
+                            td![img![C!["list-item-image"], attrs! {At::Src => Image::dwarf_from_name(&dwarf.name).as_at_value()}]]
                         } else {
-                            Node::Empty
-                        }
+                            td![div![C!["list-item-image-placeholder"]]]
+                        },
+                        td![
+                            C!["list-item-content"],
+                            if let Some(dwarf) = dwarf {
+                                vec![
+                                    h3![C!["title"], &dwarf.name],
+                                    stars(dwarf.effectiveness(state.quests.get(&quest_id).unwrap().quest_type.occupation()) as i8, true),
+                                ]
+                            } else {
+                                vec![
+                                    h3![C!["title"], "None"]
+                                ]
+                            },
+                            /*span![
+                                C!["subtitle"], 
+                            ],*/
+                            button![
+                                ev(Ev::Click, move |_| Msg::ChangePage(Page::Dwarfs(DwarfsMode::Select(DwarfsSelect::Quest(quest_id, dwarf_idx))))),
+                                "Change"
+                            ],
+                            if dwarf_id.is_some() {
+                                button![
+                                    ev(Ev::Click, move |_| Msg::AssignToQuest(quest_id, dwarf_idx, None)),
+                                    "Remove"
+                                ]
+                            } else {
+                                Node::Empty
+                            }
+                        ]
                     ]
-                ]*/
-            })
+                    /*tr![
+                        td![
+                            .unwrap_or(String::from("None"))
+                        ],
+                        td![
+                            button![
+                                ev(Ev::Click, move |_| Msg::ChangePage(Page::Dwarfs(DwarfsMode::Select(DwarfsSelect::Quest(quest_idx, dwarf_idx))))),
+                                "Change"
+                            ],
+                            if dwarf_id.is_some() {
+                                button![
+                                    ev(Ev::Click, move |_| Msg::AssignToQuest(quest_idx, dwarf_idx, None)),
+                                    "Remove"
+                                ]
+                            } else {
+                                Node::Empty
+                            }
+                        ]
+                    ]*/
+                })
+            ]
         ]
-    ]
+    } else {
+        div![
+            C!["content"],
+            h2!["There's Nothing Here!"],
+            p!["This quest was completed!"],
+            a![attrs! { At::Href => "/game/quests" }, "Go back"],
+        ]
+    }
+    
 }
 
 fn big_number(mut num: u64) -> String {
@@ -1116,7 +1125,7 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
     let is_premium = model
         .state
         .get_user_data(user_id)
-        .map(|user_data| user_data.premium)
+        .map(|user_data| user_data.premium > 0)
         .unwrap_or(false);
 
     div![C!["content"],
@@ -1130,7 +1139,7 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
             ],
             //tr![th!["Settlement Level"], td![format!("{} / {}", player.base.curr_level, player.base.max_level())]],
             tr![th!["Population", tip("Upgrade your settlement to increase the maximum population. You can get new dwarfs from certain quests or at random.")], td![format!("{}/{}", player.dwarfs.len(), player.base.num_dwarfs())]],
-            tr![th!["Money", tip("Earn money by doing quests. With money, you can buy loot crates.")], td![format!("{}", player.money)]],
+            tr![th!["Money", tip("Earn money by doing quests. With money, you can buy loot crates.")], td![format!("{} coins", player.money)]],
             tr![th!["Food", tip("Your settlement can store food for your dwarfs to consume. One quantity of food restores 0.1% of a dwarfs health.")], td![format!("{}", player.base.food)]],
         ],
         if let Some(requires) = player.base.upgrade_cost() {
@@ -1166,7 +1175,7 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                     attrs! {At::Disabled => "true"}
                 },
                 ev(Ev::Click, move |_| Msg::send_event(ClientEvent::OpenLootCrate)),
-                format!("Buy and Open ({})", LOOT_CRATE_COST),
+                format!("Buy and Open ({} coins)", LOOT_CRATE_COST),
                 if !is_premium {
                     tip("This functionality requires a premium account.")
                 } else {
@@ -1187,7 +1196,7 @@ fn inventory(
     let is_premium = model
         .state
         .get_user_data(user_id)
-        .map(|user_data| user_data.premium)
+        .map(|user_data| user_data.premium > 0)
         .unwrap_or(false);
 
     let items: Bundle<Item> = enum_iterator::all::<Item>()
@@ -1326,7 +1335,7 @@ fn inventory(
                     td![
                         C!["list-item-content", "grow"],
                         
-                        h3![C!["title"], format!("{n}x {item}")],
+                        h3![C!["title"], format!("{}x {item}", big_number(n))],
                         p![
                             C!["subtitle"], if let Some(food) = item.nutritional_value() {
                                 format!("Food ({food}) | {}", item.item_rarity())
@@ -1645,7 +1654,7 @@ fn history(
                                 )]
                             }
                             LogMsg::MoneyForKing(money) => {
-                                span![format!("You are the king and earned {}!", money)]
+                                span![format!("You are the king and earned {} coins!", money)]
                             }
                             LogMsg::NewDwarf(dwarf_id) => {
                                 span![format!(
@@ -1678,7 +1687,7 @@ fn history(
                             }
                             LogMsg::QuestCompletedMoney(quest, money) => {
                                 span![format!(
-                                    "You completed the quest {} and earned {}.",
+                                    "You completed the quest {} and earned {} coins.",
                                     quest, money
                                 )]
                             }

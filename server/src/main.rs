@@ -15,7 +15,7 @@ use axum::{
 };
 use game::{GameState, GameStore};
 use tokio::{task, time};
-use std::{net::SocketAddr, path::PathBuf, time::Duration};
+use std::{net::{SocketAddr, SocketAddrV4}, path::PathBuf, str::FromStr, time::Duration};
 use tower_http::{
     services::ServeDir,
     trace::{DefaultMakeSpan, TraceLayer},
@@ -32,7 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::new(
-            std::env::var("RUST_LOG")
+            dotenv::var("RUST_LOG")
                 .unwrap_or_else(|_| "sqlx=warn,info".into()),
         ))
         .with(tracing_subscriber::fmt::layer())
@@ -53,9 +53,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let store = GameStore::new(pool.clone());
     let game_state = GameState::new(store).await;
     
+    // Manage the number of hours for premium accounts.
     let pool_clone = pool.clone();
     task::spawn(async move {
         let mut interval = time::interval(Duration::from_secs(60 * 60));
+        // The first tick fires immediately, we don't want that so we await it directly.
+        interval.tick().await;
 
         loop {
             interval.tick().await;
@@ -112,7 +115,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/change-password",
             post(auth::change_password::post_change_password),
         )
-        .route("/stripe-webhook", post(stripe::handle_webhook))
+        .route("/stripe-webhooks", post(stripe::handle_webhook))
         .layer(Extension(game_state))
         .layer(Extension(pool.clone()))
         .layer(session_layer)
@@ -120,8 +123,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             TraceLayer::new_for_http()
                 .make_span_with(DefaultMakeSpan::default().include_headers(true)),
         );
-
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+    
+    let addr = SocketAddrV4::from_str(&dotenv::var("SERVER_ADDRESS").unwrap()).unwrap();
+    let addr = SocketAddr::from(addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
 
     tracing::info!("listening on {}", addr);

@@ -31,6 +31,8 @@ pub type Health = u64;
 
 pub type Time = u64;
 
+pub type QuestId = u64;
+
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct UserId(pub i64);
 
@@ -45,7 +47,7 @@ impl From<i64> for UserId {
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct UserData {
     pub username: String,
-    pub premium: bool,
+    pub premium: u64,
 }
 
 impl engine_shared::UserData for UserData {}
@@ -63,7 +65,8 @@ pub struct State {
     pub players: CustomMap<UserId, Player>,
     pub next_dwarf_id: DwarfId,
     pub chat: Chat,
-    pub quests: Vec<Quest>,
+    pub next_quest_id: QuestId,
+    pub quests: CustomMap<QuestId, Quest>,
     pub time: Time,
     pub king: Option<UserId>,
 }
@@ -121,7 +124,7 @@ impl engine_shared::State for State {
 
                     let is_premium = user_data
                         .get(&user_id)
-                        .map(|user_data| user_data.premium)
+                        .map(|user_data| user_data.premium > 0)
                         .unwrap_or(false);
 
                     match event {
@@ -212,25 +215,25 @@ impl engine_shared::State for State {
                                 player.open_loot_crate(rng, self.time);
                             }
                         }
-                        ClientEvent::AssignToQuest(quest_idx, dwarf_idx, dwarf_id) => {
+                        ClientEvent::AssignToQuest(quest_id, dwarf_idx, dwarf_id) => {
                             if let Some(dwarf_id) = dwarf_id {
                                 let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
 
-                                if let Some((_, old_quest_idx, old_dwarf_idx)) =
+                                if let Some((_, old_quest_id, old_dwarf_idx)) =
                                     dwarf.participates_in_quest
                                 {
-                                    let old_quest = self.quests.get_mut(old_quest_idx)?;
+                                    let old_quest = self.quests.get_mut(&old_quest_id)?;
                                     let old_contestant =
                                         old_quest.contestants.entry(user_id).or_default();
                                     old_contestant.dwarfs.swap_remove(&old_dwarf_idx);
                                 }
 
-                                let quest = self.quests.get_mut(quest_idx)?;
+                                let quest = self.quests.get_mut(&quest_id)?;
                                 let contestant = quest.contestants.entry(user_id).or_default();
 
                                 dwarf.change_occupation(quest.quest_type.occupation());
                                 dwarf.participates_in_quest =
-                                    Some((quest.quest_type, quest_idx, dwarf_idx));
+                                    Some((quest.quest_type, quest_id, dwarf_idx));
                                 if dwarf_idx < quest.quest_type.max_dwarfs() {
                                     let old_dwarf_id =
                                         contestant.dwarfs.insert(dwarf_idx, dwarf_id);
@@ -241,7 +244,7 @@ impl engine_shared::State for State {
                                     }
                                 }
                             } else {
-                                let quest = self.quests.get_mut(quest_idx)?;
+                                let quest = self.quests.get_mut(&quest_id)?;
                                 let contestant = quest.contestants.entry(user_id).or_default();
 
                                 let old_dwarf_id = contestant.dwarfs.swap_remove(&dwarf_idx);
@@ -271,7 +274,7 @@ impl engine_shared::State for State {
                             for (user_id, player) in self.players.iter_mut() {
                                 let is_premium = user_data
                                     .get(user_id)
-                                    .map(|user_data| user_data.premium)
+                                    .map(|user_data| user_data.premium > 0)
                                     .unwrap_or(false);
 
                                 if is_premium {
@@ -360,7 +363,7 @@ impl engine_shared::State for State {
                                 }
 
                                 // Remove dead dwarfs.
-                                for quest in &mut self.quests {
+                                for quest in self.quests.values_mut() {
                                     if let Some(contestant) = quest.contestants.get_mut(user_id) {
                                         contestant.dwarfs.retain(|_, dwarf_id| {
                                             !player.dwarfs.get(&*dwarf_id).unwrap().dead()
@@ -371,7 +374,7 @@ impl engine_shared::State for State {
                             }
 
                             // Continue the active quests.
-                            for quest in &mut self.quests {
+                            for quest in self.quests.values_mut() {
                                 quest.run(&self.players);
 
                                 if quest.done() {
@@ -582,7 +585,7 @@ impl engine_shared::State for State {
                                 }
                             }
 
-                            self.quests.retain(|quest| !quest.done());
+                            self.quests.retain(|_, quest| !quest.done());
 
                             // Add quests.
                             let active_players = self
@@ -593,7 +596,7 @@ impl engine_shared::State for State {
                             while self.quests.len() < 3.max(active_players / 5) {
                                 let active_quests = self
                                     .quests
-                                    .iter()
+                                    .values()
                                     .map(|q| q.quest_type)
                                     .collect::<HashSet<_>>();
                                 let all_quests =
@@ -604,13 +607,17 @@ impl engine_shared::State for State {
                                     break;
                                 }
 
-                                self.quests.push(Quest::new(
+                                let quest = Quest::new(
                                     *potential_quests
                                         .into_iter()
                                         .collect::<Vec<_>>()
                                         .choose(rng)
                                         .unwrap(),
-                                ))
+                                    );
+
+                                self.quests.insert(self.next_quest_id, quest);
+
+                                self.next_quest_id += 1;
                             }
                         }
                     }
@@ -836,7 +843,7 @@ impl Player {
     }
 
     pub fn is_online(&self, time: Time) -> bool {
-        (time - self.last_online) / SPEED < ONE_MINUTE * 3
+        (time - self.last_online) / SPEED < ONE_MINUTE * 5
     }
 
     pub fn is_active(&self, time: Time) -> bool {
@@ -1733,7 +1740,7 @@ impl BundleType for Item {}
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 pub struct Dwarf {
     pub name: String,
-    pub participates_in_quest: Option<(QuestType, usize, usize)>,
+    pub participates_in_quest: Option<(QuestType, QuestId, usize)>,
     pub occupation: Occupation,
     pub auto_idle: bool,
     pub occupation_duration: u64,
@@ -2066,7 +2073,7 @@ pub enum ClientEvent {
     UpgradeBase,
     ChangeEquipment(DwarfId, ItemType, Option<Item>),
     OpenLootCrate,
-    AssignToQuest(usize, usize, Option<DwarfId>),
+    AssignToQuest(QuestId, usize, Option<DwarfId>),
     AddToFoodStorage(Item, u64),
     Prestige,
     Restart,
