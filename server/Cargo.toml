@@ -26,7 +26,7 @@ askama_axum = { version = "0.4" }
 askama = { version = "0.12", features = ["with-axum"] }
 bcrypt = "0.15.0"
 rand = {version = "0.8", features = ["small_rng"] }
-engine-server = { path = "../../browsergame-engine/server" }
-engine-shared = { path = "../../browsergame-engine/shared" }
+engine-server = { path = "../browsergame-engine/server" }
+engine-shared = { path = "../browsergame-engine/shared" }
 async-stripe = { version = "0.37", features = ["runtime-tokio-hyper"] }
 uuid = { version = "1.10", features = ["v4"] }
