@@ -42,7 +42,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let pool = db::setup().await?;
 
-    let assets_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("public");
+    let public_dir = PathBuf::from(dotenv::var("PUBLIC_DIR").unwrap());
 
     let store = MemoryStore::default();
     let session_layer = SessionManagerLayer::new(store)
@@ -51,7 +51,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_expiry(Expiry::OnInactivity(tower_sessions::cookie::time::Duration::days(30)));
 
     let store = GameStore::new(pool.clone());
-    let game_state = GameState::new(store).await;
+    let mut game_state = GameState::new();
+    game_state.add(store, 0).await;
+    
     
     // Manage the number of hours for premium accounts.
     let pool_clone = pool.clone();
@@ -81,14 +83,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // build our application with some routes
     let app = Router::new()
         .fallback(
-            get_service(ServeDir::new(assets_dir).append_index_html_on_directories(true))                                                                              
+            get_service(ServeDir::new(public_dir).append_index_html_on_directories(true))                                                                              
         )
         .route("/", get(index::get_index))
         .route("/store", get(store::get_store))
         .route("/about", get(about::get_about))
-        .route("/game/ws", get(game::ws_handler))
-        .route("/game", get(game::get_game))
-        .route("/game/*subpath", get(game::get_game))
+        .route("/game", get(game::get_game_select))
+        .route("/game/:game_id/ws", get(game::ws_handler))
+        .route("/game/:game_id", get(game::get_game))
+        .route("/game/:game_id/*subpath", get(game::get_game))
         .route(
             "/register",
             get(auth::register::get_register).post(auth::register::post_register),

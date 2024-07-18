@@ -1,6 +1,7 @@
 mod images;
 
 use engine_client::{ClientState, EventWrapper, Msg as EngineMsg};
+use engine_shared::GameId;
 use images::Image;
 use itertools::Itertools;
 use seed::{prelude::*, *};
@@ -11,9 +12,9 @@ use std::str::FromStr;
 use web_sys::js_sys::Date;
 
 #[cfg(not(debug_assertions))]
-const WS_URL: &str = "ws://localhost:3000/game/ws";
+const HOST: &str = "dwarfs-in-exile.com";
 #[cfg(debug_assertions)]
-const WS_URL: &str = "ws://localhost:3000/game/ws";
+const HOST: &str = "localhost:3000";
 
 // ------ ------
 //     Model
@@ -31,9 +32,10 @@ pub enum Page {
 }
 
 impl Page {
-    fn from_url(mut url: Url) -> Self {
+    fn from_url(mut url: Url) -> (GameId, Self) {
         url.next_path_part().unwrap();
-        match url.next_path_part() {
+        let game_id = url.next_path_part().unwrap().parse().unwrap();
+        let page = match url.next_path_part() {
             Some("dwarfs") => match url.next_path_part() {
                 None => Page::Dwarfs(DwarfsMode::Overview),
                 Some(id) => Page::Dwarf(id.parse().unwrap()),
@@ -45,7 +47,9 @@ impl Page {
             },
             Some("ranking") => Page::Ranking,
             _ => Page::Base,
-        }
+        };
+
+        (game_id, page)
     }
 }
 
@@ -103,6 +107,7 @@ pub struct Model {
     history_visible: bool,
     inventory_filter: InventoryFilter,
     map_time: Option<(Time, f64)>,
+    game_id: GameId,
 }
 
 impl Model {
@@ -116,6 +121,10 @@ impl Model {
 
     fn get_timestamp_millis_diff_now(&self, time: Time) -> Option<f64> {
         Some(Date::now() - self.get_timestamp_millis_of(time)?)
+    }
+
+    fn base_path(&self) -> String {
+        format!("/game/{}", self.game_id)
     }
 }
 
@@ -133,16 +142,19 @@ fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
         }
         //url_request.handled()
     });
-    orders.subscribe(|subs::UrlChanged(url)| Msg::ChangePage(Page::from_url(url)));
+    orders.subscribe(|subs::UrlChanged(url)| Msg::ChangePage(Page::from_url(url).1));
+
+    let (game_id, page) = Page::from_url(url);
 
     Model {
-        state: ClientState::init(orders, WS_URL.to_owned()),
-        page: Page::from_url(url),
+        state: ClientState::init(orders, format!("ws://{HOST}/{game_id}/ws")),
+        page,
         message: String::new(),
         chat_visible: false,
         history_visible: false,
         inventory_filter: InventoryFilter::default(),
         map_time: None,
+        game_id,
     }
 }
 
@@ -249,7 +261,7 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
         Msg::AssignToQuest(quest_id, dwarf_idx, dwarf_id) => {
             if dwarf_id.is_some() {
                 orders.notify(subs::UrlRequested::new(
-                    Url::from_str(&format!("/game/quests/{}", quest_id)).unwrap(),
+                    Url::from_str(&format!("{}/quests/{}", model.base_path(), quest_id)).unwrap(),
                 ));
             }
             orders.send_msg(Msg::send_event(ClientEvent::AssignToQuest(
@@ -259,7 +271,7 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
         Msg::ChangeEquipment(dwarf_id, item_type, item) => {
             if item.is_some() {
                 orders.notify(subs::UrlRequested::new(
-                    Url::from_str(&format!("/game/dwarfs/{}", dwarf_id)).unwrap(),
+                    Url::from_str(&format!("{}/dwarfs/{}", model.base_path(), dwarf_id)).unwrap(),
                 ));
             }
             orders.send_msg(Msg::send_event(ClientEvent::ChangeEquipment(
@@ -270,7 +282,7 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
             model.inventory_filter = InventoryFilter::default();
             model.inventory_filter.item_name = item.to_string();
             orders.notify(subs::UrlRequested::new(
-                Url::from_str("/game/inventory").unwrap(),
+                Url::from_str(&format!("{}/inventory", model.base_path())).unwrap(),
             ));
         }
     }
@@ -305,13 +317,13 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
                 )]*/
             ],
             main![match model.page {
-                Page::Dwarfs(mode) => dwarfs(state, user_id, mode),
+                Page::Dwarfs(mode) => dwarfs(model, state, user_id, mode),
                 Page::Dwarf(dwarf_id) => dwarf(model, state, user_id, dwarf_id),
                 Page::Base => base(model, state, user_id),
                 Page::Inventory(mode) => inventory(model, state, user_id, mode),
                 Page::Ranking => ranking(state, client_state),
-                Page::Quests => quests(state, user_id),
-                Page::Quest(quest_id) => quest(state, user_id, quest_id),
+                Page::Quests => quests(model, state, user_id),
+                Page::Quest(quest_id) => quest(model, state, user_id, quest_id),
             }],
             chat(model, state, client_state),
             history(model, state, user_id, client_state),
@@ -498,7 +510,7 @@ fn score_bar(curr: u64, max: u64, rank: usize, max_rank: usize) -> Node<Msg> {
     ]
 }
 
-fn dwarfs(state: &shared::State, user_id: &shared::UserId, mode: DwarfsMode) -> Node<Msg> {
+fn dwarfs(model: &Model, state: &shared::State, user_id: &shared::UserId, mode: DwarfsMode) -> Node<Msg> {
     let player = state.players.get(user_id).unwrap();
 
     if player.dwarfs.len() > 0 {
@@ -535,7 +547,7 @@ fn dwarfs(state: &shared::State, user_id: &shared::UserId, mode: DwarfsMode) -> 
                         DwarfsMode::Overview => {
                             a![
                                 C!["button"],
-                                attrs! { At::Href => format!("/game/dwarfs/{}", id) },
+                                attrs! { At::Href => format!("{}/dwarfs/{}", model.base_path(), id) },
                                 "Details"
                             ]
                         }
@@ -892,12 +904,12 @@ fn dwarf(
             C!["content"],
             h2!["There's Noone Here!"],
             p!["This dwarf has died!"],
-            a![attrs! { At::Href => "/game/dwarfs" }, "Go back"],
+            a![attrs! { At::Href => format!("{}/dwarfs", model.base_path()) }, "Go back"],
         ]
     }
 }
 
-fn quests(state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
+fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     let _player = state.players.get(user_id).unwrap();
 
     table![
@@ -936,7 +948,7 @@ fn quests(state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
                     },
                     a![
                         C!["button"],
-                        attrs! { At::Href => format!("/game/quests/{}", quest_id) },
+                        attrs! { At::Href => format!("{}/quests/{}", model.base_path(), quest_id) },
                         "Details"
                     ]
                 ]
@@ -945,7 +957,7 @@ fn quests(state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     ]
 }
 
-fn quest(state: &shared::State, user_id: &shared::UserId, quest_id: QuestId) -> Node<Msg> {
+fn quest(model: &Model, state: &shared::State, user_id: &shared::UserId, quest_id: QuestId) -> Node<Msg> {
     let player = state.players.get(user_id).unwrap();
     let quest = state.quests.get(&quest_id);
 
@@ -1092,7 +1104,7 @@ fn quest(state: &shared::State, user_id: &shared::UserId, quest_id: QuestId) -> 
             C!["content"],
             h2!["There's Nothing Here!"],
             p!["This quest was completed!"],
-            a![attrs! { At::Href => "/game/quests" }, "Go back"],
+            a![attrs! { At::Href => format!("{}/quests", model.base_path()) }, "Go back"],
         ]
     }
     
@@ -1937,45 +1949,45 @@ fn nav(model: &Model) -> Node<Msg> {
         a![
             C!["button"],
             if let Page::Base = model.page {
-                attrs! {At::Disabled => "true", At::Href => "/game"}
+                attrs! {At::Disabled => "true", At::Href => model.base_path()}
             } else {
-                attrs! {At::Href => "/game"}
+                attrs! {At::Href => model.base_path()}
             },
             "Settlement"
         ],
         a![
             C!["button"],
             if let Page::Dwarfs(DwarfsMode::Overview) = model.page {
-                attrs! {At::Disabled => "true", At::Href => "/game/dwarfs"}
+                attrs! {At::Disabled => "true", At::Href => format!("{}/dwarfs", model.base_path())}
             } else {
-                attrs! {At::Href => "/game/dwarfs"}
+                attrs! {At::Href => format!("{}/dwarfs", model.base_path())}
             },
             "Dwarfs",
         ],
         a![
             C!["button"],
             if let Page::Inventory(InventoryMode::Overview) = model.page {
-                attrs! {At::Disabled => "true",  At::Href => "/game/inventory"}
+                attrs! {At::Disabled => "true",  At::Href => format!("{}/inventory", model.base_path())}
             } else {
-                attrs! {At::Href => "/game/inventory"}
+                attrs! {At::Href => format!("{}/inventory", model.base_path())}
             },
             "Inventory",
         ],
         a![
             C!["button"],
             if let Page::Quests = model.page {
-                attrs! {At::Disabled => "true", At::Href => "/game/quests"}
+                attrs! {At::Disabled => "true", At::Href => format!("{}/quests", model.base_path())}
             } else {
-                attrs! {At::Href => "/game/quests"}
+                attrs! {At::Href => format!("{}/quests", model.base_path())}
             },
             "Quests",
         ],
         a![
             C!["button"],
             if let Page::Ranking = model.page {
-                attrs! {At::Disabled => "true", At::Href => "/game/ranking"}
+                attrs! {At::Disabled => "true", At::Href => format!("{}/ranking", model.base_path())}
             } else {
-                attrs! {At::Href => "/game/ranking"}
+                attrs! {At::Href => format!("{}/ranking", model.base_path())}
             },
             "Ranking",
         ],

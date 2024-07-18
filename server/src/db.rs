@@ -2,7 +2,7 @@ use sqlx::{sqlite::SqliteConnectOptions, SqlitePool};
 use std::str::FromStr;
 
 pub async fn setup() -> Result<SqlitePool, Box<dyn std::error::Error>> {
-    let options = SqliteConnectOptions::from_str("sqlite:data.db")?.create_if_missing(true);
+    let options = SqliteConnectOptions::from_str(&format!("sqlite:{}", dotenv::var("DATABASE_FILE").unwrap()))?.create_if_missing(true);
 
     let pool = SqlitePool::connect_with(options).await?;
 
@@ -24,7 +24,7 @@ pub async fn setup() -> Result<SqlitePool, Box<dyn std::error::Error>> {
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS games (
-            name TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY,
             data BLOB
         )
     "#,

@@ -94,6 +94,8 @@ impl State {
             }
         }
     }
+
+
 }
 
 impl engine_shared::State for State {
@@ -104,6 +106,16 @@ impl engine_shared::State for State {
 
     const DURATION_PER_TICK: std::time::Duration = std::time::Duration::from_millis(1000 / SPEED);
 
+    fn has_winner(&self) -> Option<UserId> {
+        let mut winner = None;
+        for (user_id, player) in &self.players {
+            if (matches!(player.base.village_type(), VillageType::Megalopolis) && self.king == Some(*user_id)) {
+                winner = Some(*user_id);
+            }
+        }
+        return winner;
+    }
+    
     fn update(
         &mut self,
         rng: &mut impl Rng,

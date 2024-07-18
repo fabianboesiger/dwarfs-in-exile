@@ -12,6 +12,8 @@ use strum::Display;
 #[derive(Display)]
 #[strum(serialize_all = "kebab-case")]
 pub enum Image {
+    #[allow(unused)]
+    Placeholder,
     Dwarf(u64),
     Blueberry,
     ChainMail,
@@ -48,7 +50,6 @@ pub enum Image {
     ADwarfGotLost,
     ExploreNewLands,
     ArenaFight,
-    Placeholder,
     FeastForAGuest,
     Outpost,
     Dwelling,
