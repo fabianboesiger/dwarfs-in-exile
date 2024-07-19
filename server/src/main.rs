@@ -42,8 +42,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let pool = db::setup().await?;
 
-    let assets_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("public");
-
     let store = MemoryStore::default();
     let session_layer = SessionManagerLayer::new(store)
         .with_secure(false)
@@ -81,7 +79,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // build our application with some routes
     let app = Router::new()
         .fallback(
-            get_service(ServeDir::new(assets_dir).append_index_html_on_directories(true))                                                                              
+            get_service(ServeDir::new(dotenv::var("PUBLIC_DIR").unwrap()).append_index_html_on_directories(true))                                                                              
         )
         .route("/", get(index::get_index))
         .route("/store", get(store::get_store))
