@@ -11,7 +11,7 @@ use std::str::FromStr;
 use web_sys::js_sys::Date;
 
 #[cfg(not(debug_assertions))]
-const WS_URL: &str = "ws://dwarfs-in-exile.com/game/ws";
+const WS_URL: &str = "wss://dwarfs-in-exile.com/game/ws";
 #[cfg(debug_assertions)]
 const WS_URL: &str = "ws://localhost:3000/game/ws";
 

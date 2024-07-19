@@ -49,4 +49,4 @@ jobs:
         host: dwarfs-in-exile.com
         username: ${{ secrets.SSH_USERNAME }}
         password: ${{ secrets.SSH_PASSWORD }}
-        script: "sudo systemctl restart dwarfs-in-exile"
+        script: "echo ${{ secrets.SSH_PASSWORD }} | sudo -S systemctl restart dwarfs-in-exile"
