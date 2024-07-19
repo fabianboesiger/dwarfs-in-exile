@@ -39,14 +39,16 @@ jobs:
         password: ${{ secrets.SSH_PASSWORD }}
         source: "server/public/*"
         target: "/home/fabian/projects/dwarfs-in-exile/public"
+        strip_components: 2
     - name: Copy Server Binary
       uses: appleboy/scp-action@v0.1.7
       with:
         host: dwarfs-in-exile.com
         username: ${{ secrets.SSH_USERNAME }}
         password: ${{ secrets.SSH_PASSWORD }}
-        source: "server/target/release/server"
+        source: "target/release/server"
         target: "/home/fabian/projects/dwarfs-in-exile"
+        strip_components: 2
     - name: Restart Server
       uses: appleboy/scp-action@v0.1.7
       with:
