@@ -30,3 +30,28 @@ jobs:
       run: cargo install cargo-make
     - name: Build
       run: ./build-release
+    - uses: actions/checkout@v4
+    - name: Copy Public Files
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: dwarfs-in-exile.com
+        username: ${{ secrets.SSH_USERNAME }}
+        password: ${{ secrets.SSH_PASSWORD }}
+        source: "server/public/*"
+        target: "/home/fabian/projects/dwarfs-in-exile/public"
+    - name: Copy Server Binary
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: dwarfs-in-exile.com
+        username: ${{ secrets.SSH_USERNAME }}
+        password: ${{ secrets.SSH_PASSWORD }}
+        source: "server/target/release/server"
+        target: "/home/fabian/projects/dwarfs-in-exile"
+    - name: Restart Server
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: dwarfs-in-exile.com
+        username: ${{ secrets.SSH_USERNAME }}
+        password: ${{ secrets.SSH_PASSWORD }}
+        script: "whoami"
+        
