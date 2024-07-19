@@ -6,7 +6,7 @@ use images::Image;
 use itertools::Itertools;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, QuestId, QuestType, RewardMode, Stats, Time, LOOT_CRATE_COST, MAX_HEALTH, SPEED
+    Bundle, ClientEvent, Craftable, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, QuestId, QuestType, RewardMode, Stats, Time, LOOT_CRATE_COST, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS
 };
 use std::str::FromStr;
 use web_sys::js_sys::Date;
@@ -147,7 +147,7 @@ fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
     let (game_id, page) = Page::from_url(url);
 
     Model {
-        state: ClientState::init(orders, format!("ws://{HOST}/{game_id}/ws")),
+        state: ClientState::init(orders, format!("ws://{HOST}/game/{game_id}/ws")),
         page,
         message: String::new(),
         chat_visible: false,
@@ -345,10 +345,11 @@ fn ranking(state: &shared::State, client_state: &ClientState<shared::State>) -> 
     div![
         C!["content"],
         h2!["Ranking"],
+        p![format!("To win this world, you need to meet two conditions. First, expand your settlement until it becomes a Megalopolis. Second, become the king of this world. If both conditions are met, the game will be over and you will be the winner. As a reward, you get gifted a free premium account for {} days.", WINNER_NUM_PREMIUM_DAYS)],
         if let Some(king) = state.king {
             p![format!("All hail our King {}!", client_state.get_user_data(&king).map(|data| data.username.clone()).unwrap_or_default()), tip("The king gets one tenth of all money that was earned. Make sure you become the king as soon as the quest becomes available.")]
         } else {
-            Node::Empty
+            p!["At the moment, there is no King in this world. Be the first to become the new King!"]
         },
         table![
             tr![
@@ -436,7 +437,7 @@ fn last_received_items(
             .last_received
             .iter()
             .enumerate()
-            .filter_map(|(idx, (item, qty, time))| {
+            .filter_map(|(_idx, (item, qty, time))| {
                 let time_diff_millis = model.get_timestamp_millis_diff_now(*time)?;
 
                 if time_diff_millis > 3000.0 {
@@ -714,7 +715,7 @@ fn dwarf(
                                         {
                                             div![
                                                 h4!["Utility"],
-                                                enum_iterator::all::<Occupation>().filter_map(
+                                                itertools::Itertools::intersperse(enum_iterator::all::<Occupation>().filter_map(
                                                     |occupation| {
                                                         let usefulness =
                                                             item.usefulness_for(occupation) as i8;
@@ -727,7 +728,7 @@ fn dwarf(
                                                             None
                                                         }
                                                     }
-                                                ).intersperse(br![])
+                                                ), br![])
                                             ]
                                         } else {
                                             Node::Empty
@@ -1377,7 +1378,7 @@ fn inventory(
                         {
                             div![
                                 h4!["Utility"],
-                                enum_iterator::all::<Occupation>().filter_map(
+                                itertools::intersperse(enum_iterator::all::<Occupation>().filter_map(
                                     |occupation| {
                                         let usefulness =
                                             item.usefulness_for(occupation) as i8;
@@ -1390,7 +1391,7 @@ fn inventory(
                                             None
                                         }
                                     }
-                                ).intersperse(br![])
+                                ), br![])
                             ]
                         } else {
                             Node::Empty
@@ -1813,10 +1814,6 @@ fn bundle(requires: &Bundle<Item>, player: &Player, requirement: bool) -> Node<M
         })]
 }
 
-fn icon(name: &str) -> Node<Msg> {
-    span![C!["material-symbols-rounded"], name]
-}
-
 fn stats(stats: &Stats) -> Node<Msg> {
     let mut v = Vec::new();
 
@@ -1838,10 +1835,9 @@ fn stats(stats: &Stats) -> Node<Msg> {
 
     v.sort_by_key(|t| -t.0);
 
-    span![v
+    span![itertools::intersperse(v
         .into_iter()
-        .map(|(num, abv)| span![format!("{abv} "), stars(num, false)])
-        .intersperse(br![])]
+        .map(|(num, abv)| span![format!("{abv} "), stars(num, false)]), br![])]
 }
 
 fn stats_simple(stats: &Stats) -> String {

@@ -3,11 +3,11 @@
 <main>
     <div class="form-wrapper">
         <h2>Select your World</h2>
-        {% if ids.is_empty() %}
+        {% if current_worlds.is_empty() %}
           <p>There are currently no active worlds.</p>
         {% else %}
-        {% for id in ids %}
-          <a href="/game/{{id}}" class="button">World {{id + 1}}</a>
+        {% for id in current_worlds %}
+          <a href="/game/{{id}}" class="button">World {{id}}</a>
         {% endfor %}
         {% endif %}
 

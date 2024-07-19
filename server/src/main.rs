@@ -5,6 +5,7 @@ mod error;
 mod game;
 mod index;
 mod stripe;
+mod admin;
 
 use auth::store;
 use error::*;
@@ -13,7 +14,7 @@ use axum::{
     routing::{get, get_service, post},
     Extension, Router,
 };
-use game::{GameState, GameStore};
+use game::GameStore;
 use tokio::{task, time};
 use std::{net::{SocketAddr, SocketAddrV4}, path::PathBuf, str::FromStr, time::Duration};
 use tower_http::{
@@ -50,10 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_http_only(false)
         .with_expiry(Expiry::OnInactivity(tower_sessions::cookie::time::Duration::days(30)));
 
-    let store = GameStore::new(pool.clone());
-    let mut game_state = GameState::new();
-    game_state.add(store, 0).await;
-    
+    let game_state = GameStore::new(pool.clone()).load_all().await?;
     
     // Manage the number of hours for premium accounts.
     let pool_clone = pool.clone();
@@ -118,6 +116,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/change-password",
             post(auth::change_password::post_change_password),
         )
+        .route("/admin", get(admin::get_admin))
         .route("/stripe-webhooks", post(stripe::handle_webhook))
         .layer(Extension(game_state))
         .layer(Extension(pool.clone()))

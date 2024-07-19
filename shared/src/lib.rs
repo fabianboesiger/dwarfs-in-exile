@@ -24,6 +24,7 @@ pub const ONE_HOUR: u64 = ONE_MINUTE * 60;
 pub const ONE_DAY: u64 = ONE_HOUR * 24;
 pub const MAX_HEALTH: Health = ONE_DAY * 3;
 pub const LOOT_CRATE_COST: Money = 1000;
+pub const WINNER_NUM_PREMIUM_DAYS: i64 = 30;
 
 pub type Money = u64;
 pub type Food = u64;

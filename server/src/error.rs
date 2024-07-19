@@ -22,7 +22,9 @@ pub enum ServerError {
     #[error("invalid session")]
     InvalidSession,
     #[error("user deleted")]
-    UserDeleted
+    UserDeleted,
+    #[error("no admin permissions")]
+    NoAdminPermissions,
 }
 
 impl IntoResponse for ServerError {
@@ -31,6 +33,7 @@ impl IntoResponse for ServerError {
             ServerError::InvalidSession | ServerError::UserDeleted => {
                 Redirect::to("/login").into_response()
             }
+            ServerError::NoAdminPermissions => (StatusCode::UNAUTHORIZED, format!("{self}")).into_response(),
             ServerError::ValidationError(_) => (StatusCode::BAD_REQUEST, format!("{self}")).into_response(),
             _ => {
                 tracing::error!("an internal server error occurred: {self}");
