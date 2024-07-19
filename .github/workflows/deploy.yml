@@ -44,10 +44,9 @@ jobs:
         target: "/home/fabian/projects/dwarfs-in-exile"
         strip_components: 2
     - name: Restart Server
-      uses: appleboy/scp-action@v0.1.7
+      uses: appleboy/ssh-action@v1.0.3
       with:
         host: dwarfs-in-exile.com
         username: ${{ secrets.SSH_USERNAME }}
         password: ${{ secrets.SSH_PASSWORD }}
-        script: "whoami"
-        
+        script: "sudo systemctl restart dwarfs-in-exile"
