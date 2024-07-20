@@ -27,6 +27,7 @@ where
         let signature = if let Some(sig) = req.headers().get("stripe-signature") {
             sig.to_owned()
         } else {
+            tracing::warn!("missing stripe-signature header");
             return Err(StatusCode::BAD_REQUEST.into_response());
         };
 
@@ -36,7 +37,10 @@ where
 
         Ok(Self(
             stripe::Webhook::construct_event(&payload, signature.to_str().unwrap(), &dotenv::var("STRIPE_WEBHOOK_SECRET").unwrap())
-                .map_err(|_| StatusCode::BAD_REQUEST.into_response())?,
+                .map_err(|_| {
+                    tracing::warn!("failed to construct stripe event");
+                    StatusCode::BAD_REQUEST.into_response()
+                })?,
         ))
     }
 }
