@@ -1,0 +1,52 @@
+name: Deploy
+on:
+  push:
+    branches: [ "main" ]
+env:
+  CARGO_TERM_COLOR: always
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+    - uses: actions-rs/toolchain@v1.0.6
+      with:
+        toolchain: stable
+        profile: minimal
+        target: x86_64-unknown-linux-gnu
+        override: true
+    - uses: Swatinem/rust-cache@v2
+    - uses: taiki-e/cache-cargo-install-action@v2
+      with:
+        tool: cargo-hack
+    - name: Install Dependencies
+      run: cargo install cargo-make
+    - name: Build
+      run: ./build-release
+    - name: Copy Public Files
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: dwarfs-in-exile.com
+        username: ${{ secrets.SSH_USERNAME }}
+        password: ${{ secrets.SSH_PASSWORD }}
+        source: "server/public/*"
+        target: "/home/fabian/projects/dwarfs-in-exile/public"
+        strip_components: 2
+    - name: Copy Server Binary
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: dwarfs-in-exile.com
+        username: ${{ secrets.SSH_USERNAME }}
+        password: ${{ secrets.SSH_PASSWORD }}
+        source: "target/release/server"
+        target: "/home/fabian/projects/dwarfs-in-exile"
+        strip_components: 2
+    - name: Restart Server
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: dwarfs-in-exile.com
+        username: ${{ secrets.SSH_USERNAME }}
+        password: ${{ secrets.SSH_PASSWORD }}
+        script: "echo ${{ secrets.SSH_PASSWORD }} | sudo -S systemctl restart dwarfs-in-exile"

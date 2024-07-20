@@ -1,0 +1,4 @@
+[submodule "browsergame-engine"]
+	path = browsergame-engine
+	url = git@github.com:fabianboesiger/browsergame-engine.git
+	branch = main

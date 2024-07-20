@@ -138,6 +138,10 @@ pub enum Image {
     Gloves,
     Leather,
     Headlamp,
+    Diamond,
+    DiamondAxe,
+    DiamondPickaxe,
+    DiamondSword,
 }
 
 impl AsAtValue for Image {
@@ -257,6 +261,10 @@ impl From<Item> for Image {
             Item::Gloves => Image::Gloves,
             Item::Bag => Image::Bag,
             Item::Headlamp => Image::Headlamp,
+            Item::Diamond => Image::Diamond,
+            Item::DiamondAxe => Image::DiamondAxe,
+            Item::DiamondPickaxe => Image::DiamondPickaxe,
+            Item::DiamondSword => Image::DiamondSword,
         }
     }
 }

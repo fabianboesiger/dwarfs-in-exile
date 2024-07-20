@@ -513,6 +513,18 @@ h3, h4 {
     vertical-align: middle;
     background: rgba(255, 255, 255, 0.3);    
     backdrop-filter: blur(16px);
+    animation-name: fade-out;
+    animation-duration: 3000ms;
+}
+
+@keyframes fade-out {
+    0% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+    }
+    
 }
 
 .received-item-image {

@@ -147,7 +147,7 @@ fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
     let (game_id, page) = Page::from_url(url);
 
     Model {
-        state: ClientState::init(orders, format!("ws://{HOST}/game/{game_id}/ws")),
+        state: ClientState::init(orders, format!("wss://{HOST}/game/{game_id}/ws")),
         page,
         message: String::new(),
         chat_visible: false,
@@ -445,7 +445,7 @@ fn last_received_items(
                 } else {
                     Some(div![
                         C!["received-item"],
-                        style![St::Opacity => format!("{}", 1.0 - time_diff_millis / 3000.0)],
+                        style![St::Opacity => format!("{}", 1.0 - time_diff_millis / 3000.0), St::AnimationDelay => format!("-{}ms", time_diff_millis)],
                         match item.item_rarity() {
                             ItemRarity::Common => C!["item-common"],
                             ItemRarity::Uncommon => C!["item-uncommon"],
@@ -1348,7 +1348,7 @@ fn inventory(
                     td![
                         C!["list-item-content", "grow"],
                         
-                        h3![C!["title"], format!("{}x {item}", big_number(n))],
+                        h3![C!["title"], format!("{} {item}", big_number(n))],
                         p![
                             C!["subtitle"], if let Some(food) = item.nutritional_value() {
                                 format!("Food ({food}) | {}", item.item_rarity())
