@@ -593,7 +593,7 @@ impl engine_shared::State for State {
                                 .iter()
                                 .filter(|(_, player)| player.is_active(self.time))
                                 .count();
-                            while self.quests.len() < 3.max(active_players / 5) {
+                            while self.quests.len() < 3.max(active_players / 3) {
                                 let active_quests = self
                                     .quests
                                     .values()
@@ -1043,6 +1043,20 @@ pub enum Item {
     FishingNet,
     Bag,
     Headlamp,
+    // Diamond
+    // Diamond Axe
+    // Diamond Pickaxe
+    // Diamand Sword
+    // Enchanted Bow + Sodalite -> +Perception
+    // Enchanted Longsword + Agate -> +Strength
+    // Enchanted Helmet + Fluorite -> +Intelligence
+    // Enchanted Boots + Selenite -> +Agility
+    // Enchanted Gloves + Ruby -> +Endurance
+    // Magic Lantern
+    Diamond,
+    DiamondAxe,
+    DiamondPickaxe,
+    DiamondSword,
 }
 
 impl Into<usize> for Item {
@@ -1089,6 +1103,7 @@ impl Item {
             Item::Gloves => Some(ItemType::Clothing),
             Item::BearClawGloves => Some(ItemType::Clothing),
             Item::Headlamp => Some(ItemType::Clothing),
+            Item::BearClawBoots => Some(ItemType::Clothing),
 
             Item::Bow => Some(ItemType::Tool),
             Item::PoisonedBow => Some(ItemType::Tool),
@@ -1111,6 +1126,9 @@ impl Item {
             Item::Dagger => Some(ItemType::Tool),
             Item::TigerFangDagger => Some(ItemType::Tool),
             Item::Bag => Some(ItemType::Tool),
+            Item::DiamondAxe => Some(ItemType::Tool),
+            Item::DiamondPickaxe => Some(ItemType::Tool),
+            Item::DiamondSword => Some(ItemType::Tool),
 
             Item::Parrot => Some(ItemType::Pet),
             Item::Wolf => Some(ItemType::Pet),
@@ -1126,8 +1144,7 @@ impl Item {
     pub fn provides_stats(self) -> Stats {
         match self {
             Item::ChainMail => Stats {
-                endurance: -3,
-                agility: -1,
+                agility: -4,
                 ..Default::default()
             },
             Item::LeatherArmor => Stats {
@@ -1139,12 +1156,12 @@ impl Item {
                 ..Default::default()
             },
             Item::Musket => Stats {
-                agility: -4,
+                agility: -2,
                 ..Default::default()
             },
             Item::Parrot => Stats {
                 perception: 2,
-                intelligence: 3,
+                intelligence: 2,
                 ..Default::default()
             },
             Item::Bird => Stats {
@@ -1157,20 +1174,38 @@ impl Item {
                 endurance: 4,
                 ..Default::default()
             },
-            Item::Boots | Item::BearClawBoots => Stats {
+            Item::Boots => Stats {
                 endurance: 4,
                 ..Default::default()
             },
-            Item::Gloves | Item::BearClawGloves => Stats {
+            Item::Gloves => Stats {
                 agility: 4,
                 ..Default::default()
             },
+            Item::BearClawBoots => Stats {
+                endurance: 4,
+                ..Default::default()
+            },
+            Item::BearClawGloves => Stats {
+                agility: 4,
+                ..Default::default()
+            },
+            Item::TigerFangDagger => {
+                Stats {
+                    strength: 4,
+                    ..Default::default()
+                }
+            }
             Item::Map => Stats {
                 intelligence: 2,
                 ..Default::default()
             },
-            Item::Lantern | Item::Headlamp => Stats {
+            Item::Lantern => Stats {
                 perception: 4,
+                ..Default::default()
+            },
+            Item::Headlamp => Stats {
+                perception: 6,
                 ..Default::default()
             },
             Item::RingOfIntelligence => Stats {
@@ -1228,11 +1263,12 @@ impl Item {
     pub fn usefulness_for(self, occupation: Occupation) -> u64 {
         match (self, occupation) {
             (Item::Crossbow, Occupation::Hunting | Occupation::Fighting) => 8,
-            (Item::Bow, Occupation::Hunting | Occupation::Fighting) => 4,
-            (Item::PoisonedBow, Occupation::Hunting | Occupation::Fighting) => 5,
-            (Item::Spear, Occupation::Hunting | Occupation::Fighting) => 3,
-            (Item::PoisonedSpear, Occupation::Hunting | Occupation::Fighting) => 4,
+            (Item::Bow, Occupation::Hunting | Occupation::Fighting) => 5,
+            (Item::PoisonedBow, Occupation::Hunting | Occupation::Fighting) => 6,
+            (Item::Spear, Occupation::Hunting | Occupation::Fighting) => 4,
+            (Item::PoisonedSpear, Occupation::Hunting | Occupation::Fighting) => 5,
             (Item::Sword, Occupation::Fighting) => 6,
+            (Item::DiamondSword, Occupation::Fighting) => 10,
             (Item::Longsword, Occupation::Fighting) => 7,
             (Item::Dagger, Occupation::Fighting) => 5,
             (Item::TigerFangDagger, Occupation::Fighting) => 8,
@@ -1244,33 +1280,39 @@ impl Item {
             (Item::Wolf, Occupation::Fighting) => 6,
             (Item::Axe, Occupation::Logging) => 6,
             (Item::Axe, Occupation::Fighting) => 3,
-            (Item::Pickaxe, Occupation::Mining) => 6,
+            (Item::DiamondAxe, Occupation::Logging) => 10,
+            (Item::DiamondAxe, Occupation::Fighting) => 3,
+            (Item::Pickaxe, Occupation::Mining | Occupation::Rockhounding) => 6,
+            (Item::DiamondPickaxe, Occupation::Mining | Occupation::Rockhounding) => 10,
             (Item::Pitchfork, Occupation::Farming) => 6,
             (Item::ChainMail, Occupation::Fighting) => 8,
             (Item::LeatherArmor, Occupation::Fighting) => 4,
-            (Item::Bird, Occupation::Mining) => 3,
-            (Item::Musket, Occupation::Hunting) => 8,
-            (Item::Musket, Occupation::Fighting) => 5,
+            (Item::Bird, Occupation::Mining | Occupation::Rockhounding) => 3,
+            (Item::Musket, Occupation::Hunting) => 10,
+            (Item::Musket, Occupation::Fighting) => 6,
             (Item::Dynamite, Occupation::Fighting) => 5,
             (Item::Dynamite, Occupation::Mining) => 10,
             (Item::Backpack, Occupation::Gathering) => 7,
             (Item::Bag, Occupation::Gathering) => 5,
-            (Item::Helmet | Item::Headlamp, Occupation::Mining | Occupation::Logging) => 4,
-            (Item::Helmet | Item::Headlamp, Occupation::Fighting) => 3,
-            (Item::RhinoHornHelmet, Occupation::Mining | Occupation::Logging) => 4,
+            (Item::Helmet, Occupation::Mining | Occupation::Logging | Occupation::Rockhounding) => 4,
+            (Item::Helmet, Occupation::Fighting) => 6,
+            (Item::Headlamp, Occupation::Mining | Occupation::Rockhounding) => 8,
+            (Item::RhinoHornHelmet, Occupation::Mining | Occupation::Logging | Occupation::Rockhounding) => 4,
             (Item::RhinoHornHelmet, Occupation::Fighting) => 8,
             (Item::Horse, Occupation::Fighting) => 5,
             (Item::Horse, Occupation::Farming | Occupation::Logging) => 7,
-            (Item::Map, Occupation::Gathering | Occupation::Exploring) => 8,
+            (Item::Map, Occupation::Exploring) => 8,
+            (Item::Map, Occupation::Gathering) => 6,
             (Item::FishingHat, Occupation::Fishing) => 6,
             (Item::FishingRod, Occupation::Fishing) => 6,
             (Item::FishingNet, Occupation::Fishing) => 10,
             (Item::Overall, Occupation::Farming | Occupation::Logging) => 8,
-            (Item::Boots, Occupation::Hunting | Occupation::Gathering | Occupation::Exploring) => 4,
+            (Item::Boots | Item::BearClawBoots, Occupation::Hunting | Occupation::Gathering | Occupation::Exploring) => 4,
+            (Item::Gloves | Item::BearClawGloves, Occupation::Mining | Occupation::Logging | Occupation::Rockhounding) => 4,
             (Item::BearClawBoots | Item::BearClawGloves, Occupation::Fighting) => 6,
             (Item::Wheelbarrow, Occupation::Gathering) => 8,
             (Item::Plough, Occupation::Farming) => 10,
-            (Item::Lantern, Occupation::Mining) => 5,
+            (Item::Lantern, Occupation::Mining | Occupation::Rockhounding) => 4,
             _ => 0,
         }
     }
@@ -1318,6 +1360,10 @@ impl Item {
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 Item::Selenite => Some(ItemProbability {
+                    starting_from_tick: 0,
+                    expected_ticks_per_drop: ONE_DAY,
+                }),
+                Item::Diamond => Some(ItemProbability {
                     starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
@@ -1730,6 +1776,9 @@ impl Craftable for Item {
             ),
             Item::FishingNet => Some(Bundle::new().add(Item::String, 20).add(Item::Iron, 2)),
             Item::Headlamp => Some(Bundle::new().add(Item::Helmet, 1).add(Item::Lantern, 1)),
+            Item::DiamondAxe => Some(Bundle::new().add(Item::Axe, 1).add(Item::Diamond, 1)),
+            Item::DiamondPickaxe => Some(Bundle::new().add(Item::Pickaxe, 1).add(Item::Diamond, 1)),
+            Item::DiamondSword => Some(Bundle::new().add(Item::Sword, 1).add(Item::Diamond, 1)),
             _ => None,
         }
     }
