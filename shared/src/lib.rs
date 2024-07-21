@@ -96,7 +96,13 @@ impl State {
         }
     }
 
-
+    pub fn prestige(&mut self, user_id: &UserId) {
+        let player = self.players.get_mut(user_id).unwrap();
+        player.base.prestige += 1;
+        player.base.food = 0;
+        player.inventory.items = Bundle::new();
+        player.prestige_quest_completed = false;
+    }
 }
 
 impl engine_shared::State for State {
@@ -273,8 +279,8 @@ impl engine_shared::State for State {
                             Self::add_to_food_storage(player, item, qty);
                         }
                         ClientEvent::Prestige => {
-                            if player.can_prestige() {
-                                player.prestige();
+                            if player.can_prestige() && player.prestige_quest_completed {
+                                self.prestige(&user_id);
                             }
                         }
                     }
@@ -525,9 +531,7 @@ impl engine_shared::State for State {
                                             if let Some(user_id) = quest.chance_by_score(rng) {
                                                 if let Some(player) = self.players.get_mut(&user_id)
                                                 {
-                                                    if player.can_prestige() {
-                                                        player.prestige();
-                                                    }
+                                                    player.prestige_quest_completed = true;
                                                     player.log.add(
                                                         self.time,
                                                         LogMsg::QuestCompletedPrestige(
@@ -819,6 +823,7 @@ pub struct Player {
     pub money: Money,
     pub last_online: Time,
     pub auto_functions: AutoFunctions,
+    pub prestige_quest_completed: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
@@ -848,7 +853,17 @@ impl Player {
             money: 0,
             last_online: time,
             auto_functions: AutoFunctions::default(),
+            prestige_quest_completed: false,
         };
+
+        if cfg!(debug_assertions) {
+            player.prestige_quest_completed = true;
+            player.base.curr_level = 10;
+            player.money = 10000;
+            for _ in 0..9 {
+                player.new_dwarf(rng, next_dwarf_id, time);
+            }
+        }
 
         player.new_dwarf(rng, next_dwarf_id, time);
 
@@ -891,19 +906,6 @@ impl Player {
 
     pub fn can_prestige(&self) -> bool {
         self.base.prestige < 10 && self.base.curr_level == self.base.max_level()
-    }
-
-    pub fn prestige(&mut self) {
-        self.base.prestige += 1;
-        self.base.curr_level = 1;
-        self.base.food = 0;
-        self.inventory.items = Bundle::new();
-        self.dwarfs.retain(|_, dwarf| {
-            matches!(
-                dwarf.participates_in_quest,
-                Some((QuestType::ExploreNewLands, _, _))
-            )
-        });
     }
 }
 
@@ -1197,15 +1199,18 @@ impl Item {
             },
             Item::BearClawBoots => Stats {
                 endurance: 4,
+                strength: 4,
                 ..Default::default()
             },
             Item::BearClawGloves => Stats {
                 agility: 4,
+                strength: 4,
                 ..Default::default()
             },
             Item::TigerFangDagger => {
                 Stats {
-                    strength: 4,
+                    agility: 4,
+                    perception: 4,
                     ..Default::default()
                 }
             }
@@ -1265,7 +1270,7 @@ impl Item {
                 | Item::Soup
                 | Item::ApplePie
         ) {
-            let nutrition = self.item_rarity_num() / 100 + self.crafting_depth() * 5;
+            let nutrition = self.item_rarity_num() / 100 + self.crafting_depth() * 10;
             Some(nutrition.max(1))
         } else {
             None
@@ -1971,12 +1976,12 @@ impl Occupation {
             Occupation::Mining => 2,
             Occupation::Logging => 2,
             Occupation::Hunting => 2,
-            Occupation::Gathering => 1,
+            Occupation::Gathering => 2,
             Occupation::Fishing => 1,
-            Occupation::Fighting => 3,
-            Occupation::Exploring => 1,
-            Occupation::Farming => 1,
-            Occupation::Rockhounding => 2,
+            Occupation::Fighting => 5,
+            Occupation::Exploring => 2,
+            Occupation::Farming => 2,
+            Occupation::Rockhounding => 3,
         }
     }
 
@@ -1986,12 +1991,12 @@ impl Occupation {
             Occupation::Mining => 1,
             Occupation::Logging => 1,
             Occupation::Hunting => 1,
-            Occupation::Gathering => 2,
-            Occupation::Fishing => 3,
-            Occupation::Fighting => 4,
-            Occupation::Exploring => 6,
-            Occupation::Farming => 8,
-            Occupation::Rockhounding => 10,
+            Occupation::Gathering => 1,
+            Occupation::Fishing => 5,
+            Occupation::Exploring => 10,
+            Occupation::Farming => 15,
+            Occupation::Fighting => 20,
+            Occupation::Rockhounding => 30,
         }
     }
 
@@ -2077,9 +2082,10 @@ impl Base {
         if self.curr_level < self.max_level() {
             Some(
                 Bundle::new()
-                    .add(Item::Wood, self.curr_level * 50)
-                    .add(Item::Stone, self.curr_level * 50)
-                    .add(Item::Nail, self.curr_level * 5),
+                    .add(Item::Wood, self.curr_level * 50 * self.prestige)
+                    .add(Item::Stone, self.curr_level * 50 * self.prestige)
+                    .add(Item::Nail, self.curr_level * 5 * self.prestige)
+                    .add(Item::Fabric, self.curr_level * 5 * self.prestige),
             )
         } else {
             None

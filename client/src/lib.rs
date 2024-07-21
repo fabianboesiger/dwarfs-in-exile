@@ -16,6 +16,11 @@ const HOST: &str = "dwarfs-in-exile.com";
 #[cfg(debug_assertions)]
 const HOST: &str = "localhost:3000";
 
+#[cfg(not(debug_assertions))]
+const WS_PROTOCOL: &str = "wss";
+#[cfg(debug_assertions)]
+const WS_PROTOCOL: &str = "ws";
+
 // ------ ------
 //     Model
 // ------ ------
@@ -146,8 +151,9 @@ fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
 
     let (game_id, page) = Page::from_url(url);
 
+
     Model {
-        state: ClientState::init(orders, format!("wss://{HOST}/game/{game_id}/ws")),
+        state: ClientState::init(orders, format!("{WS_PROTOCOL}://{HOST}/game/{game_id}/ws")),
         page,
         message: String::new(),
         chat_visible: false,
@@ -981,7 +987,7 @@ fn quest(model: &Model, state: &shared::State, user_id: &shared::UserId, quest_i
                 match quest.quest_type {
                     QuestType::KillTheDragon => p!["A dragon was found high up in the mountains in the forbidden lands. Send your best warriors to defeat it."],
                     QuestType::ArenaFight => p!["The King of the Dwarfs has invited the exilants to compete in an arena fight against monsters and creatures from the forbidden lands. The toughest warrior will be rewarded with a gift from the king personally."],
-                    QuestType::ExploreNewLands => p!["Send dwarfs to explore new lands and find a place for a new settlement. The new settlement will be a better version of your previous settlement that allows a larger maximal population. Additionally, the new settlement will attract more and better dwarfs. Keep in mind that if this quest is sucessful, you will loose all of your dwarfs that you left back home."],
+                    QuestType::ExploreNewLands => p!["Send dwarfs to explore new lands and find a place for a new settlement. The new settlement will be a better version of your previous settlement that allows a larger maximal population. Additionally, the new settlement will attract more and better dwarfs."],
                     QuestType::FeastForAGuest => p!["Your village is visted by an ominous guest. Go hunting and organize a feast for the guest, and he may stay."],
                     QuestType::FreeTheVillage => p!["The Elven Village was raided by the Orks. Free the Elves to earn a reward!"],
                     QuestType::ADwarfGotLost => p!["Search for a dwarf that got lost in the wilderness. If you find him first, he may stay in your settlement!"],
@@ -1155,9 +1161,9 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
             tr![th!["Money", tip("Earn money by doing quests. With money, you can buy loot crates.")], td![format!("{} coins", player.money)]],
             tr![th!["Food", tip("Your settlement can store food for your dwarfs to consume. One quantity of food restores 0.1% of a dwarfs health.")], td![format!("{}", player.base.food)]],
         ],
+        h3!["Upgrade Settlement"],
         if let Some(requires) = player.base.upgrade_cost() {
             div![
-                h3!["Upgrade Settlement"],
                 p!["Upgrade your settlement to increase the maximum population and unlock new occupations for your dwarfs."],
                 if let Some(unlocked_occupation) = enum_iterator::all::<Occupation>().filter(|occupation| occupation.unlocked_at_level() == player.base.curr_level + 1).next() {
                     p![format!("The next upgrade increases your maximal population by one and unlocks the occupation {}.", unlocked_occupation)]
@@ -1173,6 +1179,14 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                     },
                     ev(Ev::Click, move |_| Msg::send_event(ClientEvent::UpgradeBase)),
                     "Upgrade",
+                ]
+            ]
+        } else if player.can_prestige() && player.prestige_quest_completed {
+            div![
+                p!["Move to a new, better settlement. The settlement will become bigger and attract better dwarfs. But be warned, you will loose all your items in this process."],
+                button![
+                    ev(Ev::Click, move |_| Msg::send_event(ClientEvent::Prestige)),
+                    "Start a new Settlement",
                 ]
             ]
         } else {
@@ -1707,7 +1721,7 @@ fn history(
                             LogMsg::QuestCompletedPrestige(quest, success) => {
                                 if *success {
                                     span![format!(
-                                        "You completed the quest {} and started a new settlement.",
+                                        "You completed the quest {} and can start a new settlement.",
                                         quest
                                     )]
                                 } else {

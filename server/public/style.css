@@ -74,7 +74,7 @@ form > div {
     color: darkred;
 }
 
-input, button, select, a.button, summary {
+input:not([type=checkbox]):not([type=radio]), button, select, a.button, summary {
     width: 100%;
     box-sizing: border-box;
     border: none;

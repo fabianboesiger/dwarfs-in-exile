@@ -3,27 +3,48 @@
 <main>
     <div class="content">
         <h2>Admin Panel</h2>
-        <form action="/admin/manage-user">
-            <div>
-                <label for="username">Username</label>
-                <input id="username" type="text" name="username" value="">
-            </div>
-            <div>
-                <label for="password">Change Password</label>
-                <input id="password" type="text" name="password" value="">
-            </div>
-            <div>
-                <label for="premium">Add Premium Hours</label>
-                <input id="premium" type="number" name="premium" value="0">
-            </div>
-            <div>
-                <label>Delete User</label>
-                <input type="radio" id="delete-no" name="delete" value="false" checked>
-                <label for="delete-no">No</label><br>
-                <input type="radio" id="delete-yes" name="delete" value="true">
-                <label for="delete-yes">Yes</label><br>
-            </div>
+        <h3>Manage Worlds</h3>
+        <form action="/admin/create-world" method="POST">
+            <input type="submit" value="Create new World">
         </form>
+        <h3>Manage Users</h3>
+        <table>
+            <tr>
+                <th>User ID</th>
+                <th>Username</th>
+                <th>Actions</th>
+            </tr>
+            {% for user in users %}
+            <tr>
+                <td>{{ user.0 }}</td>
+                <td>{{ user.1 }}</td>
+                <td>
+                    <details>
+                        <summary>Edit User</summary>
+                        <form action="/admin/manage-user" method="POST">
+                            <input id="user_id-{{ user.0 }}" type="hidden" name="user_id" value="{{ user.0 }}">
+                            <div>
+                                <label for="password-{{ user.0 }}">Change Password</label>
+                                <input id="password-{{ user.0 }}" type="text" name="password" value="">
+                            </div>
+                            <div>
+                                <label for="premium-{{ user.0 }}">Add Premium Hours</label>
+                                <input id="premium-{{ user.0 }}" type="number" name="premium" value="0">
+                            </div>
+                            <div>
+                                <label>Delete User</label><br>
+                                <input type="radio" id="delete-no-{{ user.0 }}" name="delete" value="false" checked>
+                                <label for="delete-no-{{ user.0 }}">No</label><br>
+                                <input type="radio" id="delete-yes-{{ user.0 }}" name="delete" value="true">
+                                <label for="delete-yes-{{ user.0 }}">Yes</label><br>
+                            </div>
+                            <input type="submit" value="Submit">
+                        </form>
+                    </details>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
         
     </div>
 </main>

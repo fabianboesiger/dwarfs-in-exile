@@ -18,7 +18,7 @@ pub struct PartialEventData {
 
 use crate::ServerError;
 
-pub type GameState = engine_server::ServerState<shared::State>;
+pub type GameState = engine_server::ServerState<shared::State, GameStore>;
 
 #[derive(Clone)]
 pub struct GameStore {
@@ -30,8 +30,7 @@ impl GameStore {
         Self { db }
     }
 
-    pub async fn load_all(&self) -> Result<GameState, sqlx::Error> {
-        let mut game_state = GameState::new();
+    pub async fn load_all(self) -> Result<GameState, sqlx::Error> {
         
         let open_worlds: Vec<(GameId,)> = sqlx::query_as(
             r#"
@@ -43,8 +42,10 @@ impl GameStore {
         .fetch_all(&self.db)
         .await?;
 
+        let game_state = GameState::new(self);
+
         for (id,) in open_worlds {
-            game_state.load(self.clone(), id).await?;
+            game_state.load(id).await?;
         }
 
         Ok(game_state)

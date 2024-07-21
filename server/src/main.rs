@@ -16,7 +16,7 @@ use axum::{
 };
 use game::GameStore;
 use tokio::{task, time};
-use std::{net::{SocketAddr, SocketAddrV4}, path::PathBuf, str::FromStr, time::Duration};
+use std::{net::{SocketAddr, SocketAddrV4}, str::FromStr, time::Duration};
 use tower_http::{
     services::ServeDir,
     trace::{DefaultMakeSpan, TraceLayer},
@@ -115,6 +115,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             post(auth::change_password::post_change_password),
         )
         .route("/admin", get(admin::get_admin))
+        .route("/admin/manage-user", post(admin::post_manage_user))
+        .route("/admin/create-world", post(admin::post_create_world))
         .route("/stripe-webhooks", post(stripe::handle_webhook))
         .layer(Extension(game_state))
         .layer(Extension(pool.clone()))
