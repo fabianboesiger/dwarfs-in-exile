@@ -127,23 +127,6 @@ header {
     padding: 16px;
 }
 
-
-.item-common {
-    background: rgba(255, 255, 255, 0.2);    
-}
-.item-uncommon {
-    background: rgba(0, 175, 9, 0.2);    
-}
-.item-rare {
-    background: rgba(4, 101, 211, 0.2);    
-}
-.item-epic {
-    background: rgba(192, 0, 199, 0.2);    
-}
-.item-legendary {
-    background: rgba(194, 110, 0, 0.2);    
-}
-
 .dwarf .dwarf-image {
     width: 128px;
     flex-grow: 0;
@@ -498,7 +481,7 @@ h3, h4 {
     margin-top: 0;
 }
 
-.received-item-popup {
+#received-item-popup {
     position: fixed;
     left: 0;
     bottom: 32px;
@@ -513,18 +496,6 @@ h3, h4 {
     vertical-align: middle;
     background: rgba(255, 255, 255, 0.3);    
     backdrop-filter: blur(16px);
-    animation-name: fade-out;
-    animation-duration: 3000ms;
-}
-
-@keyframes fade-out {
-    0% {
-        opacity: 1;
-    }
-    100% {
-        opacity: 0;
-    }
-    
 }
 
 .received-item-image {
@@ -539,4 +510,20 @@ h3, h4 {
     line-height: 32px;
     width: 32px;
     height: 32px;
+}
+
+.item-common {
+    background: rgba(255, 255, 255, 0.2);    
+}
+.item-uncommon {
+    background: rgba(0, 175, 9, 0.2);    
+}
+.item-rare {
+    background: rgba(4, 101, 211, 0.2);    
+}
+.item-epic {
+    background: rgba(192, 0, 199, 0.2);    
+}
+.item-legendary {
+    background: rgba(194, 110, 0, 0.2);    
 }

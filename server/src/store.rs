@@ -1,15 +1,91 @@
+use crate::ServerError;
+use askama::Template;
+use askama_axum::{IntoResponse, Response};
+use axum::Extension;
+use sqlx::SqlitePool;
+use tower_sessions::Session;
 use axum::{
     async_trait,
     body::Body,
     extract::FromRequest,
     http::{Request, StatusCode},
-    response::{IntoResponse, Response},
-    Error, Extension,
+    Error,
 };
-use sqlx::SqlitePool;
 use stripe::{CheckoutSession, Client, Event, EventObject, EventType};
+use crate::game::GameState;
 
-use crate::{game::GameState, ServerError};
+#[derive(Debug, Clone, Copy)]
+pub struct StoreEntry {
+    buy_button_id: &'static str,
+    publishable_key: &'static str,
+    product_id: &'static str,
+    name: &'static str,
+    product: Product,
+}
+
+
+#[cfg(not(debug_assertions))]
+static STORE_ENTRIES: &[StoreEntry] = &[];
+
+#[cfg(debug_assertions)]
+static STORE_ENTRIES: &[StoreEntry] = &[
+    StoreEntry {
+        buy_button_id: "buy_btn_1Pcq8OCJSYyq6ul45QglYe5M",
+        publishable_key: "pk_test_51PclDhCJSYyq6ul4shd76Uo28pNWY617Ae8OTV0NXhxZoKCIKEhLkiZRKNnLG635zpSIKJS8eGLPNaKqFtatiZLA00KocaOW8X",
+        product_id: "prod_QTnWStL89MpI6m",
+        name: "Premium Account (One Week)",
+        product: Product::Premium(7),
+    },
+    StoreEntry {
+        buy_button_id: "buy_btn_1Pcq8tCJSYyq6ul4f4jhctou",
+        publishable_key: "pk_test_51PclDhCJSYyq6ul4shd76Uo28pNWY617Ae8OTV0NXhxZoKCIKEhLkiZRKNnLG635zpSIKJS8eGLPNaKqFtatiZLA00KocaOW8X",
+        product_id: "prod_QTnXaJhARJBCKk",
+        name: "Premium Account (One Month)",
+        product: Product::Premium(30),
+    },
+    StoreEntry {
+        buy_button_id: "buy_btn_1Pcq9GCJSYyq6ul4PQ5OshG9",
+        publishable_key: "pk_test_51PclDhCJSYyq6ul4shd76Uo28pNWY617Ae8OTV0NXhxZoKCIKEhLkiZRKNnLG635zpSIKJS8eGLPNaKqFtatiZLA00KocaOW8X",
+        product_id: "prod_QTnZFHdzJE4dQ5",
+        name: "Premium Account (One Year)",
+        product: Product::Premium(365),
+    },
+];
+
+#[derive(Template, Default)]
+#[template(path = "store.html")]
+pub struct StoreTemplate {
+    username: String,
+    user_id: i64,
+    store_entries: &'static [StoreEntry],
+}
+
+pub async fn get_store(
+    session: Session,
+    Extension(pool): Extension<SqlitePool>,
+) -> Result<Response, ServerError> {
+    let (username, user_id): (String, i64) = sqlx::query_as(
+        r#"
+            SELECT username, user_id
+            FROM users
+            WHERE user_id = $1
+        "#,
+    )
+    .bind(session.get::<i64>(crate::USER_ID_KEY).await?.ok_or(ServerError::InvalidSession)?)
+    .fetch_optional(&pool)
+    .await?
+    .ok_or(ServerError::UserDeleted)?;
+
+    Ok(StoreTemplate {
+        username,
+        user_id,
+        store_entries: STORE_ENTRIES,
+        ..StoreTemplate::default()
+    }
+    .into_response())
+   
+}
+
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -45,6 +121,7 @@ where
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 enum Product {
     Premium(i64),
 }
@@ -55,6 +132,9 @@ pub async fn handle_webhook(
     Extension(game_state): Extension<GameState>,
     StripeEvent(event): StripeEvent,
 ) -> Result<Response, ServerError> {
+    let span = tracing::span!(tracing::Level::INFO, "handle_webhook");
+    let _enter = span.enter();
+
     tracing::info!("handling webhook");
 
     match event.type_ {
@@ -77,25 +157,29 @@ pub async fn handle_webhook(
                     .ok_or(ServerError::StripeErrorMissingData(format!("missing line_items, {session:?}")))?
                     .data
                 {
-                    let product = match line_item
+                    let product_id = line_item
                         .price
                         .as_ref()
                         .ok_or(ServerError::StripeErrorMissingData(format!("missing price, {session:?}")))?
                         .product
                         .as_ref()
                         .ok_or(ServerError::StripeErrorMissingData(format!("missing product, {session:?}")))?
-                        .id()
-                        .as_str()
-                    {
-                        "prod_QTnZFHdzJE4dQ5" => Product::Premium(365),
-                        "prod_QTnXaJhARJBCKk" => Product::Premium(30),
-                        "prod_QTnWStL89MpI6m" => Product::Premium(7),
-                        _ => {
-                            return Err(ServerError::StripeErrorMissingData(format!("invalid product id, {session:?}")))?;
-                        }
-                    };
+                        .id();
 
-                    match product {
+                    let mut store_entry: Option<StoreEntry> = None;
+
+                    for e in STORE_ENTRIES {
+                        if e.product_id == product_id.as_str() {
+                            store_entry = Some(*e);
+                            break;
+                        }
+                    }
+
+                    let store_entry = store_entry.ok_or(ServerError::StripeErrorMissingData(format!("unknown product id {product_id}")))?;
+
+                    tracing::info!("store entry found {:?}", store_entry.name);
+
+                    match store_entry.product {
                         Product::Premium(days) => {
                             let hours = days * line_item.quantity.ok_or(ServerError::StripeErrorMissingData(format!("missing quantity, {session:?}")))? as i64 * 24;
 

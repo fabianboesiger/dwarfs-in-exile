@@ -4,10 +4,9 @@ mod db;
 mod error;
 mod game;
 mod index;
-mod stripe;
 mod admin;
+mod store;
 
-use auth::store;
 use error::*;
 
 use axum::{
@@ -84,10 +83,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/", get(index::get_index))
         .route("/store", get(store::get_store))
         .route("/about", get(about::get_about))
-        .route("/game", get(game::get_game_select))
-        .route("/game/:game_id/ws", get(game::ws_handler))
-        .route("/game/:game_id", get(game::get_game))
-        .route("/game/:game_id/*subpath", get(game::get_game))
+        .nest("/game", Router::new()
+            .route("/", get(game::get_game_select))
+            .route("/:game_id/ws", get(game::ws_handler))
+            .route("/:game_id", get(game::get_game))
+        )
         .route(
             "/register",
             get(auth::register::get_register).post(auth::register::post_register),
@@ -117,7 +117,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/admin", get(admin::get_admin))
         .route("/admin/manage-user", post(admin::post_manage_user))
         .route("/admin/create-world", post(admin::post_create_world))
-        .route("/stripe-webhooks", post(stripe::handle_webhook))
+        .route("/stripe-webhooks", post(store::handle_webhook))
         .layer(Extension(game_state))
         .layer(Extension(pool.clone()))
         .layer(session_layer)

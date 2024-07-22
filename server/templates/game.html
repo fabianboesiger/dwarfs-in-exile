@@ -2,6 +2,23 @@
 {% block content %}
     <link rel="modulepreload" href="/pkg/package.js" as="script" type="text/javascript">
     <link rel="preload" href="/pkg/package_bg.wasm" as="fetch" type="application/wasm" crossorigin="anonymous">
+    <script>
+        const ANIMATION_DURATION_MILLIS = 3000;
+        const ANIMATION_UPDATE_MILLIS = 50;
+        document.addEventListener('DOMContentLoaded', () => {
+            let receivedItemPopup = null;
+            setInterval(() => {
+                if (receivedItemPopup === null) {
+                    receivedItemPopup = document.getElementById("received-item-popup");
+                } else {
+                    const items = receivedItemPopup.getElementsByClassName("received-item");
+                    for (const item of items) {
+                        item.style.opacity = (parseFloat(item.style.opacity) - ANIMATION_UPDATE_MILLIS / ANIMATION_DURATION_MILLIS).toString();
+                    }
+                }
+            }, ANIMATION_UPDATE_MILLIS);
+        });
+    </script>
     <script type="module">
         import init from '/pkg/package.js';
         init('/pkg/package_bg.wasm');
