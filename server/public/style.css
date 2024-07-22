@@ -81,22 +81,19 @@ input:not([type=checkbox]):not([type=radio]), button, select, a.button, summary 
     padding: 8px;
     background: white;
     display: inline-block;
-    text-align: center;
+    text-align: left;
     text-decoration: none;
     color: black;
     font-family: Georgia, 'Times New Roman', Times, serif;
     font-size: 12px;
 }
 
-input:disabled, button:disabled, select:disabled {
-    color: gray;
+button, a.button, input[type=submit] {
+    text-align: center !important;
 }
 
-
-input[type=text], input[type=password], input[type=email] {
-    text-align: left;
-    /*border-bottom: 2px solid black;*/
-    background: rgba(255, 255, 255, 0.2);  
+input:disabled, button:disabled, select:disabled {
+    color: gray;
 }
 
 select {
