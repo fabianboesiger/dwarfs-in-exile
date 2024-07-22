@@ -44,7 +44,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let store = MemoryStore::default();
     let session_layer = SessionManagerLayer::new(store)
-        .with_secure(false)
         .with_http_only(false)
         .with_expiry(Expiry::OnInactivity(tower_sessions::cookie::time::Duration::days(30)));
 
@@ -86,7 +85,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest("/game", Router::new()
             .route("/", get(game::get_game_select))
             .route("/:game_id/ws", get(game::ws_handler))
-            .route("/:game_id", get(game::get_game))
+            .nest_service("/:game_id", get(game::get_game))
         )
         .route(
             "/register",
