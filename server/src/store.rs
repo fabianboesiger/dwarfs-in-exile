@@ -25,7 +25,29 @@ pub struct StoreEntry {
 
 
 #[cfg(not(debug_assertions))]
-static STORE_ENTRIES: &[StoreEntry] = &[];
+static STORE_ENTRIES: &[StoreEntry] = &[
+    StoreEntry {
+        buy_button_id: "buy_btn_1PfOoiCJSYyq6ul4DXYS01wg",
+        publishable_key: "pk_live_51PclDhCJSYyq6ul4z8Wmuf3h9PVDP9vXOyGhZqc4dy3JvkltdKYUt51oeD2x1K23XxEy1qeU6D80GBx3TpEE9VNN00osxE1rXe",
+        product_id: "prod_QWRhg5DjHRbafp",
+        name: "Premium Account (One Week)",
+        product: Product::Premium(7),
+    },
+    StoreEntry {
+        buy_button_id: "buy_btn_1PfOogCJSYyq6ul4UGNJGWVk",
+        publishable_key: "pk_live_51PclDhCJSYyq6ul4z8Wmuf3h9PVDP9vXOyGhZqc4dy3JvkltdKYUt51oeD2x1K23XxEy1qeU6D80GBx3TpEE9VNN00osxE1rXe",
+        product_id: "prod_QWRh0KcP5iPWTr",
+        name: "Premium Account (One Month)",
+        product: Product::Premium(30),
+    },
+    StoreEntry {
+        buy_button_id: "buy_btn_1PfOodCJSYyq6ul4LYrCeSvJ",
+        publishable_key: "pk_live_51PclDhCJSYyq6ul4z8Wmuf3h9PVDP9vXOyGhZqc4dy3JvkltdKYUt51oeD2x1K23XxEy1qeU6D80GBx3TpEE9VNN00osxE1rXe",
+        product_id: "prod_QWRhdtALzBi1Os",
+        name: "Premium Account (One Year)",
+        product: Product::Premium(365),
+    },
+];
 
 #[cfg(debug_assertions)]
 static STORE_ENTRIES: &[StoreEntry] = &[
