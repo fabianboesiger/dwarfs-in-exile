@@ -96,7 +96,7 @@ input:disabled, button:disabled, select:disabled {
 input[type=text], input[type=password], input[type=email] {
     text-align: left;
     /*border-bottom: 2px solid black;*/
-    background: rgba(255, 255, 255, 0.2);    
+    background: rgba(255, 255, 255, 0.2);  
 }
 
 select {

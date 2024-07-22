@@ -111,21 +111,22 @@ pub struct Model {
     chat_visible: bool,
     history_visible: bool,
     inventory_filter: InventoryFilter,
-    map_time: Option<(Time, f64)>,
+    map_time: (Time, u64),
     game_id: GameId,
 }
 
 impl Model {
     fn sync_timestamp_millis_now(&mut self, time: Time) {
-        self.map_time = Some((time, Date::now()));
+        self.map_time.0 = time;
+        self.map_time.1 = Date::now() as u64;
     }
 
-    fn get_timestamp_millis_of(&self, time: Time) -> Option<f64> {
-        Some(self.map_time?.1 + (time as f64 - self.map_time?.0 as f64) * 1000.0 / SPEED as f64)
+    fn get_timestamp_millis_of(&self, time: Time) -> u64 {
+        self.map_time.1 + (time.saturating_sub(self.map_time.0)) * 1000 / SPEED
     }
 
-    fn get_timestamp_millis_diff_now(&self, time: Time) -> Option<f64> {
-        Some(Date::now() - self.get_timestamp_millis_of(time)?)
+    fn get_timestamp_millis_diff_now(&self, time: Time) -> u64 {
+        (Date::now() as u64).saturating_sub(self.get_timestamp_millis_of(time))
     }
 
     fn base_path(&self) -> String {
@@ -159,7 +160,7 @@ fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
         chat_visible: false,
         history_visible: false,
         inventory_filter: InventoryFilter::default(),
-        map_time: None,
+        map_time: (0, 0),
         game_id,
     }
 }
@@ -216,10 +217,11 @@ impl From<EventWrapper<shared::State>> for Msg {
 fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
     match msg {
         Msg::GameStateEvent(ev) => {
-            if let EventWrapper::InitGameState(sync_data) = &ev {
-                model.sync_timestamp_millis_now(sync_data.state.state.time);
-            }
             model.state.update(ev, orders);
+            /*if let Some(state) = model.state.get_state() 
+            {
+                model.sync_timestamp_millis_now(state.time);
+            }*/
         }
         Msg::ChangePage(page) => {
             model.page = page;
@@ -444,14 +446,14 @@ fn last_received_items(
             .iter()
             .enumerate()
             .filter_map(|(_idx, (item, qty, time))| {
-                let time_diff_millis = model.get_timestamp_millis_diff_now(*time)?;
+                let time_diff_millis = model.get_timestamp_millis_diff_now(*time);
 
-                if time_diff_millis > 3000.0 {
+                if time_diff_millis > 3000 {
                     None
                 } else {
                     Some(div![
                         C!["received-item"],
-                        style![St::Opacity => format!("{}", 1.0 - time_diff_millis / 3000.0), St::AnimationDelay => format!("-{}ms", time_diff_millis)],
+                        style![St::Opacity => format!("{}", 1.0 - time_diff_millis as f64 / 3000.0), St::AnimationDelay => format!("-{}ms", time_diff_millis)],
                         match item.item_rarity() {
                             ItemRarity::Common => C!["item-common"],
                             ItemRarity::Uncommon => C!["item-uncommon"],
@@ -463,7 +465,7 @@ fn last_received_items(
                             C!["received-item-image"],
                             attrs! {At::Src => Image::from(*item).as_at_value()},
                         ],
-                        div![C!["received-item-content"], format!("+{}", qty)]
+                        div![C!["received-item-content"], /*format!("+{}", qty), br![],*/ format!("{time_diff_millis}")]
                     ])
                 }
             })

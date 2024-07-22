@@ -296,42 +296,6 @@ impl engine_shared::State for State {
                                     .map(|user_data| user_data.premium > 0)
                                     .unwrap_or(false);
 
-                                if is_premium {
-                                    // Auto-craft!
-                                    for &item in &player.auto_functions.auto_craft {
-                                        if let Some(requires) = item.requires() {
-                                            if let Some(qty) =
-                                                player.inventory.items.can_remove_x_times(&requires)
-                                            {
-                                                if player
-                                                    .inventory
-                                                    .items
-                                                    .remove_checked(requires.mul(qty))
-                                                {
-                                                    player
-                                                        .inventory
-                                                        .items
-                                                        .add_checked(Bundle::new().add(item, qty));
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    // Auto-store!
-                                    for &item in &player.auto_functions.auto_store {
-                                        if let Some(&qty) = player.inventory.items.get(&item) {
-                                            if let Some(food) = item.nutritional_value() {
-                                                if player
-                                                    .inventory
-                                                    .items
-                                                    .remove_checked(Bundle::new().add(item, qty))
-                                                {
-                                                    player.base.food += food * qty;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
 
                                 // Chance for a new dwarf!
                                 if rng.gen_ratio(
@@ -375,11 +339,29 @@ impl engine_shared::State for State {
                                 }
 
                                 // Let the dwarfs work!
+                                let mut added_items = Bundle::new();
                                 for (_, dwarf) in player.dwarfs.iter_mut() {
                                     if !dwarf.dead() {
-                                        dwarf.work(&mut player.inventory, rng, self.time);
+                                        for _ in 0..=dwarf.effectiveness(dwarf.occupation) {
+                                            for item in enum_iterator::all::<Item>() {
+                                                if let Some(ItemProbability {
+                                                    starting_from_tick,
+                                                    expected_ticks_per_drop,
+                                                }) = item.item_probability(dwarf.occupation)
+                                                {
+                                                    if dwarf.occupation_duration >= starting_from_tick {
+                                                        if rng.gen_ratio(1, expected_ticks_per_drop as u32) {
+                                                            added_items = added_items.add(item, 1);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                
+                                        dwarf.occupation_duration += 1;
                                     }
                                 }
+                                player.add_items(added_items, self.time, is_premium);
 
                                 // Remove dead dwarfs.
                                 for quest in self.quests.values_mut() {
@@ -503,7 +485,13 @@ impl engine_shared::State for State {
                                             if let Some(user_id) = quest.best() {
                                                 if let Some(player) = self.players.get_mut(&user_id)
                                                 {
-                                                    player.inventory.add(items.clone(), self.time);
+                                                    let is_premium = user_data
+                                                        .get(&user_id)
+                                                        .map(|user_data| user_data.premium > 0)
+                                                        .unwrap_or(false);
+
+                                
+                                                    player.add_items(items.clone(), self.time, is_premium);
                                                     player.log.add(
                                                         self.time,
                                                         LogMsg::QuestCompletedItems(
@@ -900,12 +888,69 @@ impl Player {
             let item = *possible_items.choose(rng).unwrap();
             let bundle = Bundle::new().add(item, 1);
             self.log.add(time, LogMsg::OpenedLootCrate(bundle.clone()));
-            self.inventory.add(bundle, time);
+            self.add_items(bundle, time, true);
         }
     }
 
     pub fn can_prestige(&self) -> bool {
         self.base.prestige < 10 && self.base.curr_level == self.base.max_level()
+    }
+
+    pub fn add_items(&mut self, bundle: Bundle<Item>, time: Time, is_premium: bool) {
+        self.inventory.add(bundle, time);
+        self.auto_craft(time, is_premium);
+        self.auto_store(is_premium);
+    }
+
+    pub fn auto_craft(&mut self, time: Time, is_premium: bool) {
+        if is_premium {
+            let mut items_added = false;
+            // Auto-craft!
+            for &item in &self.auto_functions.auto_craft {
+                if let Some(requires) = item.requires() {
+                    if let Some(qty) =
+                    self.inventory.items.can_remove_x_times(&requires)
+                    {
+                        if qty > 0 {
+                            if self
+                                .inventory
+                                .items
+                                .remove_checked(requires.mul(qty))
+                            {
+                                self
+                                    .inventory
+                                    .add(Bundle::new().add(item, qty), time);
+
+                                items_added = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if items_added {
+                self.auto_craft(time, is_premium);
+            }
+        }
+    }
+
+    pub fn auto_store(&mut self, is_premium: bool) {
+        if is_premium {
+            // Auto-store!
+            for &item in &self.auto_functions.auto_store {
+                if let Some(&qty) = self.inventory.items.get(&item) {
+                    if let Some(food) = item.nutritional_value() {
+                        if self
+                            .inventory
+                            .items
+                            .remove_checked(Bundle::new().add(item, qty))
+                        {
+                            self.base.food += food * qty;
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1931,26 +1976,6 @@ impl Dwarf {
         debug_assert!(effectiveness <= 10);
 
         effectiveness
-    }
-
-    pub fn work(&mut self, inventory: &mut Inventory, rng: &mut impl Rng, time: Time) {
-        for _ in 0..=self.effectiveness(self.occupation) {
-            for item in enum_iterator::all::<Item>() {
-                if let Some(ItemProbability {
-                    starting_from_tick,
-                    expected_ticks_per_drop,
-                }) = item.item_probability(self.occupation)
-                {
-                    if self.occupation_duration >= starting_from_tick {
-                        if rng.gen_ratio(1, expected_ticks_per_drop as u32) {
-                            inventory.add(Bundle::new().add(item, 1), time);
-                        }
-                    }
-                }
-            }
-        }
-
-        self.occupation_duration += 1;
     }
 }
 
