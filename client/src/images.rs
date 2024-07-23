@@ -142,6 +142,8 @@ pub enum Image {
     DiamondAxe,
     DiamondPickaxe,
     DiamondSword,
+    TheHiddenTreasure,
+    CatStuckOnATree,
 }
 
 impl AsAtValue for Image {
@@ -283,6 +285,8 @@ impl From<QuestType> for Image {
             QuestType::ADwarfGotLost => Image::ADwarfGotLost,
             QuestType::FeastForAGuest => Image::FeastForAGuest,
             QuestType::ArenaFight => Image::ArenaFight,
+            QuestType::TheHiddenTreasure => Image::TheHiddenTreasure,
+            QuestType::CatStuckOnATree => Image::CatStuckOnATree,
         }
     }
 }

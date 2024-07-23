@@ -644,9 +644,11 @@ impl<T: BundleType> Bundle<T> {
     }
 
     pub fn add(mut self, t: T, n: u64) -> Self {
-        let mut map = CustomMap::new();
-        map.insert(t, n);
-        self.add_checked(Bundle(map));
+        if n > 0 {
+            let mut map = CustomMap::new();
+            map.insert(t, n);
+            self.add_checked(Bundle(map));
+        }
         self
     }
 
@@ -1220,8 +1222,8 @@ impl Item {
                 ..Default::default()
             },
             Item::Parrot => Stats {
-                perception: 2,
-                intelligence: 2,
+                perception: 4,
+                intelligence: 4,
                 ..Default::default()
             },
             Item::Bird => Stats {
@@ -1232,6 +1234,11 @@ impl Item {
                 strength: 4,
                 agility: 4,
                 endurance: 4,
+                ..Default::default()
+            },
+            Item::Cat => Stats {
+                agility: 6,
+                perception: 6,
                 ..Default::default()
             },
             Item::Boots => Stats {
@@ -1338,9 +1345,9 @@ impl Item {
             (Item::Dragon, Occupation::Hunting) => 4,
             (Item::Dragon, Occupation::Fighting) => 10,
             (Item::Donkey, Occupation::Gathering) => 6,
-            (Item::Donkey, Occupation::Farming) => 4,
-            (Item::Wolf, Occupation::Hunting) => 6,
-            (Item::Wolf, Occupation::Fighting) => 6,
+            (Item::Donkey, Occupation::Farming) => 6,
+            (Item::Wolf, Occupation::Hunting) => 10,
+            (Item::Wolf, Occupation::Fighting) => 4,
             (Item::Axe, Occupation::Logging) => 6,
             (Item::Axe, Occupation::Fighting) => 3,
             (Item::DiamondAxe, Occupation::Logging) => 10,
@@ -1453,11 +1460,11 @@ impl Item {
             Occupation::Hunting => match self {
                 Item::RawMeat => Some(ItemProbability {
                     starting_from_tick: 0,
-                    expected_ticks_per_drop: ONE_MINUTE * 2,
+                    expected_ticks_per_drop: ONE_MINUTE * 3,
                 }),
                 Item::Leather => Some(ItemProbability {
                     starting_from_tick: 0,
-                    expected_ticks_per_drop: ONE_MINUTE * 4,
+                    expected_ticks_per_drop: ONE_MINUTE * 5,
                 }),
                 Item::Bone => Some(ItemProbability {
                     starting_from_tick: 0,
@@ -1483,7 +1490,7 @@ impl Item {
             Occupation::Fishing => match self {
                 Item::RawFish => Some(ItemProbability {
                     starting_from_tick: 0,
-                    expected_ticks_per_drop: ONE_MINUTE * 2,
+                    expected_ticks_per_drop: ONE_MINUTE * 3,
                 }),
                 Item::PufferFish => Some(ItemProbability {
                     starting_from_tick: 0,
@@ -1491,11 +1498,15 @@ impl Item {
                 }),
                 Item::Boots => Some(ItemProbability {
                     starting_from_tick: 0,
-                    expected_ticks_per_drop: ONE_HOUR * 4,
+                    expected_ticks_per_drop: ONE_HOUR * 2,
                 }),
                 Item::Gloves => Some(ItemProbability {
                     starting_from_tick: 0,
-                    expected_ticks_per_drop: ONE_HOUR * 4,
+                    expected_ticks_per_drop: ONE_HOUR * 2,
+                }),
+                Item::GoldenRing => Some(ItemProbability {
+                    starting_from_tick: 0,
+                    expected_ticks_per_drop: ONE_HOUR * 6,
                 }),
                 _ => None,
             },
@@ -1521,7 +1532,7 @@ impl Item {
             Occupation::Exploring => match self {
                 Item::Cat => Some(ItemProbability {
                     starting_from_tick: 0,
-                    expected_ticks_per_drop: ONE_DAY,
+                    expected_ticks_per_drop: ONE_DAY * 7,
                 }),
                 Item::Parrot => Some(ItemProbability {
                     starting_from_tick: 0,
@@ -1532,11 +1543,11 @@ impl Item {
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 Item::Donkey => Some(ItemProbability {
-                    starting_from_tick: ONE_DAY / 2,
+                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 Item::Horse => Some(ItemProbability {
-                    starting_from_tick: ONE_DAY,
+                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 _ => None,
@@ -1838,9 +1849,9 @@ impl Craftable for Item {
             ),
             Item::FishingNet => Some(Bundle::new().add(Item::String, 20).add(Item::Iron, 2)),
             Item::Headlamp => Some(Bundle::new().add(Item::Helmet, 1).add(Item::Lantern, 1)),
-            Item::DiamondAxe => Some(Bundle::new().add(Item::Axe, 1).add(Item::Diamond, 1)),
-            Item::DiamondPickaxe => Some(Bundle::new().add(Item::Pickaxe, 1).add(Item::Diamond, 1)),
-            Item::DiamondSword => Some(Bundle::new().add(Item::Sword, 1).add(Item::Diamond, 1)),
+            Item::DiamondAxe => Some(Bundle::new().add(Item::Axe, 1).add(Item::Diamond, 3)),
+            Item::DiamondPickaxe => Some(Bundle::new().add(Item::Pickaxe, 1).add(Item::Diamond, 3)),
+            Item::DiamondSword => Some(Bundle::new().add(Item::Sword, 1).add(Item::Diamond, 3)),
             _ => None,
         }
     }
@@ -2019,8 +2030,8 @@ impl Occupation {
             Occupation::Gathering => 1,
             Occupation::Fishing => 5,
             Occupation::Exploring => 10,
-            Occupation::Farming => 15,
-            Occupation::Fighting => 20,
+            Occupation::Fighting => 15,
+            Occupation::Farming => 20,
             Occupation::Rockhounding => 30,
         }
     }
@@ -2109,8 +2120,8 @@ impl Base {
                 Bundle::new()
                     .add(Item::Wood, self.curr_level * 50 * self.prestige)
                     .add(Item::Stone, self.curr_level * 50 * self.prestige)
-                    .add(Item::Nail, self.curr_level * 5 * self.prestige)
-                    .add(Item::Fabric, self.curr_level * 5 * self.prestige),
+                    .add(Item::Nail, self.curr_level.saturating_sub(10) * 10 * self.prestige)
+                    .add(Item::Fabric, self.curr_level.saturating_sub(20) * 10 * self.prestige),
             )
         } else {
             None
@@ -2314,6 +2325,8 @@ pub enum QuestType {
     ForTheKing,
     DrunkFishing,
     CollapsedCave,
+    TheHiddenTreasure,
+    CatStuckOnATree,
 }
 
 impl std::fmt::Display for QuestType {
@@ -2330,6 +2343,8 @@ impl std::fmt::Display for QuestType {
             QuestType::ForTheKing => write!(f, "For the King!"),
             QuestType::DrunkFishing => write!(f, "Drunk Fishing Contest"),
             QuestType::CollapsedCave => write!(f, "Trapped in the Collapsed Cave"),
+            QuestType::TheHiddenTreasure => write!(f, "The Hidden Treasure"),
+            QuestType::CatStuckOnATree => write!(f, "Cat Stuck on a Tree"),
         }
     }
 }
@@ -2350,6 +2365,12 @@ impl QuestType {
             Self::ForTheKing => RewardMode::BecomeKing,
             Self::DrunkFishing => RewardMode::BestGetsAll(1000),
             Self::CollapsedCave => RewardMode::NewDwarf(1),
+            Self::TheHiddenTreasure => RewardMode::BestGetsItems(Bundle::new()
+                .add(Item::Diamond, 3)
+                .add(Item::Gold, 30)
+                .add(Item::Iron, 300)),
+            Self::CatStuckOnATree => RewardMode::BestGetsItems(Bundle::new()
+                .add(Item::Cat, 1))
         }
     }
 
@@ -2366,6 +2387,8 @@ impl QuestType {
             Self::ForTheKing => ONE_DAY / 2,
             Self::DrunkFishing => ONE_HOUR * 3,
             Self::CollapsedCave => ONE_HOUR * 3,
+            Self::TheHiddenTreasure => ONE_HOUR * 3,
+            Self::CatStuckOnATree => ONE_HOUR,
         }
     }
 
@@ -2382,6 +2405,8 @@ impl QuestType {
             Self::ForTheKing => Occupation::Fighting,
             Self::DrunkFishing => Occupation::Fishing,
             Self::CollapsedCave => Occupation::Mining,
+            Self::TheHiddenTreasure => Occupation::Exploring,
+            Self::CatStuckOnATree => Occupation::Logging,
         }
     }
 
@@ -2398,6 +2423,8 @@ impl QuestType {
             Self::ForTheKing => 3,
             Self::DrunkFishing => 1,
             Self::CollapsedCave => 1,
+            Self::TheHiddenTreasure => 3,
+            Self::CatStuckOnATree => 1,
         }
     }
 }

@@ -1009,7 +1009,9 @@ fn quest(model: &Model, state: &shared::State, user_id: &shared::UserId, quest_i
                         QuestType::ADwarfInDanger => p!["Free a dwarf that gets robbed by Orks. If you free him first, he may stay in your settlement!"],
                         QuestType::ForTheKing => p!["Fight a ruthless battle to become the king over all of Exile Island!"],
                         QuestType::DrunkFishing => p!["Participate in the drunk fishing contest! The dwarf that is the most successful drunk fisher gets a reward."],
-                        QuestType::CollapsedCave => p!["A cave has collapsed and a dwarf is trapped inside. Be the first to save is life and he will move into your settlement."]
+                        QuestType::CollapsedCave => p!["A cave has collapsed and a dwarf is trapped inside. Be the first to save is life and he will move into your settlement."],
+                        QuestType::TheHiddenTreasure => p!["The first who finds the hidden treasure can keep it."],
+                        QuestType::CatStuckOnATree => p!["A cat is stuck on a tree. Help her get on the ground an she will gladly follow you home."],
                     },
                 ], 
                 
