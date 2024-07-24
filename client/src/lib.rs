@@ -6,7 +6,7 @@ use images::Image;
 use itertools::Itertools;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, QuestId, QuestType, RewardMode, Stats, Time, LOOT_CRATE_COST, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS
+    Bundle, ClientEvent, Craftable, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, QuestId, QuestType, RewardMode, Stats, Time, LOOT_CRATE_COST, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS
 };
 use std::str::FromStr;
 use web_sys::js_sys::Date;
@@ -357,7 +357,7 @@ fn ranking(state: &shared::State, client_state: &ClientState<shared::State>) -> 
     div![
         C!["content"],
         h2!["Ranking"],
-        p![format!("To win this world, you need to meet two conditions. First, expand your settlement until it becomes a Megalopolis. Second, become the king of this world. If both conditions are met, the game will be over and you will be the winner. As a reward, you get gifted a free premium account for {} days.", WINNER_NUM_PREMIUM_DAYS)],
+        p![format!("To win this game, you need to meet two conditions. First, expand your settlement until it becomes a Megalopolis. Second, become the king of this world. If both conditions are met, the game will be over and you will be the winner. As a reward, you get gifted a free premium account for {} days.", WINNER_NUM_PREMIUM_DAYS)],
         if let Some(king) = state.king {
             p![format!("All hail our King {}!", client_state.get_user_data(&king).map(|data| data.username.clone()).unwrap_or_default()), tip("The king gets one tenth of all money that was earned. Make sure you become the king as soon as the quest becomes available.")]
         } else {
@@ -694,7 +694,7 @@ fn dwarf(
                 div![
                     h4!["Equipment"],
                     table![C!["list"],
-                        enum_iterator::all::<ItemType>().map(|item_type| {
+                        enum_iterator::all::<ItemType>().filter(ItemType::equippable).map(|item_type| {
                             let equipment = dwarf.equipment.get(&item_type).unwrap();
 
                             tr![C!["list-item-row"],
@@ -1176,9 +1176,9 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                     td![format!("{}", player.base.village_type())]
                 ],
                 //tr![th!["Settlement Level"], td![format!("{} / {}", player.base.curr_level, player.base.max_level())]],
-                tr![th!["Population", tip("Upgrade your settlement to increase the maximum population. You can get new dwarfs from certain quests or at random.")], td![format!("{}/{}", player.dwarfs.len(), player.base.num_dwarfs())]],
+                tr![th!["Population", tip("Upgrade your settlement to increase the maximum population. You can get new dwarfs from certain quests or at random.")], td![format!("{}/{}", player.dwarfs.len(), player.base.max_dwarfs())]],
                 tr![th!["Money", tip("Earn money by doing quests. With money, you can buy loot crates.")], td![format!("{} coins", player.money)]],
-                tr![th!["Food", tip("Your settlement can store food for your dwarfs to consume. One quantity of food restores 0.1% of a dwarfs health.")], td![format!("{}", player.base.food)]],
+                tr![th!["Food", tip("Your settlement can store food for your dwarfs to consume. One quantity of food restores 0.1% of a dwarfs health.")], td![format!("{} food", player.base.food)]],
             ],
             h3!["Upgrade Settlement"],
             if let Some(requires) = player.base.upgrade_cost() {
@@ -1200,20 +1200,25 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                         "Upgrade",
                     ]
                 ]
-            } else if player.can_prestige() && player.prestige_quest_completed {
+            } else {
                 div![
                     p!["Move to a new, better settlement. The settlement will become bigger and attract better dwarfs. But be warned, you will loose all your items in this process."],
+                    p![format!("You need to complete the quest {} in order to start a new settlement.", QuestType::ExploreNewLands)],
                     button![
+                        if player.can_prestige() && player.prestige_quest_completed  {
+                            attrs! {}
+                        } else {
+                            attrs! {At::Disabled => "true"}
+                        },
                         ev(Ev::Click, move |_| Msg::send_event(ClientEvent::Prestige)),
                         "Start a new Settlement",
                     ]
                 ]
-            } else {
-                Node::Empty
             },
             div![
                 h3!["Open Loot Crate"],
                 p!["A loot crate contains a random epic or legendary item. You can earn loot crates by completing quests."],
+                img![attrs! {At::Src => Image::LootCrate.as_at_value()}],
                 button![
                     if player.money >= LOOT_CRATE_COST && is_premium {
                         attrs! {}
@@ -1228,6 +1233,28 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                         Node::Empty
                     }
                 ]
+            ],
+            div![
+                h3!["Hire Dwarf"],
+                p!["Hire a dwarf to work for you in exchange for money. There are three types of dwarfs that are open for hire. Standard dwarfs have at least two, advanced dwarfs at least three, and expert dwarfs at least four stars for all of their inherent stats."],
+                img![attrs! {At::Src => Image::HireDwarf.as_at_value()}],
+                enum_iterator::all::<HireDwarfType>()
+                    .map(|dwarf_type| {
+                        button![
+                            if player.money >= dwarf_type.cost() && player.dwarfs.len() < player.base.max_dwarfs() && is_premium {
+                                attrs! {}
+                            } else {
+                                attrs! {At::Disabled => "true"}
+                            },
+                            ev(Ev::Click, move |_| Msg::send_event(ClientEvent::HireDwarf(dwarf_type))),
+                            format!("Hire {} Dwarf ({} coins)", dwarf_type, dwarf_type.cost()),
+                            if !is_premium {
+                                tip("This functionality requires a premium account.")
+                            } else {
+                                Node::Empty
+                            }
+                        ]
+                    })
             ]
         ]
     } else {
@@ -1345,7 +1372,7 @@ fn inventory(
                             }) || (!model.inventory_filter.owned
                                 && !model.inventory_filter.craftable))
                             && ((if model.inventory_filter.food {
-                                item.nutritional_value().is_some()
+                                item.item_type() == Some(ItemType::Food)
                             } else {
                                 false
                             }) || (if model.inventory_filter.tools {
@@ -1388,13 +1415,13 @@ fn inventory(
                             
                             h3![C!["title"], format!("{} {item}", big_number(n))],
                             p![
-                                C!["subtitle"], if let Some(food) = item.nutritional_value() {
-                                    format!("Food ({food}) | {}", item.item_rarity())
-                                } else if let Some(item_type) = item.item_type() {
-                                    format!("{item_type} | {}", item.item_rarity())
+                                C!["subtitle"], if let Some(item_type) = item.item_type() {
+                                    format!("{item_type}")
                                 } else {
-                                    format!("Item | {}", item.item_rarity())
-                                }
+                                    format!("Item")
+                                },
+                                br![],
+                                format!("{}", item.item_rarity()),
                             ],
 
                             // Show stats
@@ -1550,7 +1577,7 @@ fn inventory(
                                                     ev(Ev::Click, move |_| Msg::send_event(
                                                         ClientEvent::AddToFoodStorage(item, 1)
                                                     )),
-                                                    format!("Store"),
+                                                    format!("Store ({} food)", item.nutritional_value().unwrap_or(0)),
                                                 ],
                                                 button![
                                                     if player
@@ -1581,6 +1608,102 @@ fn inventory(
                                                         ClientEvent::AddToFoodStorage(item, 100)
                                                     )),
                                                     format!("100x"),
+                                                ],
+                                                button![
+                                                    if is_premium {
+                                                        attrs! {}
+                                                    } else {
+                                                        attrs! {At::Disabled => "true"}
+                                                    },
+                                                    ev(Ev::Click, move |_| Msg::send_event(
+                                                        ClientEvent::ToggleAutoStore(item)
+                                                    )),
+                                                    "Auto",
+                                                    if !is_premium {
+                                                        tip("This functionality requires a premium account.")
+                                                    } else {
+                                                        Node::Empty
+                                                    }
+                                                ]
+                                            ]
+                                        }
+                                    ] 
+                                } else {
+                                    Vec::new()
+                                },
+
+
+                                if item.money_value() > 0 {
+                                    vec![
+                                        h4!["Sell Item"],
+                                        if player.auto_functions.auto_store.contains(&item) && is_premium {
+                                            button![
+                                                ev(Ev::Click, move |_| Msg::send_event(
+                                                    ClientEvent::ToggleAutoStore(item)
+                                                )),
+                                                "Disable Auto"
+                                            ]
+                                        } else {
+                                            div![C!["button-row"],
+                                                button![
+                                                    if is_premium && player
+                                                        .inventory
+                                                        .items
+                                                        .check_remove(&Bundle::new().add(item, 1))                                                
+                                                    {
+                                                        attrs! {}
+                                                    } else {
+                                                        attrs! {At::Disabled => "true"}
+                                                    },
+                                                    ev(Ev::Click, move |_| Msg::send_event(
+                                                        ClientEvent::AddToFoodStorage(item, 1)
+                                                    )),
+                                                    format!("Sell ({} money)", item.money_value()),
+                                                    if !is_premium {
+                                                        tip("This functionality requires a premium account.")
+                                                    } else {
+                                                        Node::Empty
+                                                    }
+                                                ],
+                                                button![
+                                                    if is_premium && player
+                                                        .inventory
+                                                        .items
+                                                        .check_remove(&Bundle::new().add(item, 10))
+                                                    {
+                                                        attrs! {}
+                                                    } else {
+                                                        attrs! {At::Disabled => "true"}
+                                                    },
+                                                    ev(Ev::Click, move |_| Msg::send_event(
+                                                        ClientEvent::AddToFoodStorage(item, 10)
+                                                    )),
+                                                    format!("10x"),
+                                                    if !is_premium {
+                                                        tip("This functionality requires a premium account.")
+                                                    } else {
+                                                        Node::Empty
+                                                    }
+                                                ],
+                                                button![
+                                                    if is_premium && player
+                                                        .inventory
+                                                        .items
+                                                        .check_remove(&Bundle::new().add(item, 100))
+                                                    {
+                                                        attrs! {}
+                                                    } else {
+                                                        attrs! {At::Disabled => "true"}
+                                                    },
+                                                    ev(Ev::Click, move |_| Msg::send_event(
+                                                        ClientEvent::AddToFoodStorage(item, 100)
+                                                    )),
+                                                    format!("100x"),
+                                                    if !is_premium {
+                                                        tip("This functionality requires a premium account.")
+                                                    } else {
+                                                        Node::Empty
+                                                    }
                                                 ],
                                                 button![
                                                     if is_premium {

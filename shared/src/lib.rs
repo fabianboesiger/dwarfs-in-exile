@@ -61,6 +61,32 @@ impl From<String> for UserData {
 }
 */
 
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Sequence, Display)]
+#[strum(serialize_all = "title_case")]
+pub enum HireDwarfType {
+    Standard,
+    Advanced,
+    Expert,
+}
+
+impl HireDwarfType {
+    pub fn min_stars(&self) -> u64 {
+        match self {
+            HireDwarfType::Standard => 2,
+            HireDwarfType::Advanced => 3,
+            HireDwarfType::Expert => 4,
+        }
+    }
+
+    pub fn cost(&self) -> u64 {
+        match self {
+            HireDwarfType::Standard => 2000,
+            HireDwarfType::Advanced => 5000,
+            HireDwarfType::Expert => 10000,
+        }
+    }
+} 
+
 #[derive(Serialize, Deserialize, Default, Clone, Debug, Hash)]
 pub struct State {
     pub players: CustomMap<UserId, Player>,
@@ -81,6 +107,18 @@ impl State {
                 .remove_checked(Bundle::new().add(item, qty))
             {
                 player.base.food += food * qty;
+            }
+        }
+    }
+
+    fn sell(player: &mut Player, item: Item, qty: u64) {
+        if item.money_value() > 0 {
+            if player
+                .inventory
+                .items
+                .remove_checked(Bundle::new().add(item, qty))
+            {
+                player.money += item.money_value() * qty;
             }
         }
     }
@@ -148,6 +186,17 @@ impl engine_shared::State for State {
 
                     match event {
                         ClientEvent::Init => {}
+                        ClientEvent::HireDwarf(dwarf_type) => {
+                            if is_premium {
+                                if player.money >= dwarf_type.cost() && player.dwarfs.len() < player.base.max_dwarfs() {
+                                    player.money -= dwarf_type.cost();
+                                    player.log.add(self.time, LogMsg::NewDwarf(self.next_dwarf_id));
+                                    player.dwarfs
+                                        .insert(self.next_dwarf_id, Dwarf::new(rng, dwarf_type.min_stars() * 2));
+                                    self.next_dwarf_id += 1;
+                                }
+                            }
+                        },
                         ClientEvent::ToggleAutoCraft(item) => {
                             if is_premium {
                                 if player.auto_functions.auto_craft.contains(&item) {
@@ -163,6 +212,15 @@ impl engine_shared::State for State {
                                     player.auto_functions.auto_store.swap_remove(&item);
                                 } else {
                                     player.auto_functions.auto_store.insert(item);
+                                }
+                            }
+                        }
+                        ClientEvent::ToggleAutoSell(item) => {
+                            if is_premium {
+                                if player.auto_functions.auto_sell.contains(&item) {
+                                    player.auto_functions.auto_sell.swap_remove(&item);
+                                } else {
+                                    player.auto_functions.auto_sell.insert(item);
                                 }
                             }
                         }
@@ -209,7 +267,7 @@ impl engine_shared::State for State {
                                 .get_mut(&item_type)?;
 
                             let old_item = if let Some(item) = item {
-                                if player
+                                if item.item_type().as_ref().map(ItemType::equippable).unwrap_or(false) && player
                                     .inventory
                                     .items
                                     .remove_checked(Bundle::new().add(item, 1))
@@ -277,6 +335,11 @@ impl engine_shared::State for State {
                         }
                         ClientEvent::AddToFoodStorage(item, qty) => {
                             Self::add_to_food_storage(player, item, qty);
+                        }
+                        ClientEvent::Sell(item, qty) => {
+                            if is_premium {
+                                Self::sell(player, item, qty);
+                            }
                         }
                         ClientEvent::Prestige => {
                             if player.can_prestige() && player.prestige_quest_completed {
@@ -598,7 +661,7 @@ impl engine_shared::State for State {
                                 .iter()
                                 .filter(|(_, player)| player.is_active(self.time))
                                 .count();
-                            while self.quests.len() < 3.max(active_players / 3) {
+                            while self.quests.len() < 2.max(active_players / 2) {
                                 let active_quests = self
                                     .quests
                                     .values()
@@ -821,6 +884,7 @@ pub struct AutoFunctions {
     pub auto_idle: bool,
     pub auto_craft: CustomSet<Item>,
     pub auto_store: CustomSet<Item>,
+    pub auto_sell: CustomSet<Item>,
 }
 
 impl Default for AutoFunctions {
@@ -829,6 +893,7 @@ impl Default for AutoFunctions {
             auto_idle: false,
             auto_craft: CustomSet::new(),
             auto_store: CustomSet::new(),
+            auto_sell: CustomSet::new(),
         }
     }
 }
@@ -849,8 +914,8 @@ impl Player {
         if cfg!(debug_assertions) {
             player.prestige_quest_completed = true;
             player.base.curr_level = 10;
-            player.money = 10000;
-            for _ in 0..9 {
+            player.money = 100000;
+            for _ in 0..4 {
                 player.new_dwarf(rng, next_dwarf_id, time);
             }
         }
@@ -869,7 +934,7 @@ impl Player {
     }
 
     pub fn new_dwarf(&mut self, rng: &mut impl Rng, next_dwarf_id: &mut DwarfId, time: Time) {
-        if self.dwarfs.len() < self.base.num_dwarfs() {
+        if self.dwarfs.len() < self.base.max_dwarfs() {
             self.log.add(time, LogMsg::NewDwarf(*next_dwarf_id));
             self.dwarfs
                 .insert(*next_dwarf_id, Dwarf::new(rng, self.base.prestige));
@@ -902,6 +967,7 @@ impl Player {
         self.inventory.add(bundle, time);
         self.auto_craft(time, is_premium);
         self.auto_store(is_premium);
+        self.auto_sell(is_premium);
     }
 
     pub fn auto_craft(&mut self, time: Time, is_premium: bool) {
@@ -948,6 +1014,25 @@ impl Player {
                             .remove_checked(Bundle::new().add(item, qty))
                         {
                             self.base.food += food * qty;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn auto_sell(&mut self, is_premium: bool) {
+        if is_premium {
+            // Auto-sell!
+            for &item in &self.auto_functions.auto_store {
+                if let Some(&qty) = self.inventory.items.get(&item) {
+                    if item.money_value() > 0 {
+                        if self
+                            .inventory
+                            .items
+                            .remove_checked(Bundle::new().add(item, qty))
+                        {
+                            self.base.food += item.money_value() * qty;
                         }
                     }
                 }
@@ -1134,6 +1219,13 @@ pub enum ItemType {
     Tool,
     Clothing,
     Pet,
+    Food,
+}
+
+impl ItemType {
+    pub fn equippable(&self) -> bool {
+        matches!(self, Self::Tool | Self::Clothing | Self::Pet)
+    }
 }
 
 impl std::fmt::Display for ItemType {
@@ -1142,6 +1234,7 @@ impl std::fmt::Display for ItemType {
             ItemType::Tool => write!(f, "Tool"),
             ItemType::Clothing => write!(f, "Clothing"),
             ItemType::Pet => write!(f, "Pet"),
+            ItemType::Food => write!(f, "Food"),
         }
     }
 }
@@ -1149,56 +1242,66 @@ impl std::fmt::Display for ItemType {
 impl Item {
     pub fn item_type(self) -> Option<ItemType> {
         match self {
-            Item::ChainMail => Some(ItemType::Clothing),
-            Item::LeatherArmor => Some(ItemType::Clothing),
-            Item::Backpack => Some(ItemType::Clothing),
-            Item::Helmet => Some(ItemType::Clothing),
-            Item::FishingHat => Some(ItemType::Clothing),
-            Item::Overall => Some(ItemType::Clothing),
-            Item::Boots => Some(ItemType::Clothing),
-            Item::RingOfIntelligence => Some(ItemType::Clothing),
-            Item::RingOfStrength => Some(ItemType::Clothing),
-            Item::RingOfPerception => Some(ItemType::Clothing),
-            Item::RingOfEndurance => Some(ItemType::Clothing),
-            Item::RingOfAgility => Some(ItemType::Clothing),
-            Item::RhinoHornHelmet => Some(ItemType::Clothing),
-            Item::Gloves => Some(ItemType::Clothing),
-            Item::BearClawGloves => Some(ItemType::Clothing),
-            Item::Headlamp => Some(ItemType::Clothing),
+            Item::ChainMail |
+            Item::LeatherArmor |
+            Item::Backpack |
+            Item::Helmet |
+            Item::FishingHat |
+            Item::Overall |
+            Item::Boots |
+            Item::RingOfIntelligence |
+            Item::RingOfStrength |
+            Item::RingOfPerception |
+            Item::RingOfEndurance |
+            Item::RingOfAgility |
+            Item::RhinoHornHelmet |
+            Item::Gloves |
+            Item::BearClawGloves |
+            Item::Headlamp |
             Item::BearClawBoots => Some(ItemType::Clothing),
 
-            Item::Bow => Some(ItemType::Tool),
-            Item::PoisonedBow => Some(ItemType::Tool),
-            Item::Sword => Some(ItemType::Tool),
-            Item::Longsword => Some(ItemType::Tool),
-            Item::Spear => Some(ItemType::Tool),
-            Item::PoisonedSpear => Some(ItemType::Tool),
-            Item::Crossbow => Some(ItemType::Tool),
-            Item::Pickaxe => Some(ItemType::Tool),
-            Item::Axe => Some(ItemType::Tool),
-            Item::Pitchfork => Some(ItemType::Tool),
-            Item::Musket => Some(ItemType::Tool),
-            Item::Dynamite => Some(ItemType::Tool),
-            Item::FishingRod => Some(ItemType::Tool),
-            Item::Map => Some(ItemType::Tool),
-            Item::Wheelbarrow => Some(ItemType::Tool),
-            Item::Plough => Some(ItemType::Tool),
-            Item::Lantern => Some(ItemType::Tool),
-            Item::FishingNet => Some(ItemType::Tool),
-            Item::Dagger => Some(ItemType::Tool),
-            Item::TigerFangDagger => Some(ItemType::Tool),
-            Item::Bag => Some(ItemType::Tool),
-            Item::DiamondAxe => Some(ItemType::Tool),
-            Item::DiamondPickaxe => Some(ItemType::Tool),
+            Item::Bow |
+            Item::PoisonedBow |
+            Item::Sword |
+            Item::Longsword |
+            Item::Spear |
+            Item::PoisonedSpear |
+            Item::Crossbow |
+            Item::Pickaxe |
+            Item::Axe |
+            Item::Pitchfork |
+            Item::Musket |
+            Item::Dynamite |
+            Item::FishingRod |
+            Item::Map |
+            Item::Wheelbarrow |
+            Item::Plough |
+            Item::Lantern |
+            Item::FishingNet |
+            Item::Dagger |
+            Item::TigerFangDagger |
+            Item::Bag |
+            Item::DiamondAxe |
+            Item::DiamondPickaxe |
             Item::DiamondSword => Some(ItemType::Tool),
 
-            Item::Parrot => Some(ItemType::Pet),
-            Item::Wolf => Some(ItemType::Pet),
-            Item::Cat => Some(ItemType::Pet),
-            Item::Dragon => Some(ItemType::Pet),
-            Item::Donkey => Some(ItemType::Pet),
-            Item::Bird => Some(ItemType::Pet),
+            Item::Parrot |
+            Item::Wolf |
+            Item::Cat |
+            Item::Dragon |
+            Item::Donkey |
+            Item::Bird |
             Item::Horse => Some(ItemType::Pet),
+
+            Item::Apple
+                | Item::Blueberry
+                | Item::Bread
+                | Item::BlueberryCake
+                | Item::CookedFish
+                | Item::CookedMeat
+                | Item::BakedPotato
+                | Item::Soup
+                | Item::ApplePie => Some(ItemType::Food),
             _ => None,
         }
     }
@@ -1310,23 +1413,16 @@ impl Item {
     }
 
     pub fn nutritional_value(self) -> Option<Food> {
-        if matches!(
-            self,
-            Item::Apple
-                | Item::Blueberry
-                | Item::Bread
-                | Item::BlueberryCake
-                | Item::CookedFish
-                | Item::CookedMeat
-                | Item::BakedPotato
-                | Item::Soup
-                | Item::ApplePie
-        ) {
-            let nutrition = self.item_rarity_num() / 100 + self.crafting_depth() * 10;
+        if self.item_type() == Some(ItemType::Food) {
+            let nutrition = self.item_rarity_num() / 100 * (self.crafting_depth() + 1);
             Some(nutrition.max(1))
         } else {
             None
         }
+    }
+
+    pub fn money_value(self) -> Money {
+        self.item_rarity_num() / 2000
     }
 
     // sefulness from 0 - 10
@@ -2009,14 +2105,14 @@ impl Occupation {
     pub fn health_cost_per_second(self) -> u64 {
         match self {
             Occupation::Idling => 1,
-            Occupation::Mining => 2,
-            Occupation::Logging => 2,
-            Occupation::Hunting => 2,
+            Occupation::Mining => 3,
+            Occupation::Logging => 3,
+            Occupation::Hunting => 3,
             Occupation::Gathering => 2,
-            Occupation::Fishing => 1,
+            Occupation::Fishing => 2,
             Occupation::Fighting => 5,
-            Occupation::Exploring => 2,
-            Occupation::Farming => 2,
+            Occupation::Exploring => 3,
+            Occupation::Farming => 3,
             Occupation::Rockhounding => 3,
         }
     }
@@ -2110,7 +2206,7 @@ impl Base {
         self.prestige * 10
     }
 
-    pub fn num_dwarfs(&self) -> usize {
+    pub fn max_dwarfs(&self) -> usize {
         self.curr_level as usize * 1
     }
 
@@ -2178,11 +2274,14 @@ pub enum ClientEvent {
     OpenLootCrate,
     AssignToQuest(QuestId, usize, Option<DwarfId>),
     AddToFoodStorage(Item, u64),
+    Sell(Item, u64),
     Prestige,
     Restart,
     ToggleAutoCraft(Item),
     ToggleAutoStore(Item),
+    ToggleAutoSell(Item),
     ToggleAutoIdle,
+    HireDwarf(HireDwarfType),
 }
 
 impl engine_shared::ClientEvent for ClientEvent {

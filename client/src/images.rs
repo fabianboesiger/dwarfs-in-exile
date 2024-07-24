@@ -144,6 +144,8 @@ pub enum Image {
     DiamondSword,
     TheHiddenTreasure,
     CatStuckOnATree,
+    LootCrate,
+    HireDwarf,
 }
 
 impl AsAtValue for Image {

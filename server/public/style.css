@@ -411,16 +411,6 @@ input[type=checkbox] {
     width: auto;
     flex-grow: 0;
     padding: 8px;
-    padding-top: 8px;
-    padding-bottom: 8px;
-}
-
-.button-row > *:first-child {
-    padding-left: 8px;
-}
-
-.button-row > *:last-child {
-    padding-right: 8px;
 }
 
 .occupations {
@@ -443,6 +433,7 @@ input[type=checkbox] {
     border-bottom: 1px solid white;
     border-top: 1px solid white;
     padding: 0;
+    vertical-align: top;
 }
 
 .list td.list-item-content > *:first-child {
@@ -455,7 +446,6 @@ input[type=checkbox] {
 
 .list td.list-item-content {
     padding: 8px;
-    vertical-align: top;
 }
 
 .list td .list-item-image {
