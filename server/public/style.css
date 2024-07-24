@@ -531,13 +531,8 @@ h3, h4 {
     background: rgba(194, 110, 0, 0.2);    
 }
 
-.short-info {
-    white-space: nowrap;
-}
-
 .short-info + .short-info::before {
     content: " | ";
-    white-space: wrap;
 }
 
 ul {
