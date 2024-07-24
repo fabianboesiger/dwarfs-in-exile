@@ -86,6 +86,22 @@ input:not([type=checkbox]):not([type=radio]), button, select, a.button, summary 
     color: black;
     font-family: Georgia, 'Times New Roman', Times, serif;
     font-size: 12px;
+    position: relative;
+}
+
+input:not([type=checkbox]):not([type=radio]):hover, button:hover, select:hover, a.button:hover, summary:hover {
+    background: #eee;
+}
+
+/*
+input:not([type=checkbox]):not([type=radio]):focus, button:focus, select:focus, a.button:focus, summary:focus {
+    outline: 1px solid #eee;
+    z-index: 10000;
+}
+*/
+
+input:not([type=checkbox]):not([type=radio]):active, button:active, select:active, a.button:active, summary:active {
+    background: #ddd;
 }
 
 button, a.button, input[type=submit] {
@@ -513,4 +529,17 @@ h3, h4 {
 }
 .item-legendary {
     background: rgba(194, 110, 0, 0.2);    
+}
+
+.short-info {
+    white-space: nowrap;
+}
+
+.short-info + .short-info::before {
+    content: " | ";
+    white-space: wrap;
+}
+
+ul {
+    padding: 8px;
 }

@@ -661,22 +661,10 @@ impl engine_shared::State for State {
                                 .iter()
                                 .filter(|(_, player)| player.is_active(self.time))
                                 .count();
+                            
                             while self.quests.len() < 2.max(active_players / 2) {
-                                let active_quests = self
-                                    .quests
-                                    .values()
-                                    .map(|q| q.quest_type)
-                                    .collect::<HashSet<_>>();
-                                let all_quests =
-                                    enum_iterator::all::<QuestType>().collect::<HashSet<_>>();
-                                let potential_quests = &all_quests - &active_quests;
-
-                                if potential_quests.is_empty() {
-                                    break;
-                                }
-
                                 let quest = Quest::new(
-                                    *potential_quests
+                                    *enum_iterator::all::<QuestType>().collect::<HashSet<_>>()
                                         .into_iter()
                                         .collect::<Vec<_>>()
                                         .choose(rng)

@@ -1,7 +1,7 @@
 mod images;
 
 use engine_client::{ClientState, EventWrapper, Msg as EngineMsg};
-use engine_shared::GameId;
+use engine_shared::{utils::custom_map::CustomMap, GameId};
 use images::Image;
 use itertools::Itertools;
 use seed::{prelude::*, *};
@@ -114,6 +114,7 @@ pub struct Model {
     map_time: (Time, u64),
     game_id: GameId,
 }
+
 
 impl Model {
     fn sync_timestamp_millis_now(&mut self, time: Time) {
@@ -1416,14 +1417,24 @@ fn inventory(
                             h3![C!["title"], format!("{} {item}", big_number(n))],
                             p![
                                 C!["subtitle"], if let Some(item_type) = item.item_type() {
-                                    format!("{item_type}")
+                                    span![C!["short-info"], format!("{item_type}")]
                                 } else {
-                                    format!("Item")
+                                    span![C!["short-info"], "Item"]
                                 },
-                                br![],
-                                format!("{}", item.item_rarity()),
+                                span![C!["short-info"], format!("{}", item.item_rarity())],
+                                if let Some(nutrition) = item.nutritional_value() {
+                                    span![C!["short-info"], format!("{} Food", nutrition)]
+                                } else {
+                                    Node::Empty
+                                },
+                                if item.money_value() > 0 {
+                                    span![C!["short-info"], format!("{} Coins", item.money_value())]
+                                } else {
+                                    Node::Empty
+                                },
                             ],
-
+                            
+  
                             // Show stats
                             if !item.provides_stats().is_zero() {
                                 div![
@@ -1504,7 +1515,7 @@ fn inventory(
                                                     ev(Ev::Click, move |_| Msg::send_event(
                                                         ClientEvent::Craft(item, 1)
                                                     )),
-                                                    "Craft",
+                                                    "1x",
                                                 ],
                                                 button![
                                                     if player.inventory.items.check_remove(&requires.clone().mul(10)) {
@@ -1577,7 +1588,7 @@ fn inventory(
                                                     ev(Ev::Click, move |_| Msg::send_event(
                                                         ClientEvent::AddToFoodStorage(item, 1)
                                                     )),
-                                                    format!("Store ({} food)", item.nutritional_value().unwrap_or(0)),
+                                                    format!("1x"),
                                                 ],
                                                 button![
                                                     if player
@@ -1658,7 +1669,7 @@ fn inventory(
                                                     ev(Ev::Click, move |_| Msg::send_event(
                                                         ClientEvent::AddToFoodStorage(item, 1)
                                                     )),
-                                                    format!("Sell ({} money)", item.money_value()),
+                                                    format!("1x"),
                                                     if !is_premium {
                                                         tip("This functionality requires a premium account.")
                                                     } else {
@@ -1921,7 +1932,7 @@ fn history(
                                             .clone()
                                             .sorted_by_rarity()
                                             .into_iter()
-                                            .map(|(item, n)| format!("{n}x {item}"))
+                                            .map(|(item, n)| format!("{n} {item}"))
                                             .collect::<Vec<_>>()
                                             .join(", ")
                                     )]
