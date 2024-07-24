@@ -2015,6 +2015,7 @@ impl Dwarf {
             occupation_duration: 0,
             stats: Stats::random(rng, prestige),
             equipment: enum_iterator::all()
+                .filter(ItemType::equippable)
                 .map(|item_type| (item_type, None))
                 .collect(),
             health: MAX_HEALTH,
