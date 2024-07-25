@@ -1853,10 +1853,10 @@ fn history(
                                 LogMsg::MoneyForKing(money) => {
                                     span![format!("You are the king and earned {} coins!", money)]
                                 }
-                                LogMsg::NewDwarf(dwarf_id) => {
+                                LogMsg::NewDwarf(name) => {
                                     span![format!(
                                         "Your settlement got a new dwarf {}.",
-                                        player.dwarfs.get(dwarf_id).unwrap().name
+                                        name
                                     )]
                                 }
                                 LogMsg::DwarfDied(name) => {

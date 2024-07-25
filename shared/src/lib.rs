@@ -190,9 +190,10 @@ impl engine_shared::State for State {
                             if is_premium {
                                 if player.money >= dwarf_type.cost() && player.dwarfs.len() < player.base.max_dwarfs() {
                                     player.money -= dwarf_type.cost();
-                                    player.log.add(self.time, LogMsg::NewDwarf(self.next_dwarf_id));
+                                    let dwarf = Dwarf::new(rng, dwarf_type.min_stars() * 2);
+                                    player.log.add(self.time, LogMsg::NewDwarf(dwarf.name.clone()));
                                     player.dwarfs
-                                        .insert(self.next_dwarf_id, Dwarf::new(rng, dwarf_type.min_stars() * 2));
+                                        .insert(self.next_dwarf_id, dwarf);
                                     self.next_dwarf_id += 1;
                                 }
                             }
@@ -308,15 +309,14 @@ impl engine_shared::State for State {
                                 let quest = self.quests.get_mut(&quest_id)?;
                                 let contestant = quest.contestants.entry(user_id).or_default();
 
-                                dwarf.change_occupation(quest.quest_type.occupation());
                                 dwarf.participates_in_quest =
                                     Some((quest.quest_type, quest_id, dwarf_idx));
+
                                 if dwarf_idx < quest.quest_type.max_dwarfs() {
                                     let old_dwarf_id =
                                         contestant.dwarfs.insert(dwarf_idx, dwarf_id);
                                     if let Some(old_dwarf_id) = old_dwarf_id {
                                         let dwarf = player.dwarfs.get_mut(&old_dwarf_id)?;
-                                        dwarf.change_occupation(Occupation::Idling);
                                         dwarf.participates_in_quest = None;
                                     }
                                 }
@@ -328,7 +328,6 @@ impl engine_shared::State for State {
 
                                 if let Some(old_dwarf_id) = old_dwarf_id {
                                     let dwarf = player.dwarfs.get_mut(&old_dwarf_id)?;
-                                    dwarf.change_occupation(Occupation::Idling);
                                     dwarf.participates_in_quest = None;
                                 }
                             }
@@ -373,8 +372,8 @@ impl engine_shared::State for State {
                                     player.dwarfs.values_mut().collect::<Vec<_>>();
                                 sorted_by_health.sort_by_key(|dwarf| dwarf.health);
                                 for dwarf in sorted_by_health {
-                                    dwarf.decr_health(dwarf.occupation.health_cost_per_second());
-                                    if dwarf.occupation == Occupation::Idling || dwarf.auto_idle {
+                                    dwarf.decr_health(dwarf.actual_occupation().health_cost_per_second());
+                                    if dwarf.actual_occupation() == Occupation::Idling {
                                         if player.base.food > 0 {
                                             if dwarf.health <= MAX_HEALTH - MAX_HEALTH / 1000 {
                                                 player.base.food -= 1;
@@ -405,12 +404,12 @@ impl engine_shared::State for State {
                                 let mut added_items = Bundle::new();
                                 for (_, dwarf) in player.dwarfs.iter_mut() {
                                     if !dwarf.dead() {
-                                        for _ in 0..=dwarf.effectiveness(dwarf.occupation) {
+                                        for _ in 0..=dwarf.effectiveness(dwarf.actual_occupation()) {
                                             for item in enum_iterator::all::<Item>() {
                                                 if let Some(ItemProbability {
                                                     starting_from_tick,
                                                     expected_ticks_per_drop,
-                                                }) = item.item_probability(dwarf.occupation)
+                                                }) = item.item_probability(dwarf.actual_occupation())
                                                 {
                                                     if dwarf.occupation_duration >= starting_from_tick {
                                                         if rng.gen_ratio(1, expected_ticks_per_drop as u32) {
@@ -647,7 +646,6 @@ impl engine_shared::State for State {
                                         for dwarf_id in contestant.dwarfs.values() {
                                             let dwarf = player.dwarfs.get_mut(dwarf_id)?;
                                             dwarf.participates_in_quest = None;
-                                            dwarf.change_occupation(Occupation::Idling);
                                         }
                                     }
                                 }
@@ -662,7 +660,7 @@ impl engine_shared::State for State {
                                 .filter(|(_, player)| player.is_active(self.time))
                                 .count();
 
-                            while self.quests.len() < 2.max(active_players / 2) {
+                            while self.quests.len() < active_players.max(3) {
                                 let disabled_quests = self
                                     .quests
                                     .values()
@@ -859,7 +857,7 @@ impl Log {
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 pub enum LogMsg {
     NewPlayer(UserId),
-    NewDwarf(DwarfId),
+    NewDwarf(String),
     DwarfDied(String),
     QuestCompletedMoney(QuestType, Money),
     QuestCompletedPrestige(QuestType, bool),
@@ -939,9 +937,10 @@ impl Player {
 
     pub fn new_dwarf(&mut self, rng: &mut impl Rng, next_dwarf_id: &mut DwarfId, time: Time) {
         if self.dwarfs.len() < self.base.max_dwarfs() {
-            self.log.add(time, LogMsg::NewDwarf(*next_dwarf_id));
+            let dwarf = Dwarf::new(rng, self.base.prestige);
+            self.log.add(time, LogMsg::NewDwarf(dwarf.name.clone()));
             self.dwarfs
-                .insert(*next_dwarf_id, Dwarf::new(rng, self.base.prestige));
+                .insert(*next_dwarf_id, dwarf);
             *next_dwarf_id += 1;
         } else {
             self.log.add(time, LogMsg::NotEnoughSpaceForDwarf);
@@ -2043,6 +2042,14 @@ impl Dwarf {
         self.health == 0
     }
 
+    pub fn actual_occupation(&self) -> Occupation {
+        if self.auto_idle {
+            return Occupation::Idling
+        }
+
+        self.participates_in_quest.map(|(quest_type, _, _)| quest_type.occupation()).unwrap_or(self.occupation)
+    }
+
     pub fn incr_health(&mut self, incr: u64) {
         if self.health + incr >= MAX_HEALTH {
             self.health = MAX_HEALTH;
@@ -2382,14 +2389,18 @@ impl Quest {
             self.time_left -= 1;
             for (user_id, contestant) in self.contestants.iter_mut() {
                 for dwarf_id in contestant.dwarfs.values() {
-                    contestant.achieved_score += players
+                    let dwarf = players
                         .get(user_id)
                         .unwrap()
                         .dwarfs
                         .get(dwarf_id)
-                        .unwrap()
-                        .effectiveness(self.quest_type.occupation())
-                        + 1;
+                        .unwrap();
+
+                    if dwarf.actual_occupation() == self.quest_type.occupation() {
+                        contestant.achieved_score += dwarf
+                            .effectiveness(self.quest_type.occupation())
+                            + 1;
+                    }
                 }
             }
         }
