@@ -476,7 +476,7 @@ input[type=checkbox] {
     flex-grow: 0;
 }
 
-h3, h4 {
+h4 {
     margin-bottom: 0;
 }
 
@@ -537,4 +537,43 @@ h3, h4 {
 
 ul {
     padding: 8px;
+}
+
+.image-aside {
+    display: flex;
+    margin-top: 1em;
+    margin-bottom: 1em;
+    flex-wrap: nowrap;
+}
+
+.image-aside > img {
+    width: 256px;
+}
+
+.image-aside > div {
+    margin-left: 16px;
+    width: 100%;
+}
+
+.image-aside > div > *:first-child {
+    margin-top: 0;
+}
+
+@media only screen and (max-width: 768px) {
+    .image-aside {
+        flex-wrap: wrap;
+    }
+
+    .image-aside > img {
+        width: 100%;
+    }
+
+    .image-aside > div {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .image-aside > div > *:first-child {
+        margin-top: 1em;
+    }    
 }

@@ -1,7 +1,7 @@
 mod images;
 
 use engine_client::{ClientState, EventWrapper, Msg as EngineMsg};
-use engine_shared::{utils::custom_map::CustomMap, GameId};
+use engine_shared::GameId;
 use images::Image;
 use itertools::Itertools;
 use seed::{prelude::*, *};
@@ -630,70 +630,73 @@ fn dwarf(
             div![
                 C!["content"],
                 C!["dwarf", format!("dwarf-{}", dwarf_id)],
-                img![attrs! {At::Src => Image::dwarf_from_name(&dwarf.name).as_at_value()}],
-                        
-                h3![C!["title"], &dwarf.name],
-                p![C!["subtitle"],
-                if let Some((quest_type, _, _)) = dwarf.participates_in_quest {
-                    format!(
-                        "Participating in quest {} since {}.",
-                        quest_type,
-                        fmt_time(dwarf.occupation_duration)
-                    )
-                } else {
-                    format!(
-                        "{} since {}.",
-                        dwarf.occupation,
-                        fmt_time(dwarf.occupation_duration)
-                    )
-                }],
-                health_bar(dwarf.health, MAX_HEALTH),
-                p![
-                    button![
-                        if is_premium {
-                            attrs! {}
+                h2![C!["title"], &dwarf.name],
+                div![C!["image-aside"],
+                    img![attrs! {At::Src => Image::dwarf_from_name(&dwarf.name).as_at_value()}],
+                    div![
+                        p![C!["subtitle"],
+                        if let Some((quest_type, _, _)) = dwarf.participates_in_quest {
+                            format!(
+                                "Participating in quest {} since {}.",
+                                quest_type,
+                                fmt_time(dwarf.occupation_duration)
+                            )
                         } else {
-                            attrs! {At::Disabled => "true"}
-                        },
-                        ev(Ev::Click, move |_| Msg::send_event(
-                            ClientEvent::ToggleAutoIdle
-                        )),
-                        if player.auto_functions.auto_idle && is_premium { "Disable Auto Idling" } else { "Enable Auto Idling" },
-                        if !is_premium {
-                            tip("This functionality requires a premium account.")
-                        } else {
-                            Node::Empty
-                        }
-                    ]
+                            format!(
+                                "{} since {}.",
+                                dwarf.occupation,
+                                fmt_time(dwarf.occupation_duration)
+                            )
+                        }],
+                        health_bar(dwarf.health, MAX_HEALTH),
+                        p![
+                            button![
+                                if is_premium {
+                                    attrs! {}
+                                } else {
+                                    attrs! {At::Disabled => "true"}
+                                },
+                                ev(Ev::Click, move |_| Msg::send_event(
+                                    ClientEvent::ToggleAutoIdle
+                                )),
+                                if player.auto_functions.auto_idle && is_premium { "Disable Auto Idling" } else { "Enable Auto Idling" },
+                                if !is_premium {
+                                    tip("This functionality requires a premium account.")
+                                } else {
+                                    Node::Empty
+                                }
+                            ]
+                        ],
+                        div![
+                            h3!["Stats"],
+                            table![tbody![
+                                tr![th![], th!["Inherent", tip("Each dwarf has some inherent stats that he was born with and that cannot be changed.")], th!["Effective", tip("The effective stats include the effects of the dwarfs equipment.")]],
+                                tr![th!["Strength"],
+                                    td![stars(dwarf.stats.strength, true)],
+                                    td![stars(dwarf.effective_stats().strength, true)],
+                                ],
+                                tr![th!["Endurance"],
+                                    td![stars(dwarf.stats.endurance, true)],
+                                    td![stars(dwarf.effective_stats().endurance, true)],
+                                ],
+                                tr![th!["Agility"],
+                                    td![stars(dwarf.stats.agility, true)],
+                                    td![stars(dwarf.effective_stats().agility, true)],
+                                ],
+                                tr![th!["Intelligence"],
+                                    td![stars(dwarf.stats.intelligence, true)],
+                                    td![stars(dwarf.effective_stats().intelligence, true)],
+                                ],
+                                tr![th!["Perception"],
+                                    td![stars(dwarf.stats.perception, true)],
+                                    td![stars(dwarf.effective_stats().perception, true)],
+                                ],
+                            ]]
+                        ],
+                    ]    
                 ],
                 div![
-                    h4!["Stats"],
-                    table![tbody![
-                        tr![th![], th!["Inherent", tip("Each dwarf has some inherent stats that he was born with and that cannot be changed.")], th!["Effective", tip("The effective stats include the effects of the dwarfs equipment.")]],
-                        tr![th!["Strength"],
-                            td![stars(dwarf.stats.strength, true)],
-                            td![stars(dwarf.effective_stats().strength, true)],
-                        ],
-                        tr![th!["Endurance"],
-                            td![stars(dwarf.stats.endurance, true)],
-                            td![stars(dwarf.effective_stats().endurance, true)],
-                        ],
-                        tr![th!["Agility"],
-                            td![stars(dwarf.stats.agility, true)],
-                            td![stars(dwarf.effective_stats().agility, true)],
-                        ],
-                        tr![th!["Intelligence"],
-                            td![stars(dwarf.stats.intelligence, true)],
-                            td![stars(dwarf.effective_stats().intelligence, true)],
-                        ],
-                        tr![th!["Perception"],
-                            td![stars(dwarf.stats.perception, true)],
-                            td![stars(dwarf.effective_stats().perception, true)],
-                        ],
-                    ]]
-                ],
-                div![
-                    h4!["Equipment"],
+                    h3!["Equipment"],
                     table![C!["list"],
                         enum_iterator::all::<ItemType>().filter(ItemType::equippable).map(|item_type| {
                             let equipment = dwarf.equipment.get(&item_type).unwrap();
@@ -821,7 +824,7 @@ fn dwarf(
                 
                 div![
                     C!["occupation"],
-                    h4!["Work"],
+                    h3!["Work"],
                     if let Some((quest_type, quest_idx, dwarf_idx)) = dwarf.participates_in_quest {
                         div![
                             div![button![
@@ -986,59 +989,54 @@ fn quest(model: &Model, state: &shared::State, user_id: &shared::UserId, quest_i
         if let Some(quest) = quest {
             div![
                 C!["content"],
-                div![
-                    C!["list-item-row"],
-                    img![C!["list-item-image"], attrs! {At::Src => Image::from(quest.quest_type).as_at_value()}],
-                    
+                h2![C!["title"], format!("{}", quest.quest_type)],
+                div![C!["image-aside"],
+                    img![attrs! {At::Src => Image::from(quest.quest_type).as_at_value()}],
                     div![
-                        C!["list-item-content"],
-                        h3![C!["title"], format!("{}", quest.quest_type)],
                         p![C!["subtitle"], format!("{} remaining.", fmt_time(quest.time_left))],
-                    
+                        p![format!("This quest requires {}.", quest.quest_type.occupation().to_string().to_lowercase())],
+                        p![  
+                            match quest.quest_type {
+                                QuestType::KillTheDragon => p!["A dragon was found high up in the mountains in the forbidden lands. Send your best warriors to defeat it."],
+                                QuestType::ArenaFight => p!["The King of the Dwarfs has invited the exilants to compete in an arena fight against monsters and creatures from the forbidden lands. The toughest warrior will be rewarded with a gift from the king personally."],
+                                QuestType::ExploreNewLands => p!["Send dwarfs to explore new lands and find a place for a new settlement. The new settlement will be a better version of your previous settlement that allows a larger maximal population. Additionally, the new settlement will attract more and better dwarfs."],
+                                QuestType::FeastForAGuest => p!["Your village is visted by an ominous guest. Go hunting and organize a feast for the guest, and he may stay."],
+                                QuestType::FreeTheVillage => p!["The Elven Village was raided by the Orks. Free the Elves to earn a reward!"],
+                                QuestType::ADwarfGotLost => p!["Search for a dwarf that got lost in the wilderness. If you find him first, he may stay in your settlement!"],
+                                QuestType::AFishingFriend => p!["Go fishing and make friends!"],
+                                QuestType::ADwarfInDanger => p!["Free a dwarf that gets robbed by Orks. If you free him first, he may stay in your settlement!"],
+                                QuestType::ForTheKing => p!["Fight a ruthless battle to become the king over all of Exile Island!"],
+                                QuestType::DrunkFishing => p!["Participate in the drunk fishing contest! The dwarf that is the most successful drunk fisher gets a reward."],
+                                QuestType::CollapsedCave => p!["A cave has collapsed and a dwarf is trapped inside. Be the first to save is life and he will move into your settlement."],
+                                QuestType::TheHiddenTreasure => p!["The first who finds the hidden treasure can keep it."],
+                                QuestType::CatStuckOnATree => p!["A cat is stuck on a tree. Help her get on the ground an she will gladly follow you home."],
+                            },
+                        ], 
+                        h3!["Rewards"],
+                        match quest.quest_type.reward_mode() {
+                            RewardMode::BestGetsAll(money) => div![p![format!("The best player gets {money} coins, the rest gets nothing.")]],
+                            RewardMode::SplitFairly(money) => div![p![format!("A total of {money} coins are split fairly between the players.")]],
+                            RewardMode::Prestige => div![
+                                p![format!("The participating players will have the chance to start over with a better settlement. For this quest to be successful, your settlement needs to be fully upgraded.")],
+                                if player.can_prestige() {
+                                    p![format!("Your settlement is fully upgraded!")]
+                                } else {
+                                    p![format!("Your settelemnt is not fully upgraded!")]
+                                }
+                            ],
+                            RewardMode::BecomeKing => div![
+                                p![format!("The best player will become the king and get one tenth of all money that is earned during his reign.")],
+                            ],
+                            RewardMode::BestGetsItems(items) => div![
+                                p![format!("The best player will get the following items:")],
+                                p![bundle(&items, player, false)]
+                            ],
+                            RewardMode::NewDwarf(num) => div![p![format!("The best participant gets {num} new dwarf for their settlement.")]],
+                        },
                     ]
                 ],
-        
-                p![  
-                    match quest.quest_type {
-                        QuestType::KillTheDragon => p!["A dragon was found high up in the mountains in the forbidden lands. Send your best warriors to defeat it."],
-                        QuestType::ArenaFight => p!["The King of the Dwarfs has invited the exilants to compete in an arena fight against monsters and creatures from the forbidden lands. The toughest warrior will be rewarded with a gift from the king personally."],
-                        QuestType::ExploreNewLands => p!["Send dwarfs to explore new lands and find a place for a new settlement. The new settlement will be a better version of your previous settlement that allows a larger maximal population. Additionally, the new settlement will attract more and better dwarfs."],
-                        QuestType::FeastForAGuest => p!["Your village is visted by an ominous guest. Go hunting and organize a feast for the guest, and he may stay."],
-                        QuestType::FreeTheVillage => p!["The Elven Village was raided by the Orks. Free the Elves to earn a reward!"],
-                        QuestType::ADwarfGotLost => p!["Search for a dwarf that got lost in the wilderness. If you find him first, he may stay in your settlement!"],
-                        QuestType::AFishingFriend => p!["Go fishing and make friends!"],
-                        QuestType::ADwarfInDanger => p!["Free a dwarf that gets robbed by Orks. If you free him first, he may stay in your settlement!"],
-                        QuestType::ForTheKing => p!["Fight a ruthless battle to become the king over all of Exile Island!"],
-                        QuestType::DrunkFishing => p!["Participate in the drunk fishing contest! The dwarf that is the most successful drunk fisher gets a reward."],
-                        QuestType::CollapsedCave => p!["A cave has collapsed and a dwarf is trapped inside. Be the first to save is life and he will move into your settlement."],
-                        QuestType::TheHiddenTreasure => p!["The first who finds the hidden treasure can keep it."],
-                        QuestType::CatStuckOnATree => p!["A cat is stuck on a tree. Help her get on the ground an she will gladly follow you home."],
-                    },
-                ], 
                 
-                p![format!("This quest requires {}.", quest.quest_type.occupation().to_string().to_lowercase())],
-                h4!["Rewards"],
-                match quest.quest_type.reward_mode() {
-                    RewardMode::BestGetsAll(money) => div![p![format!("The best player gets {money} coins, the rest gets nothing.")]],
-                    RewardMode::SplitFairly(money) => div![p![format!("A total of {money} coins are split fairly between the players.")]],
-                    RewardMode::Prestige => div![
-                        p![format!("The participating players will have the chance to start over with a better settlement. For this quest to be successful, your settlement needs to be fully upgraded.")],
-                        if player.can_prestige() {
-                            p![format!("Your settlement is fully upgraded!")]
-                        } else {
-                            p![format!("Your settelemnt is not fully upgraded!")]
-                        }
-                    ],
-                    RewardMode::BecomeKing => div![
-                        p![format!("The best player will become the king and get one tenth of all money that is earned during his reign.")],
-                    ],
-                    RewardMode::BestGetsItems(items) => div![
-                        p![format!("The best player will get the following items:")],
-                        p![bundle(&items, player, false)]
-                    ],
-                    RewardMode::NewDwarf(num) => div![p![format!("The best participant gets {num} new dwarf for their settlement.")]],
-                },
-                h4!["Participate"],
+                h3!["Participate"],
                 
                 if let Some(contestant) = quest.contestants.get(user_id) {
                     let rank = quest.contestants.values().filter(|c| c.achieved_score >= contestant.achieved_score).count();
@@ -1169,7 +1167,6 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
 
         div![C!["content"],
             h2!["Your Settlement"],
-            img![attrs! {At::Src => Image::from(player.base.village_type()).as_at_value()}],
             table![
                 tr![th![
                     "Settlement Type",
@@ -1182,80 +1179,92 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                 tr![th!["Food", tip("Your settlement can store food for your dwarfs to consume. One quantity of food restores 0.1% of a dwarfs health.")], td![format!("{} food", player.base.food)]],
             ],
             h3!["Upgrade Settlement"],
-            if let Some(requires) = player.base.upgrade_cost() {
-                div![
-                    p!["Upgrade your settlement to increase the maximum population and unlock new occupations for your dwarfs."],
-                    if let Some(unlocked_occupation) = enum_iterator::all::<Occupation>().filter(|occupation| occupation.unlocked_at_level() == player.base.curr_level + 1).next() {
-                        p![format!("The next upgrade increases your maximal population by one and unlocks the occupation {}.", unlocked_occupation)]
-                    } else {
-                        p!["The next upgrade increases your maximal population by one."]
-                    },
-                    bundle(&requires, player, true),
-                    button![
-                        if player.inventory.items.check_remove(&requires) {
-                            attrs! {}
+            div![C!["image-aside"],
+                img![attrs! {At::Src => Image::from(player.base.village_type()).as_at_value()}],
+                if let Some(requires) = player.base.upgrade_cost() {
+                    div![
+                        p!["Upgrade your settlement to increase the maximum population and unlock new occupations for your dwarfs."],
+                        if let Some(unlocked_occupation) = enum_iterator::all::<Occupation>().filter(|occupation| occupation.unlocked_at_level() == player.base.curr_level + 1).next() {
+                            p![format!("The next upgrade increases your maximal population by one and unlocks the occupation {}.", unlocked_occupation)]
                         } else {
-                            attrs! {At::Disabled => "true"}
+                            p!["The next upgrade increases your maximal population by one."]
                         },
-                        ev(Ev::Click, move |_| Msg::send_event(ClientEvent::UpgradeBase)),
-                        "Upgrade",
-                    ]
-                ]
-            } else {
-                div![
-                    p!["Move to a new, better settlement. The settlement will become bigger and attract better dwarfs. But be warned, you will loose all your items in this process."],
-                    p![format!("You need to complete the quest {} in order to start a new settlement.", QuestType::ExploreNewLands)],
-                    button![
-                        if player.can_prestige() && player.prestige_quest_completed  {
-                            attrs! {}
-                        } else {
-                            attrs! {At::Disabled => "true"}
-                        },
-                        ev(Ev::Click, move |_| Msg::send_event(ClientEvent::Prestige)),
-                        "Start a new Settlement",
-                    ]
-                ]
-            },
-            div![
-                h3!["Open Loot Crate"],
-                p!["A loot crate contains a random epic or legendary item. You can earn loot crates by completing quests."],
-                img![attrs! {At::Src => Image::LootCrate.as_at_value()}],
-                button![
-                    if player.money >= LOOT_CRATE_COST && is_premium {
-                        attrs! {}
-                    } else {
-                        attrs! {At::Disabled => "true"}
-                    },
-                    ev(Ev::Click, move |_| Msg::send_event(ClientEvent::OpenLootCrate)),
-                    format!("Buy and Open ({} coins)", LOOT_CRATE_COST),
-                    if !is_premium {
-                        tip("This functionality requires a premium account.")
-                    } else {
-                        Node::Empty
-                    }
-                ]
-            ],
-            div![
-                h3!["Hire Dwarf"],
-                p!["Hire a dwarf to work for you in exchange for money. There are three types of dwarfs that are open for hire. Standard dwarfs have at least two, advanced dwarfs at least three, and expert dwarfs at least four stars for all of their inherent stats."],
-                img![attrs! {At::Src => Image::HireDwarf.as_at_value()}],
-                enum_iterator::all::<HireDwarfType>()
-                    .map(|dwarf_type| {
+                        bundle(&requires, player, true),
                         button![
-                            if player.money >= dwarf_type.cost() && player.dwarfs.len() < player.base.max_dwarfs() && is_premium {
+                            if player.inventory.items.check_remove(&requires) {
                                 attrs! {}
                             } else {
                                 attrs! {At::Disabled => "true"}
                             },
-                            ev(Ev::Click, move |_| Msg::send_event(ClientEvent::HireDwarf(dwarf_type))),
-                            format!("Hire {} Dwarf ({} coins)", dwarf_type, dwarf_type.cost()),
+                            ev(Ev::Click, move |_| Msg::send_event(ClientEvent::UpgradeBase)),
+                            "Upgrade",
+                        ]
+                    ]
+                } else {
+                    div![
+                        p!["Move to a new, better settlement. The settlement will become bigger and attract better dwarfs. But be warned, you will loose all your items in this process."],
+                        p![format!("You need to complete the quest {} in order to start a new settlement.", QuestType::ExploreNewLands)],
+                        button![
+                            if player.can_prestige() && player.prestige_quest_completed  {
+                                attrs! {}
+                            } else {
+                                attrs! {At::Disabled => "true"}
+                            },
+                            ev(Ev::Click, move |_| Msg::send_event(ClientEvent::Prestige)),
+                            "Start a new Settlement",
+                        ]
+                    ]
+                },
+            ],
+            div![
+                h3!["Open Loot Crate"],
+                div![C!["image-aside"],
+                    img![attrs! {At::Src => Image::LootCrate.as_at_value()}],
+                    div![
+                        p!["A loot crate contains a random epic or legendary item. You can earn loot crates by completing quests."],
+                        button![
+                            if player.money >= LOOT_CRATE_COST && is_premium {
+                                attrs! {}
+                            } else {
+                                attrs! {At::Disabled => "true"}
+                            },
+                            ev(Ev::Click, move |_| Msg::send_event(ClientEvent::OpenLootCrate)),
+                            format!("Buy and Open ({} coins)", LOOT_CRATE_COST),
                             if !is_premium {
                                 tip("This functionality requires a premium account.")
                             } else {
                                 Node::Empty
                             }
                         ]
-                    })
+                    ]
+                ]
+                
+            ],
+            div![
+                h3!["Hire Dwarf"],
+                div![C!["image-aside"],
+                    img![attrs! {At::Src => Image::HireDwarf.as_at_value()}],
+                    div![
+                        p!["Hire a dwarf to work for you in exchange for money. There are three types of dwarfs that are open for hire. Standard dwarfs have at least two, advanced dwarfs at least three, and expert dwarfs at least four stars for all of their inherent stats."],
+                        enum_iterator::all::<HireDwarfType>()
+                        .map(|dwarf_type| {
+                            button![
+                                if player.money >= dwarf_type.cost() && player.dwarfs.len() < player.base.max_dwarfs() && is_premium {
+                                    attrs! {}
+                                } else {
+                                    attrs! {At::Disabled => "true"}
+                                },
+                                ev(Ev::Click, move |_| Msg::send_event(ClientEvent::HireDwarf(dwarf_type))),
+                                format!("Hire {} Dwarf ({} coins)", dwarf_type, dwarf_type.cost()),
+                                if !is_premium {
+                                    tip("This functionality requires a premium account.")
+                                } else {
+                                    Node::Empty
+                                }
+                            ]
+                        })
+                    ],
+                ] 
             ]
         ]
     } else {

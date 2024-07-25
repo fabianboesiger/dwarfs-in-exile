@@ -661,10 +661,26 @@ impl engine_shared::State for State {
                                 .iter()
                                 .filter(|(_, player)| player.is_active(self.time))
                                 .count();
-                            
+
                             while self.quests.len() < 2.max(active_players / 2) {
+                                let disabled_quests = self
+                                    .quests
+                                    .values()
+                                    .map(|q| q.quest_type)
+                                    .filter(|quest_type| quest_type.one_at_a_time())
+                                    .collect::<HashSet<_>>();
+
+                                let all_quests =
+                                    enum_iterator::all::<QuestType>().collect::<HashSet<_>>();
+
+                                let potential_quests = &all_quests - &disabled_quests;
+
+                                if potential_quests.is_empty() {
+                                    break;
+                                }
+
                                 let quest = Quest::new(
-                                    *enum_iterator::all::<QuestType>().collect::<HashSet<_>>()
+                                    *potential_quests
                                         .into_iter()
                                         .collect::<Vec<_>>()
                                         .choose(rng)
@@ -2461,6 +2477,11 @@ impl QuestType {
                 .add(Item::Cat, 1))
         }
     }
+
+    pub fn one_at_a_time(self) -> bool {
+        matches!(self.reward_mode(), RewardMode::Prestige | RewardMode::BecomeKing)
+    }
+
 
     pub fn duration(self) -> u64 {
         match self {
