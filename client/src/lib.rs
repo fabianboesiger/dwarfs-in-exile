@@ -994,6 +994,17 @@ fn quest(model: &Model, state: &shared::State, user_id: &shared::UserId, quest_i
                     img![attrs! {At::Src => Image::from(quest.quest_type).as_at_value()}],
                     div![
                         p![C!["subtitle"], format!("{} remaining.", fmt_time(quest.time_left))],
+                        if let Some(contestant) = quest.contestants.get(user_id) {
+                            let rank = quest.contestants.values().filter(|c| c.achieved_score >= contestant.achieved_score).count();
+                            let mut contestants = quest.contestants.values().collect::<Vec<_>>();
+                            contestants.sort_by_key(|c| c.achieved_score);
+                            let best_score = contestants.last().unwrap().achieved_score;
+                            p![
+                                score_bar(contestant.achieved_score, best_score, rank, quest.contestants.len())
+                            ]
+                        } else {
+                            Node::Empty
+                        },
                         p![format!("This quest requires {}.", quest.quest_type.occupation().to_string().to_lowercase())],
                         p![  
                             match quest.quest_type {
@@ -1037,19 +1048,6 @@ fn quest(model: &Model, state: &shared::State, user_id: &shared::UserId, quest_i
                 ],
                 
                 h3!["Participate"],
-                
-                if let Some(contestant) = quest.contestants.get(user_id) {
-                    let rank = quest.contestants.values().filter(|c| c.achieved_score >= contestant.achieved_score).count();
-                    let mut contestants = quest.contestants.values().collect::<Vec<_>>();
-                    contestants.sort_by_key(|c| c.achieved_score);
-                    let best_score = contestants.last().unwrap().achieved_score;
-                    p![
-                        score_bar(contestant.achieved_score, best_score, rank, quest.contestants.len())
-                    ]
-                } else {
-                    Node::Empty
-                },
-        
                 table![C!["list"],
                 (0..quest
                     .quest_type

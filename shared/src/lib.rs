@@ -2496,18 +2496,18 @@ impl QuestType {
 
     pub fn duration(self) -> u64 {
         match self {
-            Self::KillTheDragon => ONE_HOUR * 3,
-            Self::ArenaFight => ONE_DAY / 2,
-            Self::ExploreNewLands => ONE_DAY / 2,
-            Self::FreeTheVillage => ONE_HOUR * 3,
-            Self::FeastForAGuest => ONE_HOUR * 3,
-            Self::ADwarfGotLost => ONE_HOUR * 3,
-            Self::AFishingFriend => ONE_HOUR * 3,
-            Self::ADwarfInDanger => ONE_HOUR * 3,
-            Self::ForTheKing => ONE_DAY / 2,
-            Self::DrunkFishing => ONE_HOUR * 3,
-            Self::CollapsedCave => ONE_HOUR * 3,
-            Self::TheHiddenTreasure => ONE_HOUR * 3,
+            Self::KillTheDragon => ONE_HOUR * 2,
+            Self::ArenaFight => ONE_HOUR * 2,
+            Self::ExploreNewLands => ONE_HOUR * 8,
+            Self::FreeTheVillage => ONE_HOUR * 2,
+            Self::FeastForAGuest => ONE_HOUR,
+            Self::ADwarfGotLost => ONE_HOUR * 2,
+            Self::AFishingFriend => ONE_HOUR,
+            Self::ADwarfInDanger => ONE_HOUR * 2,
+            Self::ForTheKing => ONE_HOUR * 8,
+            Self::DrunkFishing => ONE_HOUR,
+            Self::CollapsedCave => ONE_HOUR * 2,
+            Self::TheHiddenTreasure => ONE_HOUR * 2,
             Self::CatStuckOnATree => ONE_HOUR,
         }
     }
