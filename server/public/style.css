@@ -91,13 +91,6 @@ input:not([type=checkbox]):not([type=radio]):hover, button:hover, select:hover, 
     background: #eee;
 }
 
-/*
-input:not([type=checkbox]):not([type=radio]):focus, button:focus, select:focus, a.button:focus, summary:focus {
-    outline: 1px solid #eee;
-    z-index: 10000;
-}
-*/
-
 input:not([type=checkbox]):not([type=radio]):active, button:active, select:active, a.button:active, summary:active {
     background: #ddd;
 }
@@ -242,12 +235,6 @@ th, td {
     background: rgba(255, 255, 255, 0.2);
 }
 
-/*
-th {
-    background: rgba(0, 0, 0, 0.2);
-}
-*/
-
 nav {
     position: sticky;
     top: 0;
@@ -367,12 +354,6 @@ input[type=checkbox] {
   
 .tooltip:hover .tooltiptext, .tooltip:active .tooltiptext {
     visibility: visible;
-}
-
-@media only screen and (max-width: 768px) {
-    .tooltip .tooltiptext {
-        width: 128px;
-    }
 }
 
 #server-info {
@@ -548,6 +529,10 @@ ul {
     width: 256px;
 }
 
+.image-aside.small > img {
+    width: 128px;
+}
+
 .image-aside > div {
     margin-left: 16px;
     width: 100%;
@@ -558,20 +543,33 @@ ul {
 }
 
 @media only screen and (max-width: 768px) {
-    .image-aside {
+    .image-aside:not(.small) {
         flex-wrap: wrap;
     }
 
-    .image-aside > img {
+    .image-aside:not(.small) > img {
         width: 100%;
     }
 
-    .image-aside > div {
+    .image-aside:not(.small) > div {
         width: 100%;
         margin-left: 0;
     }
 
-    .image-aside > div > *:first-child {
+    .image-aside:not(.small) > div > *:first-child {
         margin-top: 1em;
     }    
+}
+
+.important {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 16px;
+}
+
+.important > *:first-child {
+    margin-top: 0;
+}
+
+.important > *:last-child {
+    margin-bottom: 0;
 }

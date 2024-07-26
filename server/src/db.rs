@@ -35,6 +35,25 @@ pub async fn setup() -> Result<SqlitePool, Box<dyn std::error::Error>> {
     .execute(&mut transaction)
     .await?;
 
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS settings (
+            free_premium INTEGER NOT NULL
+        )
+    "#,
+    )
+    .execute(&mut transaction)
+    .await?;
+
+    sqlx::query(
+        r#"
+        INSERT INTO settings (free_premium)
+        VALUES (0)
+    "#,
+    )
+    .execute(&mut transaction)
+    .await?;
+
     transaction.commit().await?;
 
     Ok(pool)

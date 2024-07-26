@@ -2,6 +2,18 @@
 {% block content %}
 <main>
     <div class="content">
+        {% if free_premium > 0 %}
+        <div class="important">
+            <h3>Limited Time Offer</h3>
+            <div class="image-aside small">
+                <img src="/premium.jpg">
+                <div>
+                    <p>Get a free premium account for the first {{ free_premium / 24 }} days if you register now!</p>
+                    <a href="/register" class="button">Register Now</a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
         <h2>Off to a New World!</h2>
         <div class="image-aside">
             <img src="/intro.jpg">

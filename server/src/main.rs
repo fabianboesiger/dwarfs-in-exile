@@ -116,6 +116,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/admin", get(admin::get_admin))
         .route("/admin/manage-user", post(admin::post_manage_user))
         .route("/admin/create-world", post(admin::post_create_world))
+        .route("/admin/update-settings", post(admin::post_update_settings))
         .route("/stripe-webhooks", post(store::handle_webhook))
         .layer(Extension(game_state))
         .layer(Extension(pool.clone()))
