@@ -1,12 +1,3 @@
-@font-face {
-    font-family: "Noto Sans Symbols";
-    src: URL('NotoSansSymbols2-Regular.ttf') format('truetype');
-}
-
-.symbols {
-    font-family: "Noto Sans Symbols";
-}
-
 #background {
     position: fixed;
     top: 0;
