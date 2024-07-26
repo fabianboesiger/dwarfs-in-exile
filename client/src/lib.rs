@@ -6,7 +6,9 @@ use images::Image;
 use itertools::Itertools;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, QuestId, QuestType, RewardMode, Stats, Time, LOOT_CRATE_COST, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS
+    Bundle, ClientEvent, Craftable, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType,
+    LogMsg, Occupation, Player, QuestId, QuestType, RewardMode, Stats, Time, LOOT_CRATE_COST,
+    MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS,
 };
 use std::str::FromStr;
 use web_sys::js_sys::Date;
@@ -115,7 +117,6 @@ pub struct Model {
     game_id: GameId,
 }
 
-
 impl Model {
     fn sync_timestamp_millis_now(&mut self, time: Time) {
         self.map_time.0 = time;
@@ -123,7 +124,8 @@ impl Model {
     }
 
     fn get_timestamp_millis_of(&self, time: Time) -> u64 {
-        (self.map_time.1 as i64 + (time as i64 - self.map_time.0 as i64) * 1000 / SPEED as i64) as u64
+        (self.map_time.1 as i64 + (time as i64 - self.map_time.0 as i64) * 1000 / SPEED as i64)
+            as u64
     }
 
     fn get_timestamp_millis_diff_now(&self, time: Time) -> u64 {
@@ -152,7 +154,6 @@ fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
     orders.subscribe(|subs::UrlChanged(url)| Msg::ChangePage(Page::from_url(url).1));
 
     let (game_id, page) = Page::from_url(url);
-
 
     Model {
         state: ClientState::init(orders, format!("{WS_PROTOCOL}://{HOST}/game/{game_id}/ws")),
@@ -526,9 +527,13 @@ fn score_bar(curr: u64, max: u64, rank: usize, max_rank: usize) -> Node<Msg> {
     ]
 }
 
-fn dwarfs(model: &Model, state: &shared::State, user_id: &shared::UserId, mode: DwarfsMode) -> Node<Msg> {
+fn dwarfs(
+    model: &Model,
+    state: &shared::State,
+    user_id: &shared::UserId,
+    mode: DwarfsMode,
+) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
-
         if player.dwarfs.len() > 0 {
             table![
                 C!["dwarfs", "list"],
@@ -697,7 +702,7 @@ fn dwarf(
                                 ],
                             ]]
                         ],
-                    ]    
+                    ]
                 ],
                 div![
                     h3!["Equipment"],
@@ -762,7 +767,6 @@ fn dwarf(
                                     } else {
                                         Vec::new()
                                     }
-                                    
                                 ],
                                 td![C!["list-item-content", "shrink"],
                                     button![
@@ -825,7 +829,6 @@ fn dwarf(
                     })]
                     */
                 ],
-                
                 div![
                     C!["occupation"],
                     h3!["Work"],
@@ -874,7 +877,6 @@ fn dwarf(
                                                 "Select"
                                             ],
                                         ]
-                                        
                                         /*if !occupation.requires_stats().is_zero() {
                                             p![
                                                 h4!["Requires"],
@@ -922,7 +924,7 @@ fn dwarf(
                                 */
                             })
                         ]
-                    }                     
+                    }
                 ]
             ]
         } else {
@@ -930,7 +932,10 @@ fn dwarf(
                 C!["content"],
                 h2!["There's Noone Here!"],
                 p!["This dwarf has died!"],
-                a![attrs! { At::Href => format!("{}/dwarfs", model.base_path()) }, "Go back"],
+                a![
+                    attrs! { At::Href => format!("{}/dwarfs", model.base_path()) },
+                    "Go back"
+                ],
             ]
         }
     } else {
@@ -986,7 +991,12 @@ fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
     ]
 }
 
-fn quest(model: &Model, state: &shared::State, user_id: &shared::UserId, quest_id: QuestId) -> Node<Msg> {
+fn quest(
+    model: &Model,
+    state: &shared::State,
+    user_id: &shared::UserId,
+    quest_id: QuestId,
+) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
         let quest = state.quests.get(&quest_id);
 
@@ -1010,7 +1020,7 @@ fn quest(model: &Model, state: &shared::State, user_id: &shared::UserId, quest_i
                             Node::Empty
                         },
                         p![format!("This quest requires {}.", quest.quest_type.occupation().to_string().to_lowercase())],
-                        p![  
+                        p![
                             match quest.quest_type {
                                 QuestType::KillTheDragon => p!["A dragon was found high up in the mountains in the forbidden lands. Send your best warriors to defeat it."],
                                 QuestType::ArenaFight => p!["The King of the Dwarfs has invited the exilants to compete in an arena fight against monsters and creatures from the forbidden lands. The toughest warrior will be rewarded with a gift from the king personally."],
@@ -1026,7 +1036,7 @@ fn quest(model: &Model, state: &shared::State, user_id: &shared::UserId, quest_i
                                 QuestType::TheHiddenTreasure => p!["The first who finds the hidden treasure can keep it."],
                                 QuestType::CatStuckOnATree => p!["A cat is stuck on a tree. Help her get on the ground an she will gladly follow you home."],
                             },
-                        ], 
+                        ],
                         h3!["Rewards"],
                         match quest.quest_type.reward_mode() {
                             RewardMode::BestGetsAll(money) => div![p![format!("The best player gets {money} coins, the rest gets nothing.")]],
@@ -1050,7 +1060,6 @@ fn quest(model: &Model, state: &shared::State, user_id: &shared::UserId, quest_i
                         },
                     ]
                 ],
-                
                 h3!["Participate"],
                 table![C!["list"],
                 (0..quest
@@ -1064,7 +1073,6 @@ fn quest(model: &Model, state: &shared::State, user_id: &shared::UserId, quest_i
                     })
                     .map(|(dwarf_idx, dwarf_id)| {
                         let dwarf = dwarf_id.map(|dwarf_id| player.dwarfs.get(&dwarf_id).unwrap());
-        
                         tr![
                             C!["list-item-row"],
                             if let Some(dwarf) = dwarf {
@@ -1128,7 +1136,10 @@ fn quest(model: &Model, state: &shared::State, user_id: &shared::UserId, quest_i
                 C!["content"],
                 h2!["There's Nothing Here!"],
                 p!["This quest was completed!"],
-                a![attrs! { At::Href => format!("{}/quests", model.base_path()) }, "Go back"],
+                a![
+                    attrs! { At::Href => format!("{}/quests", model.base_path()) },
+                    "Go back"
+                ],
             ]
         }
     } else {
@@ -1160,7 +1171,6 @@ fn enumerate(num: usize) -> String {
 
 fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
-
         let is_premium = model
             .state
             .get_user_data(user_id)
@@ -1240,7 +1250,6 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                         ]
                     ]
                 ]
-                
             ],
             div![
                 h3!["Hire Dwarf"],
@@ -1266,13 +1275,12 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                             ]
                         })
                     ],
-                ] 
+                ]
             ]
         ]
     } else {
         Node::Empty
     }
-
 }
 
 fn inventory(
@@ -1282,7 +1290,6 @@ fn inventory(
     mode: InventoryMode,
 ) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
-
         let is_premium = model
             .state
             .get_user_data(user_id)
@@ -1424,7 +1431,6 @@ fn inventory(
                         td![img![C!["list-item-image"], attrs! {At::Src => Image::from(item).as_at_value()}]],
                         td![
                             C!["list-item-content", "grow"],
-                            
                             h3![C!["title"], format!("{} {item}", big_number(n))],
                             p![
                                 C!["subtitle"], if let Some(item_type) = item.item_type() {
@@ -1444,8 +1450,7 @@ fn inventory(
                                     Node::Empty
                                 },
                             ],
-                            
-  
+
                             // Show stats
                             if !item.provides_stats().is_zero() {
                                 div![
@@ -1501,7 +1506,7 @@ fn inventory(
                                     "Equip"
                                 ]
                             ]
-                        } else {     
+                        } else {
                             td![
                                 C!["list-item-content", "shrink"],
                                 if let Some(requires) = item.requires() {
@@ -1649,7 +1654,7 @@ fn inventory(
                                                 ]
                                             ]
                                         }
-                                    ] 
+                                    ]
                                 } else {
                                     Vec::new()
                                 },
@@ -1671,7 +1676,7 @@ fn inventory(
                                                     if is_premium && player
                                                         .inventory
                                                         .items
-                                                        .check_remove(&Bundle::new().add(item, 1))                                                
+                                                        .check_remove(&Bundle::new().add(item, 1))
                                                     {
                                                         attrs! {}
                                                     } else {
@@ -1745,11 +1750,10 @@ fn inventory(
                                                 ]
                                             ]
                                         }
-                                    ] 
+                                    ]
                                 } else {
                                     Vec::new()
                                 },
-                            
                             ]
                         }
                     ]),
@@ -1822,7 +1826,6 @@ fn history(
     client_state: &ClientState<shared::State>,
 ) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
-
         div![
             id!["history"],
             if model.history_visible {
@@ -2024,9 +2027,11 @@ fn stats(stats: &Stats) -> Node<Msg> {
 
     v.sort_by_key(|t| -t.0);
 
-    span![itertools::intersperse(v
-        .into_iter()
-        .map(|(num, abv)| span![format!("{abv} "), stars(num, false)]), br![])]
+    span![itertools::intersperse(
+        v.into_iter()
+            .map(|(num, abv)| span![format!("{abv} "), stars(num, false)]),
+        br![]
+    )]
 }
 
 fn stats_simple(stats: &Stats) -> String {

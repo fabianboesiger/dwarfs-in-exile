@@ -51,7 +51,12 @@ pub async fn get_change_username(
             WHERE user_id = $1
         "#,
     )
-    .bind(session.get::<i64>(crate::USER_ID_KEY).await?.ok_or(ServerError::InvalidSession)?)
+    .bind(
+        session
+            .get::<i64>(crate::USER_ID_KEY)
+            .await?
+            .ok_or(ServerError::InvalidSession)?,
+    )
     .fetch_optional(&pool)
     .await?
     .ok_or(ServerError::UserDeleted)?;
@@ -77,7 +82,12 @@ pub async fn post_change_username(
         "#,
     )
     .bind(&change_username.username)
-    .bind(&session.get::<i64>(crate::USER_ID_KEY).await?.ok_or(ServerError::InvalidSession)?)
+    .bind(
+        &session
+            .get::<i64>(crate::USER_ID_KEY)
+            .await?
+            .ok_or(ServerError::InvalidSession)?,
+    )
     .execute(&pool)
     .await;
 

@@ -5,10 +5,10 @@ use axum::{
     response::{IntoResponse, Redirect},
     Extension, Form,
 };
+use bcrypt::hash;
 use serde::Deserialize;
 use sqlx::SqlitePool;
 use tower_sessions::Session;
-use bcrypt::hash;
 
 #[derive(Debug, Deserialize)]
 pub struct ManageUser {
@@ -48,7 +48,10 @@ pub async fn get_admin(
     session: Session,
     Extension(pool): Extension<SqlitePool>,
 ) -> Result<Response, ServerError> {
-    let user_id = session.get::<i64>(crate::USER_ID_KEY).await?.ok_or(ServerError::InvalidSession)?;
+    let user_id = session
+        .get::<i64>(crate::USER_ID_KEY)
+        .await?
+        .ok_or(ServerError::InvalidSession)?;
 
     let result: (i64,) = sqlx::query_as(
         r#"
@@ -77,10 +80,8 @@ pub async fn get_admin(
     .fetch_one(&pool)
     .await?;
 
-    let settings = Settings {
-        free_premium
-    };
-    
+    let settings = Settings { free_premium };
+
     let users = sqlx::query_as(
         r#"
                 SELECT user_id, username, premium
@@ -91,12 +92,10 @@ pub async fn get_admin(
     .fetch_all(&pool)
     .await?
     .into_iter()
-    .map(|(user_id, username, premium)| {
-        User {
-            user_id,
-            username,
-            premium,
-        }
+    .map(|(user_id, username, premium)| User {
+        user_id,
+        username,
+        premium,
     })
     .collect();
 
@@ -110,19 +109,15 @@ pub async fn get_admin(
     .fetch_all(&pool)
     .await?
     .into_iter()
-    .map(|(id, winner)| {
-        Game {
-            id,
-            winner
-        }
-    })
+    .map(|(id, winner)| Game { id, winner })
     .collect();
 
     Ok(AdminTemplate {
         users,
         settings,
         games,
-    }.into_response())
+    }
+    .into_response())
 }
 
 pub async fn post_manage_user(
@@ -131,7 +126,10 @@ pub async fn post_manage_user(
     Extension(game_state): Extension<GameState>,
     Form(manage_user): Form<ManageUser>,
 ) -> Result<Response, ServerError> {
-    let user_id = session.get::<i64>(crate::USER_ID_KEY).await?.ok_or(ServerError::InvalidSession)?;
+    let user_id = session
+        .get::<i64>(crate::USER_ID_KEY)
+        .await?
+        .ok_or(ServerError::InvalidSession)?;
 
     let result: (i64,) = sqlx::query_as(
         r#"
@@ -149,7 +147,7 @@ pub async fn post_manage_user(
     if !admin {
         return Err(ServerError::NoAdminPermissions);
     }
-    
+
     let mut tx = pool.begin().await?;
 
     if manage_user.delete.unwrap_or(false) {
@@ -212,7 +210,10 @@ pub async fn post_create_world(
     Extension(pool): Extension<SqlitePool>,
     Extension(game_state): Extension<GameState>,
 ) -> Result<Response, ServerError> {
-    let user_id = session.get::<i64>(crate::USER_ID_KEY).await?.ok_or(ServerError::InvalidSession)?;
+    let user_id = session
+        .get::<i64>(crate::USER_ID_KEY)
+        .await?
+        .ok_or(ServerError::InvalidSession)?;
 
     let result: (i64,) = sqlx::query_as(
         r#"
@@ -241,7 +242,10 @@ pub async fn post_update_settings(
     Extension(pool): Extension<SqlitePool>,
     Form(settings): Form<Settings>,
 ) -> Result<Response, ServerError> {
-    let user_id = session.get::<i64>(crate::USER_ID_KEY).await?.ok_or(ServerError::InvalidSession)?;
+    let user_id = session
+        .get::<i64>(crate::USER_ID_KEY)
+        .await?
+        .ok_or(ServerError::InvalidSession)?;
 
     let result: (i64,) = sqlx::query_as(
         r#"
@@ -261,14 +265,14 @@ pub async fn post_update_settings(
     }
 
     sqlx::query(
-            r#"
+        r#"
                     UPDATE settings
                     SET free_premium = $1
                 "#,
-        )
-        .bind(&settings.free_premium)
-        .execute(&pool)
-        .await?;
+    )
+    .bind(&settings.free_premium)
+    .execute(&pool)
+    .await?;
 
     Ok(Redirect::to("/admin").into_response())
 }

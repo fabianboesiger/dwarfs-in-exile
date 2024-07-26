@@ -7,7 +7,7 @@ use crate::ServerError;
 #[derive(Template, Default)]
 #[template(path = "index.html")]
 pub struct IndexTemplate {
-    free_premium: i64
+    free_premium: i64,
 }
 
 pub async fn get_index(

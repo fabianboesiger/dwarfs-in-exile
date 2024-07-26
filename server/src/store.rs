@@ -1,9 +1,8 @@
+use crate::game::GameState;
 use crate::ServerError;
 use askama::Template;
 use askama_axum::{IntoResponse, Response};
 use axum::Extension;
-use sqlx::SqlitePool;
-use tower_sessions::Session;
 use axum::{
     async_trait,
     body::Body,
@@ -11,8 +10,9 @@ use axum::{
     http::{Request, StatusCode},
     Error,
 };
+use sqlx::SqlitePool;
 use stripe::{CheckoutSession, Client, Event, EventObject, EventType};
-use crate::game::GameState;
+use tower_sessions::Session;
 
 #[derive(Debug, Clone, Copy)]
 pub struct StoreEntry {
@@ -22,7 +22,6 @@ pub struct StoreEntry {
     name: &'static str,
     product: Product,
 }
-
 
 #[cfg(not(debug_assertions))]
 static STORE_ENTRIES: &[StoreEntry] = &[
@@ -93,7 +92,12 @@ pub async fn get_store(
             WHERE user_id = $1
         "#,
     )
-    .bind(session.get::<i64>(crate::USER_ID_KEY).await?.ok_or(ServerError::InvalidSession)?)
+    .bind(
+        session
+            .get::<i64>(crate::USER_ID_KEY)
+            .await?
+            .ok_or(ServerError::InvalidSession)?,
+    )
     .fetch_optional(&pool)
     .await?
     .ok_or(ServerError::UserDeleted)?;
@@ -105,9 +109,7 @@ pub async fn get_store(
         ..StoreTemplate::default()
     }
     .into_response())
-   
 }
-
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -134,11 +136,15 @@ where
             .map_err(IntoResponse::into_response)?;
 
         Ok(Self(
-            stripe::Webhook::construct_event(&payload, signature.to_str().unwrap(), &dotenv::var("STRIPE_WEBHOOK_SECRET").unwrap())
-                .map_err(|_| {
-                    tracing::warn!("failed to construct stripe event");
-                    StatusCode::BAD_REQUEST.into_response()
-                })?,
+            stripe::Webhook::construct_event(
+                &payload,
+                signature.to_str().unwrap(),
+                &dotenv::var("STRIPE_WEBHOOK_SECRET").unwrap(),
+            )
+            .map_err(|_| {
+                tracing::warn!("failed to construct stripe event");
+                StatusCode::BAD_REQUEST.into_response()
+            })?,
         ))
     }
 }
@@ -162,30 +168,42 @@ pub async fn handle_webhook(
     match event.type_ {
         EventType::CheckoutSessionCompleted => {
             if let EventObject::CheckoutSession(session) = event.data.object {
-                tracing::info!("Received checkout session completed webhook with id: {:?}", &session.id);
+                tracing::info!(
+                    "Received checkout session completed webhook with id: {:?}",
+                    &session.id
+                );
 
                 let user_id = session
                     .client_reference_id
                     .as_ref()
-                    .ok_or(ServerError::StripeErrorMissingData(format!("missing client_reference_id, {session:?}")))?
+                    .ok_or(ServerError::StripeErrorMissingData(format!(
+                        "missing client_reference_id, {session:?}"
+                    )))?
                     .parse::<i64>()?;
 
                 let client = Client::new(dotenv::var("STRIPE_CLIENT_SECRET").unwrap());
-                let session = CheckoutSession::retrieve(&client, &session.id, &["line_items"]).await?;
-                
+                let session =
+                    CheckoutSession::retrieve(&client, &session.id, &["line_items"]).await?;
+
                 for line_item in &session
                     .line_items
                     .as_ref()
-                    .ok_or(ServerError::StripeErrorMissingData(format!("missing line_items, {session:?}")))?
+                    .ok_or(ServerError::StripeErrorMissingData(format!(
+                        "missing line_items, {session:?}"
+                    )))?
                     .data
                 {
                     let product_id = line_item
                         .price
                         .as_ref()
-                        .ok_or(ServerError::StripeErrorMissingData(format!("missing price, {session:?}")))?
+                        .ok_or(ServerError::StripeErrorMissingData(format!(
+                            "missing price, {session:?}"
+                        )))?
                         .product
                         .as_ref()
-                        .ok_or(ServerError::StripeErrorMissingData(format!("missing product, {session:?}")))?
+                        .ok_or(ServerError::StripeErrorMissingData(format!(
+                            "missing product, {session:?}"
+                        )))?
                         .id();
 
                     let mut store_entry: Option<StoreEntry> = None;
@@ -197,37 +215,44 @@ pub async fn handle_webhook(
                         }
                     }
 
-                    let store_entry = store_entry.ok_or(ServerError::StripeErrorMissingData(format!("unknown product id {product_id}")))?;
+                    let store_entry = store_entry.ok_or(ServerError::StripeErrorMissingData(
+                        format!("unknown product id {product_id}"),
+                    ))?;
 
                     tracing::info!("store entry found {:?}", store_entry.name);
 
                     match store_entry.product {
                         Product::Premium(days) => {
-                            let hours = days * line_item.quantity.ok_or(ServerError::StripeErrorMissingData(format!("missing quantity, {session:?}")))? as i64 * 24;
+                            let hours = days
+                                * line_item
+                                    .quantity
+                                    .ok_or(ServerError::StripeErrorMissingData(format!(
+                                        "missing quantity, {session:?}"
+                                    )))? as i64
+                                * 24;
 
                             sqlx::query(
-                                    r#" 
+                                r#" 
                                         UPDATE users
                                         SET premium = premium + $1
                                         WHERE user_id = $2
                                     "#,
-                                )
-                                .bind(hours)
-                                .bind(user_id)
-                                .execute(&pool)
-                                .await
-                                .unwrap();
-            
+                            )
+                            .bind(hours)
+                            .bind(user_id)
+                            .execute(&pool)
+                            .await
+                            .unwrap();
+
                             game_state.new_server_connection().await.updated_user_data();
 
-                            tracing::info!("updated premium usage hours for user with id: {}", user_id);
+                            tracing::info!(
+                                "updated premium usage hours for user with id: {}",
+                                user_id
+                            );
                         }
                     }
                 }
-
-               
-
-               
             }
         }
         _ => {}

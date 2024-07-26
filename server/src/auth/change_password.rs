@@ -49,16 +49,16 @@ pub struct ChangePasswordTemplate {
     password_repeat_error: Vec<String>,
 }
 
-pub async fn get_change_password(
-    session: Session,
-) -> Result<Response, ServerError> {
-    session.get::<i64>(crate::USER_ID_KEY).await?.ok_or(ServerError::InvalidSession)?;
+pub async fn get_change_password(session: Session) -> Result<Response, ServerError> {
+    session
+        .get::<i64>(crate::USER_ID_KEY)
+        .await?
+        .ok_or(ServerError::InvalidSession)?;
 
     Ok(ChangePasswordTemplate {
         ..ChangePasswordTemplate::default()
     }
     .into_response())
-
 }
 
 pub async fn post_change_password(
@@ -79,7 +79,12 @@ pub async fn post_change_password(
         "#,
     )
     .bind(&hashed)
-    .bind(session.get::<i64>(crate::USER_ID_KEY).await?.ok_or(ServerError::InvalidSession)?)
+    .bind(
+        session
+            .get::<i64>(crate::USER_ID_KEY)
+            .await?
+            .ok_or(ServerError::InvalidSession)?,
+    )
     .execute(&pool)
     .await?;
 
