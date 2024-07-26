@@ -34,8 +34,24 @@
         window.dataLayer = window.dataLayer || [];
         function gtag(){dataLayer.push(arguments);}
         gtag('js', new Date());
-
         gtag('config', 'G-DPGCV2W7FT');
+        </script>
+        <script>
+            const ANIMATION_DURATION_MILLIS = 3000;
+            const ANIMATION_UPDATE_MILLIS = 50;
+            document.addEventListener('DOMContentLoaded', () => {
+                let receivedItemPopup = null;
+                setInterval(() => {
+                    if (receivedItemPopup === null) {
+                        receivedItemPopup = document.getElementById("received-item-popup");
+                    } else {
+                        const items = receivedItemPopup.getElementsByClassName("received-item");
+                        for (const item of items) {
+                            item.style.opacity = (parseFloat(item.style.opacity) - ANIMATION_UPDATE_MILLIS / ANIMATION_DURATION_MILLIS).toString();
+                        }
+                    }
+                }, ANIMATION_UPDATE_MILLIS);
+            });
         </script>
     </head>
     <body id="app">
