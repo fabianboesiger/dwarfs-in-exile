@@ -37,6 +37,13 @@
         gtag('config', 'G-DPGCV2W7FT');
         </script>
         <script>
+        let deferredPrompt = null;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+        });
+        </script>
+        <script>
             const ANIMATION_DURATION_MILLIS = 3000;
             const ANIMATION_UPDATE_MILLIS = 50;
             document.addEventListener('DOMContentLoaded', () => {

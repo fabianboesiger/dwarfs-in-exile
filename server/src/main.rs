@@ -10,8 +10,7 @@ mod store;
 use error::*;
 
 use axum::{
-    routing::{get, get_service, post},
-    Extension, Router,
+    body::Body, extract::Request, http::{header, HeaderValue, Response}, middleware::{self, Next}, routing::{get, get_service, post}, Extension, Router
 };
 use game::GameStore;
 use tokio::{task, time};
@@ -24,6 +23,15 @@ use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 pub const USER_ID_KEY: &str = "user_id";
+
+async fn set_static_cache_control(request: Request, next: Next) -> Response<Body> {
+    let mut response = next.run(request).await;
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("public, max-age=86400"),
+    );
+    response
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -77,7 +85,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // build our application with some routes
     let app = Router::new()
         .fallback(
-            get_service(ServeDir::new(dotenv::var("PUBLIC_DIR").unwrap()).append_index_html_on_directories(true))                                                                              
+            get_service(ServeDir::new(dotenv::var("PUBLIC_DIR").unwrap())).layer(middleware::from_fn(set_static_cache_control))
         )
         .route("/", get(index::get_index))
         .route("/store", get(store::get_store))
