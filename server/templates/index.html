@@ -14,17 +14,19 @@
             </div>
         </div>
         {% endif %}
-        <div class="important" id="install-as-app">
-            <h3>Install as App</h3>
+        <div class="important" id="install-as-app" style="display: none;">
+            <h3>Install the App</h3>
             <p>Install Dwarfs in Exile onto your device for a better experience.</p>
             <button id="install-as-app-button">Install</button>
         </div>
         <script>
-            document.getElementById("install-as-app").style.display = deferredPrompt == null ? "none" : "block";
-            document.getElementById("install-as-app-button").addEventListener("click", function() {
-                deferredPrompt.prompt();
+            window.addEventListener('beforeinstallprompt', (e) => {
+                document.getElementById("install-as-app").style.display = "block";
+                document.getElementById("install-as-app-button").addEventListener("click", function() {
+                    e.prompt();
+                });
             });
-        </script>
+            </script>
         <h2>Off to a New World!</h2>
         <div class="image-aside">
             <img src="/intro.jpg">
