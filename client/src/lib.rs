@@ -544,11 +544,15 @@ fn dwarfs(model: &Model, state: &shared::State, user_id: &shared::UserId, mode: 
                         h3![C!["title"], &dwarf.name],
                         p![
                             C!["subtitle"],
+                            if dwarf.auto_idle {
+                                format!(
+                                    "Auto-idling, resuming work shortly."
+                                )
+                            } else
                             if let Some((quest_type, _, _)) = dwarf.participates_in_quest {
                                 format!(
-                                    "Participating in quest {} since {}.",
+                                    "Participating in quest {}.",
                                     quest_type,
-                                    fmt_time(dwarf.occupation_duration)
                                 )
                             } else {
                                 format!(
@@ -1657,7 +1661,7 @@ fn inventory(
                                         if player.auto_functions.auto_store.contains(&item) && is_premium {
                                             button![
                                                 ev(Ev::Click, move |_| Msg::send_event(
-                                                    ClientEvent::ToggleAutoStore(item)
+                                                    ClientEvent::ToggleAutoSell(item)
                                                 )),
                                                 "Disable Auto"
                                             ]
@@ -1674,7 +1678,7 @@ fn inventory(
                                                         attrs! {At::Disabled => "true"}
                                                     },
                                                     ev(Ev::Click, move |_| Msg::send_event(
-                                                        ClientEvent::AddToFoodStorage(item, 1)
+                                                        ClientEvent::Sell(item, 1)
                                                     )),
                                                     format!("1x"),
                                                     if !is_premium {
@@ -1694,7 +1698,7 @@ fn inventory(
                                                         attrs! {At::Disabled => "true"}
                                                     },
                                                     ev(Ev::Click, move |_| Msg::send_event(
-                                                        ClientEvent::AddToFoodStorage(item, 10)
+                                                        ClientEvent::Sell(item, 10)
                                                     )),
                                                     format!("10x"),
                                                     if !is_premium {
@@ -1714,7 +1718,7 @@ fn inventory(
                                                         attrs! {At::Disabled => "true"}
                                                     },
                                                     ev(Ev::Click, move |_| Msg::send_event(
-                                                        ClientEvent::AddToFoodStorage(item, 100)
+                                                        ClientEvent::Sell(item, 100)
                                                     )),
                                                     format!("100x"),
                                                     if !is_premium {
@@ -1730,7 +1734,7 @@ fn inventory(
                                                         attrs! {At::Disabled => "true"}
                                                     },
                                                     ev(Ev::Click, move |_| Msg::send_event(
-                                                        ClientEvent::ToggleAutoStore(item)
+                                                        ClientEvent::ToggleAutoSell(item)
                                                     )),
                                                     "Auto",
                                                     if !is_premium {
