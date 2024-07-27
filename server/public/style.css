@@ -514,14 +514,17 @@ ul {
     margin-top: 1em;
     margin-bottom: 1em;
     flex-wrap: nowrap;
+    align-items: flex-start;
 }
 
 .image-aside > img {
     width: 256px;
+    height: 256px;
 }
 
 .image-aside.small > img {
     width: 128px;
+    height: 128px;
 }
 
 .image-aside > div {
@@ -540,6 +543,7 @@ ul {
 
     .image-aside:not(.small) > img {
         width: 100%;
+        height: auto;
     }
 
     .image-aside:not(.small) > div {

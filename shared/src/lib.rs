@@ -394,6 +394,8 @@ impl engine_shared::State for State {
                                                     dwarf.auto_idle = false;
                                                 }
                                             }
+                                        } else if dwarf.auto_idle {
+                                            dwarf.auto_idle = false;
                                         }
                                     } else {
                                         if is_premium
