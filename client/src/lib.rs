@@ -221,9 +221,15 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
         Msg::GameStateEvent(ev) => {
             model.state.update(ev.clone(), orders);
 
-            if let EventWrapper::ReceiveGameEvent(ev) = &ev {
-                if let engine_shared::Event::ServerEvent(shared::ServerEvent::Tick) = ev.event {
-                    if let Some(state) = model.state.get_state() {
+            if let Some(state) = model.state.get_state() {
+                if engine_shared::State::has_winner(state).is_some() {
+                    orders.notify(subs::UrlRequested::new(
+                        Url::from_str("/game").unwrap(),
+                    ));
+                }
+
+                if let EventWrapper::ReceiveGameEvent(ev) = &ev {
+                    if let engine_shared::Event::ServerEvent(shared::ServerEvent::Tick) = ev.event {
                         model.sync_timestamp_millis_now(state.time);
                     }
                 }
@@ -316,20 +322,6 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
             div![id!["background"]],
             header![h1![a![attrs! { At::Href => "/" }, "Dwarfs in Exile"]]],
             nav(model),
-            #[cfg(debug_assertions)]
-            div![
-                id!["server-info"],
-                /*span![format!(
-                    "status: {}, tick number: {}, tick rate: 1/{} s",
-                    if model.web_socket_reconnector.is_none() {
-                        "connected"
-                    } else {
-                        "disconnected"
-                    },
-                    data.state.time,
-                    shared::SPEED,
-                )]*/
-            ],
             main![match model.page {
                 Page::Dwarfs(mode) => dwarfs(model, state, user_id, mode),
                 Page::Dwarf(dwarf_id) => dwarf(model, state, user_id, dwarf_id),
@@ -1023,18 +1015,26 @@ fn quest(
                         p![
                             match quest.quest_type {
                                 QuestType::KillTheDragon => p!["A dragon was found high up in the mountains in the forbidden lands. Send your best warriors to defeat it."],
-                                QuestType::ArenaFight => p!["The King of the Dwarfs has invited the exilants to compete in an arena fight against monsters and creatures from the forbidden lands. The toughest warrior will be rewarded with a gift from the king personally."],
+                                QuestType::ArenaFight => p!["The King of the dwarfs has invited the exilants to compete in an arena fight against monsters and creatures from the forbidden lands. The toughest warrior will be rewarded with a gift from the king personally."],
                                 QuestType::ExploreNewLands => p!["Send dwarfs to explore new lands and find a place for a new settlement. The new settlement will be a better version of your previous settlement that allows a larger maximal population. Additionally, the new settlement will attract more and better dwarfs."],
-                                QuestType::FeastForAGuest => p!["Your village is visted by an ominous guest. Go hunting and organize a feast for the guest, and he may stay."],
-                                QuestType::FreeTheVillage => p!["The Elven Village was raided by the Orks. Free the Elves to earn a reward!"],
-                                QuestType::ADwarfGotLost => p!["Search for a dwarf that got lost in the wilderness. If you find him first, he may stay in your settlement!"],
+                                QuestType::FeastForAGuest => p!["Your village is visted by an ominous guest that tells you disturbing stories about the elves. Although the stories seem unbelievable, he still seems like wise man. Go hunting and organize a feast for the guest, and he may stay."],
+                                QuestType::FreeTheVillage => p!["The elven village was raided by the orks in an attempt to capture the elven magician. Free the elven village and fight the orks to earn a reward!"],
+                                QuestType::ADwarfGotLost => p!["Search for a dwarf that got lost. It is unclear why so many dwarfs have disappeared in recent times, but that is a mistery that you may uncover later. If you find the lost dwarf first, he may stay in your settlement!"],
                                 QuestType::AFishingFriend => p!["Go fishing and make friends!"],
-                                QuestType::ADwarfInDanger => p!["Free a dwarf that gets robbed by Orks. If you free him first, he may stay in your settlement!"],
-                                QuestType::ForTheKing => p!["Fight a ruthless battle to become the king over all of Exile Island!"],
+                                QuestType::ADwarfInDanger => p!["A dwarf was abducted by the orks. They didn't hurt him yet, but the elves tell you that he is in danger and needs to be freed as soon as possible. If you free him first, he may stay in your settlement!"],
+                                QuestType::ForTheKing => p!["Fight a ruthless battle to become the king over all the dwarfen settlements!"],
                                 QuestType::DrunkFishing => p!["Participate in the drunk fishing contest! The dwarf that is the most successful drunk fisher gets a reward."],
                                 QuestType::CollapsedCave => p!["A cave has collapsed and a dwarf is trapped inside. Be the first to save is life and he will move into your settlement."],
                                 QuestType::TheHiddenTreasure => p!["The first who finds the hidden treasure can keep it."],
                                 QuestType::CatStuckOnATree => p!["A cat is stuck on a tree. Help her get on the ground an she will gladly follow you home."],
+                                QuestType::AttackTheOrks => p!["The ork camp was sptted near the elven village in preparation for an attak. Attack them first and get a reward from the elves!"],
+                                QuestType::FreeTheDwarf => p!["The dwarfen king was captured by the orks. It seems like they don't want to kill him, but instead persuade him to attack the elves instead. Of course, the dwarfs would never do such a thing! Free him and he will join your settlement."],
+                                QuestType::FarmersContest => p!["Participate in the farmers contest. The best farmer gets a reward."],
+                                QuestType::CrystalsForTheElves => p!["The Elves need special crystals to cast their magic. Although they don't want to tell you what they will use the crystals for, you accept the offer. Bring them some and they will reward you."],
+                                QuestType::ElvenVictory => p!["The elves are winning the war against the orks. They need wood to build large fenced areas where the surviving orks will be captured."],
+                                QuestType::ADarkSecret => p!["While exploring the elven regions, you find a dark secret. The elves are not what they seem to be. They have used their his magic on the dwarfs to turn them into orks. It seems like the orks were never the barbaric enemies that they seemed like, they are just unfortunate dwarfen souls like you and me. A devious plan by the elves to divide and weaken the dwarfen kingdom!"],
+                                QuestType::TheMassacre => p!["The elves have unleased their dark magic in a final attempt to eliminate all orks. Realizing that you have helped in this terrible act by providing the elves with the crystals needed for their dark magic, you attempt to fight the elven magicians to stop the massacre."],
+                                QuestType::TheElvenWar => p!["All of the dwarfen settlements have realized their mistake and have united to fight the elves. The united dwarfen armies have to fight the elven magicians in order to restore peace in the forbidden lands. Send the best fighters that you have, or the forbidden lands will be lost forever to the elven dark magic."],
                             },
                         ],
                         h3!["Rewards"],
@@ -1056,7 +1056,12 @@ fn quest(
                                 p![format!("The best player will get the following items:")],
                                 p![bundle(&items, player, false)]
                             ],
+                            RewardMode::ItemsByChance(items) => div![
+                                p![format!("The participants will have a chance to get the following items. The better your score, the better are your chances to win:")],
+                                p![bundle(&items, player, false)]
+                            ],
                             RewardMode::NewDwarf(num) => div![p![format!("The best participant gets {num} new dwarf for their settlement.")]],
+                            RewardMode::NewDwarfByChance(num) => div![p![format!("The participants have a chance to win {num} new dwarf for their settlement. The better your score, the better are your chances to win.")]],
                         },
                     ]
                 ],
@@ -1796,25 +1801,27 @@ fn chat(
                 C!["togglable"],
                 div![
                     C!["messages"],
-                    state.chat.messages.iter().map(|(user_id, message)| {
+                    state.chat.messages.iter().map(|(user_id, message, time)| {
                         let username = &client_state
                             .get_user_data(&user_id)
                             .map(|data| data.username.clone())
                             .unwrap_or_default();
                         div![
                             C!["message"],
-                            span![C!["username"], format!("{username}")],
-                            span![": "],
+                            span![C!["time"], format!("{} ago, ", fmt_time(*time))],
+                            span![C!["username"], format!("{username}:")],
                             span![C!["message"], format!("{message}")]
                         ]
                     }),
                 ],
                 div![
                     input![
+                        id!["chat-input"],
                         attrs! {At::Type => "text", At::Value => model.message, At::Placeholder => "Type your message here ..."},
                         input_ev(Ev::Input, Msg::ChangeMessage)
                     ],
                     button![
+                        id!["chat-submit"],
                         if message.is_empty() {
                             attrs! {At::Disabled => "true"}
                         } else {
@@ -1822,7 +1829,7 @@ fn chat(
                         },
                         ev(Ev::Click, move |_| Msg::SubmitMessage),
                         "Send",
-                    ],
+                    ]
                 ]
             ]
         } else {

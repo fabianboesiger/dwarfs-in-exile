@@ -24,6 +24,7 @@ header {
     background: white;
     padding: 8px;
     z-index: 1500;
+    position: relative;
 }
 
 img {
@@ -45,6 +46,7 @@ h1 > a {
     margin: auto;
     margin-top: 32px;
     margin-bottom: 32px;
+    box-shadow: 0 0 8px black;
 }
 
 .content {
@@ -151,15 +153,20 @@ header {
     bottom: 0;
     z-index: 2000;
     height: 32px;
+    box-shadow: 0 -8px 8px -8px black;
 }
 
-#chat > button, #history > button {
+#chat button, #history button, #chat input, #history input {
     height: 32px;
     margin: 0;
 }
 
 #chat {
     right: 0;
+}
+
+#chat-submit {
+    display: none;
 }
 
 #history {
@@ -243,6 +250,7 @@ nav {
     text-align: center;
     background: white;
     height: 32px;
+    box-shadow: 0 8px 8px -8px black;
 }
 
 nav button, nav a.button, .occupation button {
@@ -262,6 +270,7 @@ nav button, nav a.button, .occupation button {
     flex-wrap: nowrap;
     padding: 4px;
     box-sizing: border-box;
+    box-shadow: 0 8px 8px -8px black;
 }
 
 .inventory-filter > * {
@@ -341,8 +350,8 @@ input[type=checkbox] {
     position: absolute;
     width: 128px;
     bottom: 16px;
-    left: -64px;
-    z-index: 5000;
+    left: calc(50% - 64px);
+    z-index: 10000;
     background: white;    
     backdrop-filter: blur(16px);
     border-radius: 8px;

@@ -68,6 +68,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Manage the number of hours for premium accounts.
     let pool_clone = pool.clone();
+    let game_state_clone = game_state.clone();
     task::spawn(async move {
         let mut interval = time::interval(Duration::from_secs(60 * 60));
         // The first tick fires immediately, we don't want that so we await it directly.
@@ -76,18 +77,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         loop {
             interval.tick().await;
 
-            sqlx::query(
-                r#" 
-                        UPDATE users
-                        SET premium = premium - 1
-                        WHERE premium > 0
-                    "#,
-            )
-            .execute(&pool_clone)
-            .await
-            .unwrap();
+           
+            if game_state_clone.has_runing_games().await {
+                sqlx::query(
+                    r#" 
+                            UPDATE users
+                            SET premium = premium - 1
+                            WHERE premium > 0
+                        "#,
+                )
+                .execute(&pool_clone)
+                .await
+                .unwrap();
+    
+                tracing::debug!("updated premium usage hours for all users");
+            }
 
-            tracing::debug!("updated premium usage hours for all users");
         }
     });
 

@@ -146,6 +146,14 @@ pub enum Image {
     CatStuckOnATree,
     LootCrate,
     HireDwarf,
+    AttackTheOrks,
+    FreeTheDwarf,
+    FarmersContest,
+    CrystalsForTheElves,
+    ADarkSecret,
+    ElvenVictory,
+    TheMassacre,
+    TheElvenWar,
 }
 
 impl AsAtValue for Image {
@@ -289,6 +297,14 @@ impl From<QuestType> for Image {
             QuestType::ArenaFight => Image::ArenaFight,
             QuestType::TheHiddenTreasure => Image::TheHiddenTreasure,
             QuestType::CatStuckOnATree => Image::CatStuckOnATree,
+            QuestType::AttackTheOrks => Image::AttackTheOrks,
+            QuestType::FreeTheDwarf => Image::FreeTheDwarf,
+            QuestType::FarmersContest => Image::FarmersContest,
+            QuestType::CrystalsForTheElves => Image::CrystalsForTheElves,
+            QuestType::ADarkSecret => Image::ADarkSecret,
+            QuestType::ElvenVictory => Image::ElvenVictory,
+            QuestType::TheMassacre => Image::TheMassacre,
+            QuestType::TheElvenWar => Image::TheElvenWar,
         }
     }
 }

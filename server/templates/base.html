@@ -38,7 +38,7 @@
         <script>
             const ANIMATION_DURATION_MILLIS = 3000;
             const ANIMATION_UPDATE_MILLIS = 50;
-            document.addEventListener('DOMContentLoaded', () => {
+            document.addEventListener("DOMContentLoaded", () => {
                 let receivedItemPopup = null;
                 setInterval(() => {
                     if (receivedItemPopup === null) {
@@ -51,6 +51,45 @@
                     }
                 }, ANIMATION_UPDATE_MILLIS);
             });
+        </script>
+        <script>
+            var observer = new MutationObserver((mutations) => {
+                for (mutation of mutations) {
+                    const target = mutation.target;
+                    if (target.classList.contains("tooltiptext")) {
+                        const rect = target.getBoundingClientRect();
+                        if (rect.left < 0) {
+                            target.style.left = "16px";
+                            target.style.right = "auto";
+                            target.style.top = "-" + rect.height / 2 + "px";
+                            target.style.bottom = "auto";
+                        }
+                        if (rect.right > window.innerWidth) {
+                            target.style.left = "auto";
+                            target.style.right = "16px";
+                            target.style.top = "-" + rect.height / 2 + "px";
+                            target.style.bottom = "auto";
+                        }
+                        if (rect.top < 96) {
+                            target.style.top = "16px";
+                            target.style.bottom = "auto";
+                        }
+                    } else if (target.id === "chat-submit") {
+                        console.log(target);
+                        const input = document.getElementById("chat-input");
+                        input.addEventListener("keypress", function(event) {
+                            if (event.key === "Enter") {
+                                event.preventDefault();
+                                document.getElementById("chat-submit").click();
+                            }
+                        }); 
+                    } else if (target.classList.contains("message")) {
+                        target.parentElement.scrollTop = target.parentElement.scrollHeight;
+                    }
+                }
+            });
+
+            observer.observe(document, { attributes: false, childList: true, characterData: false, subtree: true });
         </script>
     </head>
     <body id="app">
