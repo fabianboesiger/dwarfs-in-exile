@@ -668,7 +668,7 @@ fn dwarf(
                                 ev(Ev::Click, move |_| Msg::send_event(
                                     ClientEvent::ToggleAutoIdle
                                 )),
-                                if player.auto_functions.auto_idle && is_premium { "Disable Auto Idling" } else { "Enable Auto Idling" },
+                                if player.auto_functions.auto_idle && is_premium { "Disable Auto Idling" } else { "Enable Auto Idling for all Dwarfs" },
                                 if !is_premium {
                                     tip("This functionality requires a premium account.")
                                 } else {
@@ -847,7 +847,7 @@ fn dwarf(
                         table![C!["list"],
                             enum_iterator::all::<Occupation>().filter(|occupation| player.base.curr_level >= occupation.unlocked_at_level()).map(|occupation| {
                                 let all_items = enum_iterator::all::<Item>().filter_map(|item| item.item_probability(occupation).map(|_| item)).collect::<Vec<_>>();
-                                tr![C!["list-item-row"],
+                                tr![C!["list-item-row", if occupation == dwarf.occupation { "selected" } else { "" }],
                                     td![img![C!["list-item-image"], attrs! { At::Src => Image::from(occupation).as_at_value() } ]],
                                     td![C!["list-item-content", "grow"],
                                         h3![C!["title"],
@@ -1233,7 +1233,20 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                 div![C!["image-aside"],
                     img![attrs! {At::Src => Image::LootCrate.as_at_value()}],
                     div![
-                        p!["A loot crate contains a random epic or legendary item. You can earn loot crates by completing quests."],
+                        p!["A loot crate contains a random epic or legendary item. You can earn loot crates by completing quests. You can also get a loot crate once a day for free"],
+                        button![
+                            if player.reward_time <= state.time {
+                                attrs! {}
+                            } else {
+                                attrs! {At::Disabled => "true"}
+                            },
+                            ev(Ev::Click, move |_| Msg::send_event(ClientEvent::OpenDailyReward)),
+                            if player.reward_time <= state.time {
+                                format!("Open Free Loot Crate")
+                            } else {
+                                format!("Open Free Loot Crate (available in {})", fmt_time(player.reward_time - state.time))
+                            },
+                        ],
                         button![
                             if player.money >= LOOT_CRATE_COST && is_premium {
                                 attrs! {}
@@ -2135,7 +2148,12 @@ fn nav(model: &Model) -> Node<Msg> {
     ]]
     */
 
-    nav![div![
+    nav![
+        a![
+            C!["button"],
+            attrs! {At::Href => "/"},
+            "Home"
+        ],
         a![
             C!["button"],
             if let Page::Base = model.page {
@@ -2182,7 +2200,7 @@ fn nav(model: &Model) -> Node<Msg> {
             "Ranking",
         ],
         //a![C!["button"], attrs! { At::Href => "/account"}, "Account"]
-    ]]
+    ]
 }
 
 fn tip<T: std::fmt::Display>(text: T) -> Node<Msg> {

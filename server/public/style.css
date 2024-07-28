@@ -37,6 +37,7 @@ header > h1 {
 h1 > a {
     text-decoration: none;
     color: black;
+    outline: none;
 }
 
 .form-wrapper {
@@ -76,7 +77,15 @@ input:not([type=checkbox]):not([type=radio]), button, select, a.button, summary 
     font-family: Georgia, 'Times New Roman', Times, serif;
     font-size: 12px;
     position: relative;
+    outline: none;
+    margin-top: 2px;
+    margin-bottom: 2px;
 }
+
+/*
+input:not([type=checkbox]):not([type=radio]):focus, button:focus, select:focus, a.button:focus, summary:focus {
+}
+*/
 
 input:not([type=checkbox]):not([type=radio]):hover, button:hover, select:hover, a.button:hover, summary:hover {
     background: #eee;
@@ -146,6 +155,7 @@ header {
 
 #chat > button, #history > button {
     height: 32px;
+    margin: 0;
 }
 
 #chat {
@@ -237,6 +247,7 @@ nav {
 
 nav button, nav a.button, .occupation button {
     width: auto;
+    margin: 0;
 }
 
 .inventory-filter {
@@ -396,6 +407,7 @@ input[type=checkbox] {
 .button-row > * {
     width: auto;
     flex-grow: 0;
+    margin: 0;
     padding: 8px;
 }
 
@@ -499,6 +511,10 @@ h4 {
 }
 .item-legendary {
     background: rgba(194, 110, 0, 0.2);    
+}
+
+.list-item-row.selected {
+    background: rgba(0, 0, 0, 0.2);
 }
 
 .short-info + .short-info::before {

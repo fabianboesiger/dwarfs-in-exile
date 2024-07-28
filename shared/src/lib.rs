@@ -303,6 +303,12 @@ impl engine_shared::State for State {
                                 player.open_loot_crate(rng, self.time);
                             }
                         }
+                        ClientEvent::OpenDailyReward => {
+                            if player.reward_time <= self.time {
+                                player.reward_time = self.time + ONE_DAY;
+                                player.open_loot_crate(rng, self.time);
+                            }
+                        }
                         ClientEvent::AssignToQuest(quest_id, dwarf_idx, dwarf_id) => {
                             if let Some(dwarf_id) = dwarf_id {
                                 let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
@@ -902,6 +908,7 @@ pub struct Player {
     pub last_online: Time,
     pub auto_functions: AutoFunctions,
     pub prestige_quest_completed: bool,
+    pub reward_time: Time,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
@@ -934,6 +941,7 @@ impl Player {
             last_online: time,
             auto_functions: AutoFunctions::default(),
             prestige_quest_completed: false,
+            reward_time: time,
         };
 
         if cfg!(debug_assertions) {
@@ -2313,6 +2321,7 @@ pub enum ClientEvent {
     UpgradeBase,
     ChangeEquipment(DwarfId, ItemType, Option<Item>),
     OpenLootCrate,
+    OpenDailyReward,
     AssignToQuest(QuestId, usize, Option<DwarfId>),
     AddToFoodStorage(Item, u64),
     Sell(Item, u64),
