@@ -786,7 +786,6 @@ impl engine_shared::State for State {
                                     .collect::<HashSet<_>>();
 
 
-
                                 let potential_quests = &available_quests - &disabled_quests;
 
                                 if potential_quests.is_empty() {

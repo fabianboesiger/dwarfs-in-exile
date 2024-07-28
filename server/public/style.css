@@ -46,7 +46,7 @@ h1 > a {
     margin: auto;
     margin-top: 32px;
     margin-bottom: 32px;
-    box-shadow: 0 0 8px black;
+    /*box-shadow: 0 0 8px black;*/
 }
 
 .content {
@@ -254,6 +254,10 @@ nav {
     background: white;
     height: 32px;
     box-shadow: 0 8px 8px -8px black;
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: center;
+    align-items: center;
 }
 
 nav button, nav a.button, .occupation button {
