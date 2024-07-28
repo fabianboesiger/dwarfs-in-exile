@@ -117,6 +117,9 @@ main {
 
 header {
     text-align: center;
+    box-shadow: 0 8px 8px -8px black;
+    z-index: 500;
+    position: relative;
 }
 
 .hidden {
