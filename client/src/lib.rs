@@ -1027,7 +1027,7 @@ fn quest(
                                 QuestType::CollapsedCave => p!["A cave has collapsed and a dwarf is trapped inside. Be the first to save is life and he will move into your settlement."],
                                 QuestType::TheHiddenTreasure => p!["The first who finds the hidden treasure can keep it."],
                                 QuestType::CatStuckOnATree => p!["A cat is stuck on a tree. Help her get on the ground an she will gladly follow you home."],
-                                QuestType::AttackTheOrks => p!["The ork camp was sptted near the elven village in preparation for an attak. Attack them first and get a reward from the elves!"],
+                                QuestType::AttackTheOrks => p!["The orc camp was sptted near the elven village in preparation for an attak. Attack them first and get a reward from the elves!"],
                                 QuestType::FreeTheDwarf => p!["The dwarfen king was captured by the orks. It seems like they don't want to kill him, but instead persuade him to attack the elves instead. Of course, the dwarfs would never do such a thing! Free him and he will join your settlement."],
                                 QuestType::FarmersContest => p!["Participate in the farmers contest. The best farmer gets a reward."],
                                 QuestType::CrystalsForTheElves => p!["The Elves need special crystals to cast their magic. Although they don't want to tell you what they will use the crystals for, you accept the offer. Bring them some and they will reward you."],
