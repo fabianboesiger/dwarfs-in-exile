@@ -46,7 +46,7 @@ h1 > a {
     margin: auto;
     margin-top: 32px;
     margin-bottom: 32px;
-    /*box-shadow: 0 0 8px black;*/
+    box-shadow: 0 0 8px black;
 }
 
 .content {
@@ -331,6 +331,16 @@ input[type=checkbox] {
     top: 0;
     left: 0;
     background-color: rgba(0, 100, 100, 0.3);
+    border-right: 1px solid rgb(0, 100, 100);
+}
+
+.score-bar-marker {
+    height: 16px;
+    position: absolute;
+    top: 0;
+    left: 0;
+    background: none;
+    border-right: 1px solid rgb(100, 0, 0);
 }
 
 .score-bar-overlay {
@@ -601,4 +611,21 @@ ul {
 
 .important > *:last-child {
     margin-bottom: 0;
+}
+
+.material-symbols-outlined.outlined {
+    font-variation-settings:
+        'FILL' 0,
+        'wght' 400,
+        'GRAD' 0,
+        'opsz' 20;
+    font-size: 12px;
+}
+.material-symbols-outlined.filled {
+    font-variation-settings:
+        'FILL' 1,
+        'wght' 400,
+        'GRAD' 0,
+        'opsz' 20;
+    font-size: 12px;
 }

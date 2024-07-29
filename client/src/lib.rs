@@ -6,7 +6,9 @@ use images::Image;
 use itertools::Itertools;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, QuestId, QuestType, RewardMode, Stats, Time, FREE_LOOT_CRATE, LOOT_CRATE_COST, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS
+    Bundle, ClientEvent, Craftable, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType,
+    LogMsg, Occupation, Player, QuestId, QuestType, RewardMode, Stats, Time, FREE_LOOT_CRATE,
+    LOOT_CRATE_COST, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS,
 };
 use std::str::FromStr;
 use web_sys::js_sys::Date;
@@ -221,9 +223,7 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
 
             if let Some(state) = model.state.get_state() {
                 if engine_shared::State::has_winner(state).is_some() {
-                    orders.notify(subs::UrlRequested::new(
-                        Url::from_str("/game").unwrap(),
-                    ));
+                    orders.notify(subs::UrlRequested::new(Url::from_str("/game").unwrap()));
                 }
 
                 if let EventWrapper::ReceiveGameEvent(ev) = &ev {
@@ -486,25 +486,38 @@ fn health_bar(curr: Health, max: Health) -> Node<Msg> {
     ]
 }
 
-fn score_bar(curr: u64, max: u64, rank: usize, max_rank: usize) -> Node<Msg> {
+fn score_bar(curr: u64, max: u64, rank: usize, max_rank: usize, markers: Vec<u64>) -> Node<Msg> {
     div![
         C!["score-bar-wrapper"],
-        div![
-            C!["score-bar-curr"],
-            attrs! {
-                At::Style => format!("width: calc(100% / {max} * {curr});")
-            }
-        ],
+        if curr > 0 {
+            div![
+                C!["score-bar-curr"],
+                attrs! {
+                    At::Style => format!("width: calc(100% / {max} * {curr});")
+                }
+            ]
+        } else {
+            Node::Empty
+        },
+        markers.iter()
+            .map(|marker| {
+                div![
+                    C!["score-bar-marker"],
+                    attrs! {
+                        At::Style => format!("width: calc(100% / {max} * {marker});")
+                    }
+                ]
+            }),
         div![
             C!["score-bar-overlay"],
             if curr == 0 {
                 format!(
-                    "{} / {} XP (not participating)",
+                    "{} / {} XP ({} users participating)",
                     big_number(curr),
                     big_number(max),
+                    max_rank
                 )
-            } else
-            if curr == max {
+            } else if curr == max {
                 format!(
                     "{} XP ({} place of {})",
                     big_number(curr),
@@ -665,7 +678,7 @@ fn dwarf(
                                 ev(Ev::Click, move |_| Msg::send_event(
                                     ClientEvent::ToggleAutoIdle
                                 )),
-                                if player.auto_functions.auto_idle && is_premium { "Disable Auto Idling" } else { "Enable Auto Idling for all Dwarfs" },
+                                if player.auto_functions.auto_idle && is_premium { "Disable Auto Idling for all Dwarfs" } else { "Enable Auto Idling for all Dwarfs" },
                                 if !is_premium {
                                     tip("This functionality requires a premium account.")
                                 } else {
@@ -965,25 +978,21 @@ fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                             .values()
                             .filter(|c| c.achieved_score >= contestant.achieved_score)
                             .count();
-                        let mut contestants = quest.contestants.values().collect::<Vec<_>>();
-                        contestants.sort_by_key(|c| c.achieved_score);
-                        let best_score = contestants.last().unwrap().achieved_score;
+                        let mut contestants = quest.contestants.values().map(|c| c.achieved_score).collect::<Vec<_>>();
+                        contestants.sort();
+                        let best_score = contestants.pop().unwrap();
                         p![score_bar(
                             contestant.achieved_score,
                             best_score,
                             rank,
-                            quest.contestants.len()
+                            quest.contestants.len(),
+                            contestants
                         )]
                     } else {
-                        let mut contestants = quest.contestants.values().collect::<Vec<_>>();
-                        contestants.sort_by_key(|c| c.achieved_score);
-                        let best_score = contestants.last().unwrap().achieved_score;
-                        p![score_bar(
-                            0,
-                            best_score,
-                            0,
-                            quest.contestants.len()
-                        )]
+                        let mut contestants = quest.contestants.values().map(|c| c.achieved_score).collect::<Vec<_>>();
+                        contestants.sort();
+                        let best_score = contestants.pop().unwrap_or_default();
+                        p![score_bar(0, best_score, 0, quest.contestants.len(), contestants)]
                     },
                     a![
                         C!["button"],
@@ -1015,21 +1024,22 @@ fn quest(
                         p![C!["subtitle"], format!("{} remaining.", fmt_time(quest.time_left))],
                         if let Some(contestant) = quest.contestants.get(user_id) {
                             let rank = quest.contestants.values().filter(|c| c.achieved_score >= contestant.achieved_score).count();
-                            let mut contestants = quest.contestants.values().collect::<Vec<_>>();
-                            contestants.sort_by_key(|c| c.achieved_score);
-                            let best_score = contestants.last().unwrap().achieved_score;
+                            let mut contestants = quest.contestants.values().map(|c| c.achieved_score).collect::<Vec<_>>();
+                            contestants.sort();
+                            let best_score = contestants.pop().unwrap();
                             p![
-                                score_bar(contestant.achieved_score, best_score, rank, quest.contestants.len())
+                                score_bar(contestant.achieved_score, best_score, rank, quest.contestants.len(), contestants)
                             ]
                         } else {
-                            let mut contestants = quest.contestants.values().collect::<Vec<_>>();
-                            contestants.sort_by_key(|c| c.achieved_score);
-                            let best_score = contestants.last().unwrap().achieved_score;
+                            let mut contestants = quest.contestants.values().map(|c| c.achieved_score).collect::<Vec<_>>();
+                            contestants.sort();
+                            let best_score = contestants.pop().unwrap_or_default();
                             p![score_bar(
                                 0,
                                 best_score,
                                 0,
-                                quest.contestants.len()
+                                quest.contestants.len(),
+                                contestants
                             )]
                         },
                         p![format!("This quest requires {}.", quest.quest_type.occupation().to_string().to_lowercase())],
@@ -1221,7 +1231,7 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                 img![attrs! {At::Src => Image::from(player.base.village_type()).as_at_value()}],
                 if let Some(requires) = player.base.upgrade_cost() {
                     div![
-                        p!["Upgrade your settlement to increase the maximum population and unlock new occupations for your dwarfs."],
+                        p!["Upgrade your settlement to increase the maximum population and unlock new occupations for your dwarfs. New dwarfs can be collected by doing quests, or they can simply wander into to your settlement from time to time. Dwarfs can also be hired by using coins."],
                         if let Some(unlocked_occupation) = enum_iterator::all::<Occupation>().filter(|occupation| occupation.unlocked_at_level() == player.base.curr_level + 1).next() {
                             p![format!("The next upgrade increases your maximal population by one and unlocks the occupation {}.", unlocked_occupation)]
                         } else {
@@ -2102,19 +2112,23 @@ fn stats_simple(stats: &Stats) -> String {
 }
 
 fn stars(stars: i8, padded: bool) -> Node<Msg> {
-    let mut s = String::new();
+    let mut s = Vec::new();
     if stars < 0 {
-        s += "-";
+        s.push(span!["-"]);
     }
     for _ in 0..(stars.abs() / 2) {
-        s += "★";
+        s.push(icon_filled("star_rate"));
     }
     if stars.abs() % 2 == 1 {
-        s += if padded { "⯪" } else { "⯨" }
+        s.push(if padded {
+            icon_filled("star_rate_half")
+        } else {
+            icon_filled("star_rate_half")
+        });
     }
     if padded {
         for _ in 0..((10 - stars.abs()) / 2) {
-            s += "☆";
+            s.push(icon_outlined("star_rate"));
         }
     }
     span![C!["symbols"], s]
@@ -2177,11 +2191,7 @@ fn nav(model: &Model) -> Node<Msg> {
     */
 
     nav![
-        a![
-            C!["button"],
-            attrs! {At::Href => "/"},
-            "Home"
-        ],
+        a![C!["button"], attrs! {At::Href => "/"}, "Home"],
         a![
             C!["button"],
             if let Page::Base = model.page {
@@ -2234,7 +2244,7 @@ fn nav(model: &Model) -> Node<Msg> {
 fn tip<T: std::fmt::Display>(text: T) -> Node<Msg> {
     div![
         C!["tooltip"],
-        span![C!["symbols"], "ⓘ"],
+        icon_outlined("info"),
         span![C!["tooltiptext"], format!("{}", text)]
     ]
 }
@@ -2246,4 +2256,12 @@ fn tip<T: std::fmt::Display>(text: T) -> Node<Msg> {
 #[wasm_bindgen(start)]
 pub fn start() {
     App::start("app", init, update, view);
+}
+
+fn icon_outlined(name: &str) -> Node<Msg> {
+    span![C!["material-symbols-outlined", "outlined"], name]
+}
+
+fn icon_filled(name: &str) -> Node<Msg> {
+    span![C!["material-symbols-outlined", "filled"], name]
 }

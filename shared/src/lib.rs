@@ -754,7 +754,6 @@ impl engine_shared::State for State {
 
                             self.quests.retain(|_, quest| !quest.done());
 
-
                             // Add quests.
                             let active_players = self
                                 .players
@@ -775,8 +774,9 @@ impl engine_shared::State for State {
                                 .max()
                                 .unwrap_or(1);
 
-                            let available_quests =
-                                enum_iterator::all::<QuestType>().filter(|quest_type| quest_type.is_available(max_prestige)).collect::<HashSet<_>>();
+                            let available_quests = enum_iterator::all::<QuestType>()
+                                .filter(|quest_type| quest_type.is_available(max_prestige))
+                                .collect::<HashSet<_>>();
 
                             while self.quests.len() < num_quests {
                                 let disabled_quests = self
@@ -785,7 +785,6 @@ impl engine_shared::State for State {
                                     .map(|q| q.quest_type)
                                     .filter(|quest_type| quest_type.one_at_a_time())
                                     .collect::<HashSet<_>>();
-
 
                                 let potential_quests = &available_quests - &disabled_quests;
 
@@ -2627,10 +2626,7 @@ impl QuestType {
             Self::CatStuckOnATree => RewardMode::BestGetsItems(Bundle::new().add(Item::Cat, 1)),
             Self::AttackTheOrks => RewardMode::SplitFairly(2000),
             Self::FreeTheDwarf => RewardMode::NewDwarfByChance(1),
-            Self::FarmersContest => RewardMode::BestGetsItems(
-                Bundle::new()
-                    .add(Item::Horse, 1)
-            ),
+            Self::FarmersContest => RewardMode::BestGetsItems(Bundle::new().add(Item::Horse, 1)),
             Self::CrystalsForTheElves => RewardMode::BestGetsItems(
                 Bundle::new()
                     .add(Item::CrystalNecklace, 1)

@@ -34,12 +34,16 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 pub const USER_ID_KEY: &str = "user_id";
 
 async fn set_static_cache_control(request: Request, next: Next) -> Response<Body> {
-    let mut response = next.run(request).await;
-    response.headers_mut().insert(
-        header::CACHE_CONTROL,
-        HeaderValue::from_static("public, max-age=2592000"),
-    );
-    response
+    if request.uri().to_string().ends_with(".jpg") {
+        let mut response = next.run(request).await;
+        response.headers_mut().insert(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("public, max-age=2592000"),
+        );
+        response
+    } else {
+        next.run(request).await
+    }
 }
 
 #[tokio::main]
@@ -53,7 +57,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    tracing::info!("starting server...");
+    tracing::info!("starting server ...");
 
     let pool = db::setup().await?;
 
@@ -77,7 +81,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         loop {
             interval.tick().await;
 
-           
             if game_state_clone.has_runing_games().await {
                 sqlx::query(
                     r#" 
@@ -89,10 +92,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .execute(&pool_clone)
                 .await
                 .unwrap();
-    
+
                 tracing::debug!("updated premium usage hours for all users");
             }
-
         }
     });
 
@@ -103,8 +105,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ServeDir::new(dotenv::var("PUBLIC_DIR").unwrap())
                     .precompressed_br()
                     .precompressed_gzip(),
-            )
-            //.layer(middleware::from_fn(set_static_cache_control)),
+            ).layer(middleware::from_fn(set_static_cache_control)),
         )
         .route("/", get(index::get_index))
         .route("/store", get(store::get_store))
