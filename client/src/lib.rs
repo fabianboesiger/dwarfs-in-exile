@@ -6,9 +6,7 @@ use images::Image;
 use itertools::Itertools;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType,
-    LogMsg, Occupation, Player, QuestId, QuestType, RewardMode, Stats, Time, LOOT_CRATE_COST,
-    MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS,
+    Bundle, ClientEvent, Craftable, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, QuestId, QuestType, RewardMode, Stats, Time, FREE_LOOT_CRATE, LOOT_CRATE_COST, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS
 };
 use std::str::FromStr;
 use web_sys::js_sys::Date;
@@ -1238,7 +1236,7 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                 div![C!["image-aside"],
                     img![attrs! {At::Src => Image::LootCrate.as_at_value()}],
                     div![
-                        p!["A loot crate contains a random epic or legendary item. You can earn loot crates by completing quests. You can also get a loot crate once a day for free"],
+                        p![format!("A loot crate contains a random epic or legendary item. You can earn loot crates by completing quests. You can also get a loot crate every {} for free.", fmt_time(FREE_LOOT_CRATE))],
                         button![
                             if player.reward_time <= state.time {
                                 attrs! {}
