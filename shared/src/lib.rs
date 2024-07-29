@@ -765,7 +765,7 @@ impl engine_shared::State for State {
                             let num_quests = if cfg!(debug_assertions) {
                                 30
                             } else {
-                                active_players.max(3).min(30)
+                                (active_players / 3).max(3).min(30)
                             };
 
                             let max_prestige = self
