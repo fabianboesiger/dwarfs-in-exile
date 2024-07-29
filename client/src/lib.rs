@@ -1205,14 +1205,8 @@ fn enumerate(num: usize) -> String {
     }
 }
 
-fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
+fn base(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
-        let is_premium = model
-            .state
-            .get_user_data(user_id)
-            .map(|user_data| user_data.premium > 0)
-            .unwrap_or(false);
-
         div![C!["content"],
             h2!["Your Settlement"],
             table![
@@ -1284,18 +1278,13 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                             },
                         ],
                         button![
-                            if player.money >= LOOT_CRATE_COST && is_premium {
+                            if player.money >= LOOT_CRATE_COST {
                                 attrs! {}
                             } else {
                                 attrs! {At::Disabled => "true"}
                             },
                             ev(Ev::Click, move |_| Msg::send_event(ClientEvent::OpenLootCrate)),
                             format!("Buy and Open ({} coins)", LOOT_CRATE_COST),
-                            if !is_premium {
-                                tip("This functionality requires a premium account.")
-                            } else {
-                                Node::Empty
-                            }
                         ]
                     ]
                 ]
@@ -1309,18 +1298,13 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                         enum_iterator::all::<HireDwarfType>()
                         .map(|dwarf_type| {
                             button![
-                                if player.money >= dwarf_type.cost() && player.dwarfs.len() < player.base.max_dwarfs() && is_premium {
+                                if player.money >= dwarf_type.cost() && player.dwarfs.len() < player.base.max_dwarfs() {
                                     attrs! {}
                                 } else {
                                     attrs! {At::Disabled => "true"}
                                 },
                                 ev(Ev::Click, move |_| Msg::send_event(ClientEvent::HireDwarf(dwarf_type))),
                                 format!("Hire {} Dwarf ({} coins)", dwarf_type, dwarf_type.cost()),
-                                if !is_premium {
-                                    tip("This functionality requires a premium account.")
-                                } else {
-                                    Node::Empty
-                                }
                             ]
                         })
                     ],
