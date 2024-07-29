@@ -506,6 +506,13 @@ fn score_bar(curr: u64, max: u64, rank: usize, max_rank: usize) -> Node<Msg> {
         ],
         div![
             C!["score-bar-overlay"],
+            if curr == 0 {
+                format!(
+                    "{} / {} XP (not participating)",
+                    big_number(curr),
+                    big_number(max),
+                )
+            } else
             if curr == max {
                 format!(
                     "{} XP ({} place of {})",
@@ -515,7 +522,7 @@ fn score_bar(curr: u64, max: u64, rank: usize, max_rank: usize) -> Node<Msg> {
                 )
             } else {
                 format!(
-                    "{} / {}XP ({} place of {})",
+                    "{} / {} XP ({} place of {})",
                     big_number(curr),
                     big_number(max),
                     enumerate(rank),
@@ -969,7 +976,15 @@ fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                             quest.contestants.len()
                         )]
                     } else {
-                        Node::Empty
+                        let mut contestants = quest.contestants.values().collect::<Vec<_>>();
+                        contestants.sort_by_key(|c| c.achieved_score);
+                        let best_score = contestants.last().unwrap().achieved_score;
+                        p![score_bar(
+                            0,
+                            best_score,
+                            0,
+                            quest.contestants.len()
+                        )]
                     },
                     a![
                         C!["button"],
@@ -1003,7 +1018,15 @@ fn quest(model: &Model, state: &shared::State, user_id: &shared::UserId, quest_i
                                 score_bar(contestant.achieved_score, best_score, rank, quest.contestants.len())
                             ]
                         } else {
-                            Node::Empty
+                            let mut contestants = quest.contestants.values().collect::<Vec<_>>();
+                            contestants.sort_by_key(|c| c.achieved_score);
+                            let best_score = contestants.last().unwrap().achieved_score;
+                            p![score_bar(
+                                0,
+                                best_score,
+                                0,
+                                quest.contestants.len()
+                            )]
                         },
                         p![format!("This quest requires {}.", quest.quest_type.occupation().to_string().to_lowercase())],
                         p![  
@@ -1174,7 +1197,7 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                 //tr![th!["Settlement Level"], td![format!("{} / {}", player.base.curr_level, player.base.max_level())]],
                 tr![th!["Population", tip("Upgrade your settlement to increase the maximum population. You can get new dwarfs from certain quests or at random.")], td![format!("{}/{}", player.dwarfs.len(), player.base.max_dwarfs())]],
                 tr![th!["Money", tip("Earn money by doing quests. With money, you can buy loot crates.")], td![format!("{} coins", player.money)]],
-                tr![th!["Food", tip("Your settlement can store food for your dwarfs to consume. One quantity of food restores 0.1% of a dwarfs health.")], td![format!("{} food", player.base.food)]],
+                tr![th!["Food", tip("Your settlement can store food for your dwarfs to consume. One quantity of food restores 0.1% of a dwarfs health. Let your dwarfs idle so that they have time to consume food and restore their health or enable auto-idling for all dwarfs.")], td![format!("{} food", player.base.food)]],
             ],
             h3!["Upgrade Settlement"],
             div![C!["image-aside"],
