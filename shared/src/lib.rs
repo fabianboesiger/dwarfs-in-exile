@@ -18,12 +18,13 @@ use strum::Display;
 #[cfg(not(debug_assertions))]
 pub const SPEED: u64 = 2;
 #[cfg(debug_assertions)]
-pub const SPEED: u64 = 10;
+pub const SPEED: u64 = 20;
 pub const ONE_MINUTE: u64 = 60;
 pub const ONE_HOUR: u64 = ONE_MINUTE * 60;
 pub const ONE_DAY: u64 = ONE_HOUR * 24;
 pub const MAX_HEALTH: Health = ONE_DAY * 3;
 pub const LOOT_CRATE_COST: Money = 1000;
+pub const FREE_LOOT_CRATE: u64 = ONE_DAY;
 pub const WINNER_NUM_PREMIUM_DAYS: i64 = 30;
 
 pub type Money = u64;
@@ -85,7 +86,7 @@ impl HireDwarfType {
             HireDwarfType::Expert => 10000,
         }
     }
-} 
+}
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug, Hash)]
 pub struct State {
@@ -154,13 +155,15 @@ impl engine_shared::State for State {
     fn has_winner(&self) -> Option<UserId> {
         let mut winner = None;
         for (user_id, player) in &self.players {
-            if (matches!(player.base.village_type(), VillageType::Megalopolis) && self.king == Some(*user_id)) {
+            if (matches!(player.base.village_type(), VillageType::Megalopolis)
+                && self.king == Some(*user_id))
+            {
                 winner = Some(*user_id);
             }
         }
         return winner;
     }
-    
+
     fn update(
         &mut self,
         rng: &mut impl Rng,
@@ -188,16 +191,19 @@ impl engine_shared::State for State {
                         ClientEvent::Init => {}
                         ClientEvent::HireDwarf(dwarf_type) => {
                             if is_premium {
-                                if player.money >= dwarf_type.cost() && player.dwarfs.len() < player.base.max_dwarfs() {
+                                if player.money >= dwarf_type.cost()
+                                    && player.dwarfs.len() < player.base.max_dwarfs()
+                                {
                                     player.money -= dwarf_type.cost();
                                     let dwarf = Dwarf::new(rng, dwarf_type.min_stars() * 2);
-                                    player.log.add(self.time, LogMsg::NewDwarf(dwarf.name.clone()));
-                                    player.dwarfs
-                                        .insert(self.next_dwarf_id, dwarf);
+                                    player
+                                        .log
+                                        .add(self.time, LogMsg::NewDwarf(dwarf.name.clone()));
+                                    player.dwarfs.insert(self.next_dwarf_id, dwarf);
                                     self.next_dwarf_id += 1;
                                 }
                             }
-                        },
+                        }
                         ClientEvent::ToggleAutoCraft(item) => {
                             if is_premium {
                                 if player.auto_functions.auto_craft.contains(&item) {
@@ -239,7 +245,7 @@ impl engine_shared::State for State {
                             }
                         }
                         ClientEvent::Message(message) => {
-                            self.chat.add_message(user_id, message);
+                            self.chat.add_message(user_id, message, self.time);
                         }
                         ClientEvent::ChangeOccupation(dwarf_id, occupation) => {
                             let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
@@ -268,10 +274,15 @@ impl engine_shared::State for State {
                                 .get_mut(&item_type)?;
 
                             let old_item = if let Some(item) = item {
-                                if item.item_type().as_ref().map(ItemType::equippable).unwrap_or(false) && player
-                                    .inventory
-                                    .items
-                                    .remove_checked(Bundle::new().add(item, 1))
+                                if item
+                                    .item_type()
+                                    .as_ref()
+                                    .map(ItemType::equippable)
+                                    .unwrap_or(false)
+                                    && player
+                                        .inventory
+                                        .items
+                                        .remove_checked(Bundle::new().add(item, 1))
                                 {
                                     equipment.replace(item)
                                 } else {
@@ -290,6 +301,12 @@ impl engine_shared::State for State {
                         }
                         ClientEvent::OpenLootCrate => {
                             if is_premium {
+                                player.open_loot_crate(rng, self.time);
+                            }
+                        }
+                        ClientEvent::OpenDailyReward => {
+                            if player.reward_time <= self.time {
+                                player.reward_time = self.time + FREE_LOOT_CRATE;
                                 player.open_loot_crate(rng, self.time);
                             }
                         }
@@ -358,7 +375,6 @@ impl engine_shared::State for State {
                                     .map(|user_data| user_data.premium > 0)
                                     .unwrap_or(false);
 
-
                                 // Chance for a new dwarf!
                                 if rng.gen_ratio(
                                     1,
@@ -372,7 +388,9 @@ impl engine_shared::State for State {
                                     player.dwarfs.values_mut().collect::<Vec<_>>();
                                 sorted_by_health.sort_by_key(|dwarf| dwarf.health);
                                 for dwarf in sorted_by_health {
-                                    dwarf.decr_health(dwarf.actual_occupation().health_cost_per_second());
+                                    dwarf.decr_health(
+                                        dwarf.actual_occupation().health_cost_per_second(),
+                                    );
                                     if dwarf.actual_occupation() == Occupation::Idling {
                                         if player.base.food > 0 {
                                             if dwarf.health <= MAX_HEALTH - MAX_HEALTH / 1000 {
@@ -383,6 +401,8 @@ impl engine_shared::State for State {
                                                     dwarf.auto_idle = false;
                                                 }
                                             }
+                                        } else if dwarf.auto_idle {
+                                            dwarf.auto_idle = false;
                                         }
                                     } else {
                                         if is_premium
@@ -404,22 +424,29 @@ impl engine_shared::State for State {
                                 let mut added_items = Bundle::new();
                                 for (_, dwarf) in player.dwarfs.iter_mut() {
                                     if !dwarf.dead() {
-                                        for _ in 0..=dwarf.effectiveness(dwarf.actual_occupation()) {
+                                        for _ in 0..=dwarf.effectiveness(dwarf.actual_occupation())
+                                        {
                                             for item in enum_iterator::all::<Item>() {
                                                 if let Some(ItemProbability {
                                                     starting_from_tick,
                                                     expected_ticks_per_drop,
-                                                }) = item.item_probability(dwarf.actual_occupation())
+                                                }) =
+                                                    item.item_probability(dwarf.actual_occupation())
                                                 {
-                                                    if dwarf.occupation_duration >= starting_from_tick {
-                                                        if rng.gen_ratio(1, expected_ticks_per_drop as u32) {
+                                                    if dwarf.occupation_duration
+                                                        >= starting_from_tick
+                                                    {
+                                                        if rng.gen_ratio(
+                                                            1,
+                                                            expected_ticks_per_drop as u32,
+                                                        ) {
                                                             added_items = added_items.add(item, 1);
                                                         }
                                                     }
                                                 }
                                             }
                                         }
-                                
+
                                         dwarf.occupation_duration += 1;
                                     }
                                 }
@@ -552,8 +579,48 @@ impl engine_shared::State for State {
                                                         .map(|user_data| user_data.premium > 0)
                                                         .unwrap_or(false);
 
-                                
-                                                    player.add_items(items.clone(), self.time, is_premium);
+                                                    player.add_items(
+                                                        items.clone(),
+                                                        self.time,
+                                                        is_premium,
+                                                    );
+                                                    player.log.add(
+                                                        self.time,
+                                                        LogMsg::QuestCompletedItems(
+                                                            quest.quest_type,
+                                                            Some(items),
+                                                        ),
+                                                    );
+                                                }
+                                                for contestant_id in quest.contestants.keys() {
+                                                    if *contestant_id != user_id {
+                                                        let player =
+                                                            self.players.get_mut(contestant_id)?;
+                                                        player.log.add(
+                                                            self.time,
+                                                            LogMsg::QuestCompletedItems(
+                                                                quest.quest_type,
+                                                                None,
+                                                            ),
+                                                        );
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        RewardMode::ItemsByChance(items) => {
+                                            if let Some(user_id) = quest.chance_by_score(rng) {
+                                                if let Some(player) = self.players.get_mut(&user_id)
+                                                {
+                                                    let is_premium = user_data
+                                                        .get(&user_id)
+                                                        .map(|user_data| user_data.premium > 0)
+                                                        .unwrap_or(false);
+
+                                                    player.add_items(
+                                                        items.clone(),
+                                                        self.time,
+                                                        is_premium,
+                                                    );
                                                     player.log.add(
                                                         self.time,
                                                         LogMsg::QuestCompletedItems(
@@ -605,8 +672,42 @@ impl engine_shared::State for State {
                                                 }
                                             }
                                         }
-                                        RewardMode::NewDwarf(num_dwarfs) => {
+                                        RewardMode::NewDwarfByChance(num_dwarfs) => {
                                             if let Some(user_id) = quest.chance_by_score(rng) {
+                                                if let Some(player) = self.players.get_mut(&user_id)
+                                                {
+                                                    player.log.add(
+                                                        self.time,
+                                                        LogMsg::QuestCompletedDwarfs(
+                                                            quest.quest_type,
+                                                            Some(num_dwarfs),
+                                                        ),
+                                                    );
+                                                    for _ in 0..num_dwarfs {
+                                                        player.new_dwarf(
+                                                            rng,
+                                                            &mut self.next_dwarf_id,
+                                                            self.time,
+                                                        );
+                                                    }
+                                                }
+                                                for contestant_id in quest.contestants.keys() {
+                                                    if *contestant_id != user_id {
+                                                        let player =
+                                                            self.players.get_mut(contestant_id)?;
+                                                        player.log.add(
+                                                            self.time,
+                                                            LogMsg::QuestCompletedDwarfs(
+                                                                quest.quest_type,
+                                                                None,
+                                                            ),
+                                                        );
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        RewardMode::NewDwarf(num_dwarfs) => {
+                                            if let Some(user_id) = quest.best() {
                                                 if let Some(player) = self.players.get_mut(&user_id)
                                                 {
                                                     player.log.add(
@@ -653,6 +754,7 @@ impl engine_shared::State for State {
 
                             self.quests.retain(|_, quest| !quest.done());
 
+
                             // Add quests.
                             let active_players = self
                                 .players
@@ -660,7 +762,23 @@ impl engine_shared::State for State {
                                 .filter(|(_, player)| player.is_active(self.time))
                                 .count();
 
-                            while self.quests.len() < active_players.max(3) {
+                            let num_quests = if cfg!(debug_assertions) {
+                                30
+                            } else {
+                                (active_players / 3).max(3).min(30)
+                            };
+
+                            let max_prestige = self
+                                .players
+                                .iter()
+                                .map(|(_, player)| player.base.prestige)
+                                .max()
+                                .unwrap_or(1);
+
+                            let available_quests =
+                                enum_iterator::all::<QuestType>().filter(|quest_type| quest_type.is_available(max_prestige)).collect::<HashSet<_>>();
+
+                            while self.quests.len() < num_quests {
                                 let disabled_quests = self
                                     .quests
                                     .values()
@@ -668,10 +786,8 @@ impl engine_shared::State for State {
                                     .filter(|quest_type| quest_type.one_at_a_time())
                                     .collect::<HashSet<_>>();
 
-                                let all_quests =
-                                    enum_iterator::all::<QuestType>().collect::<HashSet<_>>();
 
-                                let potential_quests = &all_quests - &disabled_quests;
+                                let potential_quests = &available_quests - &disabled_quests;
 
                                 if potential_quests.is_empty() {
                                     break;
@@ -683,7 +799,7 @@ impl engine_shared::State for State {
                                         .collect::<Vec<_>>()
                                         .choose(rng)
                                         .unwrap(),
-                                    );
+                                );
 
                                 self.quests.insert(self.next_quest_id, quest);
 
@@ -879,6 +995,7 @@ pub struct Player {
     pub last_online: Time,
     pub auto_functions: AutoFunctions,
     pub prestige_quest_completed: bool,
+    pub reward_time: Time,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
@@ -911,12 +1028,14 @@ impl Player {
             last_online: time,
             auto_functions: AutoFunctions::default(),
             prestige_quest_completed: false,
+            reward_time: time,
         };
 
         if cfg!(debug_assertions) {
             player.prestige_quest_completed = true;
             player.base.curr_level = 10;
             player.money = 100000;
+            player.base.prestige = 8;
             for _ in 0..4 {
                 player.new_dwarf(rng, next_dwarf_id, time);
             }
@@ -939,8 +1058,7 @@ impl Player {
         if self.dwarfs.len() < self.base.max_dwarfs() {
             let dwarf = Dwarf::new(rng, self.base.prestige);
             self.log.add(time, LogMsg::NewDwarf(dwarf.name.clone()));
-            self.dwarfs
-                .insert(*next_dwarf_id, dwarf);
+            self.dwarfs.insert(*next_dwarf_id, dwarf);
             *next_dwarf_id += 1;
         } else {
             self.log.add(time, LogMsg::NotEnoughSpaceForDwarf);
@@ -979,18 +1097,10 @@ impl Player {
             // Auto-craft!
             for &item in &self.auto_functions.auto_craft {
                 if let Some(requires) = item.requires() {
-                    if let Some(qty) =
-                    self.inventory.items.can_remove_x_times(&requires)
-                    {
+                    if let Some(qty) = self.inventory.items.can_remove_x_times(&requires) {
                         if qty > 0 {
-                            if self
-                                .inventory
-                                .items
-                                .remove_checked(requires.mul(qty))
-                            {
-                                self
-                                    .inventory
-                                    .add(Bundle::new().add(item, qty), time);
+                            if self.inventory.items.remove_checked(requires.mul(qty)) {
+                                self.inventory.add(Bundle::new().add(item, qty), time);
 
                                 items_added = true;
                             }
@@ -1245,66 +1355,66 @@ impl std::fmt::Display for ItemType {
 impl Item {
     pub fn item_type(self) -> Option<ItemType> {
         match self {
-            Item::ChainMail |
-            Item::LeatherArmor |
-            Item::Backpack |
-            Item::Helmet |
-            Item::FishingHat |
-            Item::Overall |
-            Item::Boots |
-            Item::RingOfIntelligence |
-            Item::RingOfStrength |
-            Item::RingOfPerception |
-            Item::RingOfEndurance |
-            Item::RingOfAgility |
-            Item::RhinoHornHelmet |
-            Item::Gloves |
-            Item::BearClawGloves |
-            Item::Headlamp |
-            Item::BearClawBoots => Some(ItemType::Clothing),
+            Item::ChainMail
+            | Item::LeatherArmor
+            | Item::Backpack
+            | Item::Helmet
+            | Item::FishingHat
+            | Item::Overall
+            | Item::Boots
+            | Item::RingOfIntelligence
+            | Item::RingOfStrength
+            | Item::RingOfPerception
+            | Item::RingOfEndurance
+            | Item::RingOfAgility
+            | Item::RhinoHornHelmet
+            | Item::Gloves
+            | Item::BearClawGloves
+            | Item::Headlamp
+            | Item::BearClawBoots => Some(ItemType::Clothing),
 
-            Item::Bow |
-            Item::PoisonedBow |
-            Item::Sword |
-            Item::Longsword |
-            Item::Spear |
-            Item::PoisonedSpear |
-            Item::Crossbow |
-            Item::Pickaxe |
-            Item::Axe |
-            Item::Pitchfork |
-            Item::Musket |
-            Item::Dynamite |
-            Item::FishingRod |
-            Item::Map |
-            Item::Wheelbarrow |
-            Item::Plough |
-            Item::Lantern |
-            Item::FishingNet |
-            Item::Dagger |
-            Item::TigerFangDagger |
-            Item::Bag |
-            Item::DiamondAxe |
-            Item::DiamondPickaxe |
-            Item::DiamondSword => Some(ItemType::Tool),
+            Item::Bow
+            | Item::PoisonedBow
+            | Item::Sword
+            | Item::Longsword
+            | Item::Spear
+            | Item::PoisonedSpear
+            | Item::Crossbow
+            | Item::Pickaxe
+            | Item::Axe
+            | Item::Pitchfork
+            | Item::Musket
+            | Item::Dynamite
+            | Item::FishingRod
+            | Item::Map
+            | Item::Wheelbarrow
+            | Item::Plough
+            | Item::Lantern
+            | Item::FishingNet
+            | Item::Dagger
+            | Item::TigerFangDagger
+            | Item::Bag
+            | Item::DiamondAxe
+            | Item::DiamondPickaxe
+            | Item::DiamondSword => Some(ItemType::Tool),
 
-            Item::Parrot |
-            Item::Wolf |
-            Item::Cat |
-            Item::Dragon |
-            Item::Donkey |
-            Item::Bird |
-            Item::Horse => Some(ItemType::Pet),
+            Item::Parrot
+            | Item::Wolf
+            | Item::Cat
+            | Item::Dragon
+            | Item::Donkey
+            | Item::Bird
+            | Item::Horse => Some(ItemType::Pet),
 
             Item::Apple
-                | Item::Blueberry
-                | Item::Bread
-                | Item::BlueberryCake
-                | Item::CookedFish
-                | Item::CookedMeat
-                | Item::BakedPotato
-                | Item::Soup
-                | Item::ApplePie => Some(ItemType::Food),
+            | Item::Blueberry
+            | Item::Bread
+            | Item::BlueberryCake
+            | Item::CookedFish
+            | Item::CookedMeat
+            | Item::BakedPotato
+            | Item::Soup
+            | Item::ApplePie => Some(ItemType::Food),
             _ => None,
         }
     }
@@ -1365,13 +1475,11 @@ impl Item {
                 strength: 4,
                 ..Default::default()
             },
-            Item::TigerFangDagger => {
-                Stats {
-                    agility: 4,
-                    perception: 4,
-                    ..Default::default()
-                }
-            }
+            Item::TigerFangDagger => Stats {
+                agility: 4,
+                perception: 4,
+                ..Default::default()
+            },
             Item::Map => Stats {
                 intelligence: 2,
                 ..Default::default()
@@ -1433,9 +1541,9 @@ impl Item {
         match (self, occupation) {
             (Item::Crossbow, Occupation::Hunting | Occupation::Fighting) => 8,
             (Item::Bow, Occupation::Hunting | Occupation::Fighting) => 5,
-            (Item::PoisonedBow, Occupation::Hunting | Occupation::Fighting) => 6,
+            (Item::PoisonedBow, Occupation::Hunting | Occupation::Fighting) => 8,
             (Item::Spear, Occupation::Hunting | Occupation::Fighting) => 4,
-            (Item::PoisonedSpear, Occupation::Hunting | Occupation::Fighting) => 5,
+            (Item::PoisonedSpear, Occupation::Hunting | Occupation::Fighting) => 7,
             (Item::Sword, Occupation::Fighting) => 6,
             (Item::DiamondSword, Occupation::Fighting) => 10,
             (Item::Longsword, Occupation::Fighting) => 7,
@@ -1463,7 +1571,10 @@ impl Item {
             (Item::Dynamite, Occupation::Mining) => 10,
             (Item::Backpack, Occupation::Gathering) => 7,
             (Item::Bag, Occupation::Gathering) => 5,
-            (Item::Helmet | Item::RhinoHornHelmet, Occupation::Mining | Occupation::Logging | Occupation::Rockhounding) => 4,
+            (
+                Item::Helmet | Item::RhinoHornHelmet,
+                Occupation::Mining | Occupation::Logging | Occupation::Rockhounding,
+            ) => 4,
             (Item::Helmet, Occupation::Fighting) => 6,
             (Item::Headlamp, Occupation::Mining | Occupation::Rockhounding) => 8,
             (Item::RhinoHornHelmet, Occupation::Fighting) => 8,
@@ -1475,8 +1586,14 @@ impl Item {
             (Item::FishingRod, Occupation::Fishing) => 6,
             (Item::FishingNet, Occupation::Fishing) => 10,
             (Item::Overall, Occupation::Farming | Occupation::Logging) => 8,
-            (Item::Boots | Item::BearClawBoots, Occupation::Hunting | Occupation::Gathering | Occupation::Exploring) => 4,
-            (Item::Gloves | Item::BearClawGloves, Occupation::Mining | Occupation::Logging | Occupation::Rockhounding) => 4,
+            (
+                Item::Boots | Item::BearClawBoots,
+                Occupation::Hunting | Occupation::Gathering | Occupation::Exploring,
+            ) => 4,
+            (
+                Item::Gloves | Item::BearClawGloves,
+                Occupation::Mining | Occupation::Logging | Occupation::Rockhounding,
+            ) => 4,
             (Item::BearClawBoots | Item::BearClawGloves, Occupation::Fighting) => 6,
             (Item::Wheelbarrow, Occupation::Gathering) => 8,
             (Item::Plough, Occupation::Farming) => 10,
@@ -1559,7 +1676,7 @@ impl Item {
             Occupation::Hunting => match self {
                 Item::RawMeat => Some(ItemProbability {
                     starting_from_tick: 0,
-                    expected_ticks_per_drop: ONE_MINUTE * 3,
+                    expected_ticks_per_drop: ONE_MINUTE * 5,
                 }),
                 Item::Leather => Some(ItemProbability {
                     starting_from_tick: 0,
@@ -1589,7 +1706,7 @@ impl Item {
             Occupation::Fishing => match self {
                 Item::RawFish => Some(ItemProbability {
                     starting_from_tick: 0,
-                    expected_ticks_per_drop: ONE_MINUTE * 3,
+                    expected_ticks_per_drop: ONE_MINUTE * 5,
                 }),
                 Item::PufferFish => Some(ItemProbability {
                     starting_from_tick: 0,
@@ -2044,10 +2161,12 @@ impl Dwarf {
 
     pub fn actual_occupation(&self) -> Occupation {
         if self.auto_idle {
-            return Occupation::Idling
+            return Occupation::Idling;
         }
 
-        self.participates_in_quest.map(|(quest_type, _, _)| quest_type.occupation()).unwrap_or(self.occupation)
+        self.participates_in_quest
+            .map(|(quest_type, _, _)| quest_type.occupation())
+            .unwrap_or(self.occupation)
     }
 
     pub fn incr_health(&mut self, incr: u64) {
@@ -2228,8 +2347,14 @@ impl Base {
                 Bundle::new()
                     .add(Item::Wood, self.curr_level * 50 * self.prestige)
                     .add(Item::Stone, self.curr_level * 50 * self.prestige)
-                    .add(Item::Nail, self.curr_level.saturating_sub(10) * 10 * self.prestige)
-                    .add(Item::Fabric, self.curr_level.saturating_sub(20) * 10 * self.prestige),
+                    .add(
+                        Item::Nail,
+                        self.curr_level.saturating_sub(10) * 10 * self.prestige,
+                    )
+                    .add(
+                        Item::Fabric,
+                        self.curr_level.saturating_sub(20) * 10 * self.prestige,
+                    ),
             )
         } else {
             None
@@ -2284,6 +2409,7 @@ pub enum ClientEvent {
     UpgradeBase,
     ChangeEquipment(DwarfId, ItemType, Option<Item>),
     OpenLootCrate,
+    OpenDailyReward,
     AssignToQuest(QuestId, usize, Option<DwarfId>),
     AddToFoodStorage(Item, u64),
     Sell(Item, u64),
@@ -2315,12 +2441,12 @@ impl engine_shared::ServerEvent<State> for ServerEvent {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, Hash)]
 pub struct Chat {
-    pub messages: VecDeque<(UserId, String)>,
+    pub messages: VecDeque<(UserId, String, Time)>,
 }
 
 impl Chat {
-    pub fn add_message(&mut self, user_id: UserId, message: String) {
-        self.messages.push_back((user_id, message));
+    pub fn add_message(&mut self, user_id: UserId, message: String, time: Time) {
+        self.messages.push_back((user_id, message, time));
         if self.messages.len() > 100 {
             self.messages.pop_front();
         }
@@ -2389,17 +2515,11 @@ impl Quest {
             self.time_left -= 1;
             for (user_id, contestant) in self.contestants.iter_mut() {
                 for dwarf_id in contestant.dwarfs.values() {
-                    let dwarf = players
-                        .get(user_id)
-                        .unwrap()
-                        .dwarfs
-                        .get(dwarf_id)
-                        .unwrap();
+                    let dwarf = players.get(user_id).unwrap().dwarfs.get(dwarf_id).unwrap();
 
                     if dwarf.actual_occupation() == self.quest_type.occupation() {
-                        contestant.achieved_score += dwarf
-                            .effectiveness(self.quest_type.occupation())
-                            + 1;
+                        contestant.achieved_score +=
+                            dwarf.effectiveness(self.quest_type.occupation()) + 1;
                     }
                 }
             }
@@ -2416,8 +2536,10 @@ pub enum RewardMode {
     BestGetsAll(Money),
     SplitFairly(Money),
     BestGetsItems(Bundle<Item>),
+    ItemsByChance(Bundle<Item>),
     Prestige,
     NewDwarf(usize),
+    NewDwarfByChance(usize),
     BecomeKing,
 }
 
@@ -2442,6 +2564,14 @@ pub enum QuestType {
     CollapsedCave,
     TheHiddenTreasure,
     CatStuckOnATree,
+    AttackTheOrks,
+    FreeTheDwarf,
+    FarmersContest,
+    CrystalsForTheElves,
+    ADarkSecret,
+    ElvenVictory,
+    TheMassacre,
+    TheElvenWar,
 }
 
 impl std::fmt::Display for QuestType {
@@ -2460,6 +2590,14 @@ impl std::fmt::Display for QuestType {
             QuestType::CollapsedCave => write!(f, "Trapped in the Collapsed Cave"),
             QuestType::TheHiddenTreasure => write!(f, "The Hidden Treasure"),
             QuestType::CatStuckOnATree => write!(f, "Cat Stuck on a Tree"),
+            QuestType::AttackTheOrks => write!(f, "Attack the Orks"),
+            QuestType::FreeTheDwarf => write!(f, "Free the Dwarf"),
+            QuestType::FarmersContest => write!(f, "Farmers Contest"),
+            QuestType::CrystalsForTheElves => write!(f, "Crystals for the Elves"),
+            QuestType::ADarkSecret => write!(f, "A Dark Secret"),
+            QuestType::ElvenVictory => write!(f, "The Elven Victory"),
+            QuestType::TheMassacre => write!(f, "The Massacre"),
+            QuestType::TheElvenWar => write!(f, "The Elven War"),
         }
     }
 }
@@ -2472,43 +2610,69 @@ impl QuestType {
             }
             Self::ArenaFight => RewardMode::BestGetsAll(2000),
             Self::ExploreNewLands => RewardMode::Prestige,
-            Self::FreeTheVillage => RewardMode::SplitFairly(1000),
+            Self::FreeTheVillage => RewardMode::SplitFairly(2000),
             Self::FeastForAGuest => RewardMode::NewDwarf(1),
-            Self::ADwarfGotLost => RewardMode::NewDwarf(1),
-            Self::AFishingFriend => RewardMode::NewDwarf(1),
+            Self::ADwarfGotLost => RewardMode::NewDwarfByChance(1),
+            Self::AFishingFriend => RewardMode::NewDwarfByChance(1),
             Self::ADwarfInDanger => RewardMode::NewDwarf(1),
             Self::ForTheKing => RewardMode::BecomeKing,
-            Self::DrunkFishing => RewardMode::BestGetsAll(1000),
+            Self::DrunkFishing => RewardMode::BestGetsAll(2000),
             Self::CollapsedCave => RewardMode::NewDwarf(1),
-            Self::TheHiddenTreasure => RewardMode::BestGetsItems(Bundle::new()
-                .add(Item::Diamond, 3)
-                .add(Item::Gold, 30)
-                .add(Item::Iron, 300)),
-            Self::CatStuckOnATree => RewardMode::BestGetsItems(Bundle::new()
-                .add(Item::Cat, 1))
+            Self::TheHiddenTreasure => RewardMode::BestGetsItems(
+                Bundle::new()
+                    .add(Item::Diamond, 3)
+                    .add(Item::Gold, 30)
+                    .add(Item::Iron, 300),
+            ),
+            Self::CatStuckOnATree => RewardMode::BestGetsItems(Bundle::new().add(Item::Cat, 1)),
+            Self::AttackTheOrks => RewardMode::SplitFairly(2000),
+            Self::FreeTheDwarf => RewardMode::NewDwarfByChance(1),
+            Self::FarmersContest => RewardMode::BestGetsItems(
+                Bundle::new()
+                    .add(Item::Horse, 1)
+            ),
+            Self::CrystalsForTheElves => RewardMode::BestGetsItems(
+                Bundle::new()
+                    .add(Item::CrystalNecklace, 1)
+                    .add(Item::Gold, 50),
+            ),
+            Self::ADarkSecret => RewardMode::NewDwarf(1),
+            Self::ElvenVictory => RewardMode::SplitFairly(2000),
+            Self::TheElvenWar => RewardMode::SplitFairly(10000),
+            Self::TheMassacre => RewardMode::NewDwarfByChance(3),
         }
     }
 
     pub fn one_at_a_time(self) -> bool {
-        matches!(self.reward_mode(), RewardMode::Prestige | RewardMode::BecomeKing)
+        matches!(
+            self.reward_mode(),
+            RewardMode::Prestige | RewardMode::BecomeKing
+        )
     }
-
 
     pub fn duration(self) -> u64 {
         match self {
             Self::KillTheDragon => ONE_HOUR * 2,
-            Self::ArenaFight => ONE_HOUR * 2,
+            Self::ArenaFight => ONE_HOUR * 4,
             Self::ExploreNewLands => ONE_HOUR * 8,
             Self::FreeTheVillage => ONE_HOUR * 2,
-            Self::FeastForAGuest => ONE_HOUR,
+            Self::FeastForAGuest => ONE_HOUR * 4,
             Self::ADwarfGotLost => ONE_HOUR * 2,
             Self::AFishingFriend => ONE_HOUR,
-            Self::ADwarfInDanger => ONE_HOUR * 2,
+            Self::ADwarfInDanger => ONE_HOUR * 4,
             Self::ForTheKing => ONE_HOUR * 8,
-            Self::DrunkFishing => ONE_HOUR,
-            Self::CollapsedCave => ONE_HOUR * 2,
+            Self::DrunkFishing => ONE_HOUR * 4,
+            Self::CollapsedCave => ONE_HOUR * 4,
             Self::TheHiddenTreasure => ONE_HOUR * 2,
             Self::CatStuckOnATree => ONE_HOUR,
+            Self::AttackTheOrks => ONE_HOUR * 2,
+            Self::FreeTheDwarf => ONE_HOUR * 2,
+            Self::FarmersContest => ONE_HOUR,
+            Self::CrystalsForTheElves => ONE_HOUR,
+            Self::ADarkSecret => ONE_HOUR * 4,
+            Self::ElvenVictory => ONE_HOUR * 2,
+            Self::TheMassacre => ONE_HOUR * 8,
+            Self::TheElvenWar => ONE_HOUR * 8,
         }
     }
 
@@ -2527,6 +2691,14 @@ impl QuestType {
             Self::CollapsedCave => Occupation::Mining,
             Self::TheHiddenTreasure => Occupation::Exploring,
             Self::CatStuckOnATree => Occupation::Logging,
+            Self::AttackTheOrks => Occupation::Fighting,
+            Self::FreeTheDwarf => Occupation::Fighting,
+            Self::FarmersContest => Occupation::Farming,
+            Self::CrystalsForTheElves => Occupation::Rockhounding,
+            Self::ADarkSecret => Occupation::Exploring,
+            Self::ElvenVictory => Occupation::Logging,
+            Self::TheMassacre => Occupation::Fighting,
+            Self::TheElvenWar => Occupation::Fighting,
         }
     }
 
@@ -2545,6 +2717,31 @@ impl QuestType {
             Self::CollapsedCave => 1,
             Self::TheHiddenTreasure => 3,
             Self::CatStuckOnATree => 1,
+            Self::AttackTheOrks => 3,
+            Self::FreeTheDwarf => 3,
+            Self::FarmersContest => 1,
+            Self::CrystalsForTheElves => 1,
+            Self::ADarkSecret => 1,
+            Self::ElvenVictory => 3,
+            Self::TheMassacre => 3,
+            Self::TheElvenWar => 3,
+        }
+    }
+
+    pub fn is_available(self, max_prestige: u64) -> bool {
+        match self {
+            Self::FreeTheVillage => (1..=3).contains(&max_prestige),
+            Self::FeastForAGuest => (1..=3).contains(&max_prestige),
+            Self::ADwarfInDanger => (1..=3).contains(&max_prestige),
+            Self::AttackTheOrks => (1..=6).contains(&max_prestige),
+            Self::FreeTheDwarf => (3..=6).contains(&max_prestige),
+            Self::ADwarfGotLost => (1..=6).contains(&max_prestige),
+            Self::CrystalsForTheElves => (3..=6).contains(&max_prestige),
+            Self::ElvenVictory => (5..=6).contains(&max_prestige),
+            Self::ADarkSecret => (7..=8).contains(&max_prestige),
+            Self::TheMassacre => (7..=8).contains(&max_prestige),
+            Self::TheElvenWar => (9..=10).contains(&max_prestige),
+            _ => true,
         }
     }
 }

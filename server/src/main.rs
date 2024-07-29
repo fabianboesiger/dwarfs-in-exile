@@ -1,21 +1,29 @@
 mod about;
+mod admin;
 mod auth;
 mod db;
 mod error;
 mod game;
 mod index;
-mod admin;
 mod store;
 
 use error::*;
 
 use axum::{
+    body::Body,
+    extract::Request,
+    http::{header, HeaderValue, Response},
+    middleware::{self, Next},
     routing::{get, get_service, post},
     Extension, Router,
 };
 use game::GameStore;
+use std::{
+    net::{SocketAddr, SocketAddrV4},
+    str::FromStr,
+    time::Duration,
+};
 use tokio::{task, time};
-use std::{net::{SocketAddr, SocketAddrV4}, str::FromStr, time::Duration};
 use tower_http::{
     services::ServeDir,
     trace::{DefaultMakeSpan, TraceLayer},
@@ -25,32 +33,42 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 pub const USER_ID_KEY: &str = "user_id";
 
+async fn set_static_cache_control(request: Request, next: Next) -> Response<Body> {
+    let mut response = next.run(request).await;
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("public, max-age=2592000"),
+    );
+    response
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv::dotenv().ok();
 
-
     tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::new(
-            dotenv::var("RUST_LOG")
-                .unwrap_or_else(|_| "sqlx=warn,info".into()),
+            dotenv::var("RUST_LOG").unwrap_or_else(|_| "sqlx=warn,info".into()),
         ))
         .with(tracing_subscriber::fmt::layer())
         .init();
 
     tracing::info!("starting server...");
-    
+
     let pool = db::setup().await?;
 
     let store = MemoryStore::default();
     let session_layer = SessionManagerLayer::new(store)
         .with_http_only(false)
-        .with_expiry(Expiry::OnInactivity(tower_sessions::cookie::time::Duration::days(30)));
+        .with_expiry(Expiry::OnInactivity(
+            tower_sessions::cookie::time::Duration::days(30),
+        ));
 
     let game_state = GameStore::new(pool.clone()).load_all().await?;
-    
+
     // Manage the number of hours for premium accounts.
     let pool_clone = pool.clone();
+    let game_state_clone = game_state.clone();
     task::spawn(async move {
         let mut interval = time::interval(Duration::from_secs(60 * 60));
         // The first tick fires immediately, we don't want that so we await it directly.
@@ -59,33 +77,44 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         loop {
             interval.tick().await;
 
-            sqlx::query(
+           
+            if game_state_clone.has_runing_games().await {
+                sqlx::query(
                     r#" 
-                        UPDATE users
-                        SET premium = premium - 1
-                        WHERE premium > 0
-                    "#,
+                            UPDATE users
+                            SET premium = premium - 1
+                            WHERE premium > 0
+                        "#,
                 )
                 .execute(&pool_clone)
                 .await
                 .unwrap();
+    
+                tracing::debug!("updated premium usage hours for all users");
+            }
 
-            tracing::debug!("updated premium usage hours for all users");
         }
     });
 
     // build our application with some routes
     let app = Router::new()
         .fallback(
-            get_service(ServeDir::new(dotenv::var("PUBLIC_DIR").unwrap()).append_index_html_on_directories(true))                                                                              
+            get_service(
+                ServeDir::new(dotenv::var("PUBLIC_DIR").unwrap())
+                    .precompressed_br()
+                    .precompressed_gzip(),
+            )
+            //.layer(middleware::from_fn(set_static_cache_control)),
         )
         .route("/", get(index::get_index))
         .route("/store", get(store::get_store))
         .route("/about", get(about::get_about))
-        .nest("/game", Router::new()
-            .route("/", get(game::get_game_select))
-            .route("/:game_id/ws", get(game::ws_handler))
-            .nest_service("/:game_id", get(game::get_game))
+        .nest(
+            "/game",
+            Router::new()
+                .route("/", get(game::get_game_select))
+                .route("/:game_id/ws", get(game::ws_handler))
+                .nest_service("/:game_id", get(game::get_game)),
         )
         .route(
             "/register",
@@ -116,6 +145,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/admin", get(admin::get_admin))
         .route("/admin/manage-user", post(admin::post_manage_user))
         .route("/admin/create-world", post(admin::post_create_world))
+        .route("/admin/update-settings", post(admin::post_update_settings))
         .route("/stripe-webhooks", post(store::handle_webhook))
         .layer(Extension(game_state))
         .layer(Extension(pool.clone()))
@@ -124,7 +154,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             TraceLayer::new_for_http()
                 .make_span_with(DefaultMakeSpan::default().include_headers(true)),
         );
-    
+
     let addr = SocketAddrV4::from_str(&dotenv::var("SERVER_ADDRESS").unwrap()).unwrap();
     let addr = SocketAddr::from(addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();

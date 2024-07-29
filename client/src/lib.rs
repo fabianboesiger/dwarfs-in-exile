@@ -6,7 +6,7 @@ use images::Image;
 use itertools::Itertools;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, QuestId, QuestType, RewardMode, Stats, Time, LOOT_CRATE_COST, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS
+    Bundle, ClientEvent, Craftable, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, QuestId, QuestType, RewardMode, Stats, Time, FREE_LOOT_CRATE, LOOT_CRATE_COST, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS
 };
 use std::str::FromStr;
 use web_sys::js_sys::Date;
@@ -115,7 +115,6 @@ pub struct Model {
     game_id: GameId,
 }
 
-
 impl Model {
     fn sync_timestamp_millis_now(&mut self, time: Time) {
         self.map_time.0 = time;
@@ -123,7 +122,8 @@ impl Model {
     }
 
     fn get_timestamp_millis_of(&self, time: Time) -> u64 {
-        (self.map_time.1 as i64 + (time as i64 - self.map_time.0 as i64) * 1000 / SPEED as i64) as u64
+        (self.map_time.1 as i64 + (time as i64 - self.map_time.0 as i64) * 1000 / SPEED as i64)
+            as u64
     }
 
     fn get_timestamp_millis_diff_now(&self, time: Time) -> u64 {
@@ -152,7 +152,6 @@ fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
     orders.subscribe(|subs::UrlChanged(url)| Msg::ChangePage(Page::from_url(url).1));
 
     let (game_id, page) = Page::from_url(url);
-
 
     Model {
         state: ClientState::init(orders, format!("{WS_PROTOCOL}://{HOST}/game/{game_id}/ws")),
@@ -220,9 +219,15 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
         Msg::GameStateEvent(ev) => {
             model.state.update(ev.clone(), orders);
 
-            if let EventWrapper::ReceiveGameEvent(ev) = &ev {
-                if let engine_shared::Event::ServerEvent(shared::ServerEvent::Tick) = ev.event {
-                    if let Some(state) = model.state.get_state() {
+            if let Some(state) = model.state.get_state() {
+                if engine_shared::State::has_winner(state).is_some() {
+                    orders.notify(subs::UrlRequested::new(
+                        Url::from_str("/game").unwrap(),
+                    ));
+                }
+
+                if let EventWrapper::ReceiveGameEvent(ev) = &ev {
+                    if let engine_shared::Event::ServerEvent(shared::ServerEvent::Tick) = ev.event {
                         model.sync_timestamp_millis_now(state.time);
                     }
                 }
@@ -315,20 +320,6 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
             div![id!["background"]],
             header![h1![a![attrs! { At::Href => "/" }, "Dwarfs in Exile"]]],
             nav(model),
-            #[cfg(debug_assertions)]
-            div![
-                id!["server-info"],
-                /*span![format!(
-                    "status: {}, tick number: {}, tick rate: 1/{} s",
-                    if model.web_socket_reconnector.is_none() {
-                        "connected"
-                    } else {
-                        "disconnected"
-                    },
-                    data.state.time,
-                    shared::SPEED,
-                )]*/
-            ],
             main![match model.page {
                 Page::Dwarfs(mode) => dwarfs(model, state, user_id, mode),
                 Page::Dwarf(dwarf_id) => dwarf(model, state, user_id, dwarf_id),
@@ -533,9 +524,13 @@ fn score_bar(curr: u64, max: u64, rank: usize, max_rank: usize) -> Node<Msg> {
     ]
 }
 
-fn dwarfs(model: &Model, state: &shared::State, user_id: &shared::UserId, mode: DwarfsMode) -> Node<Msg> {
+fn dwarfs(
+    model: &Model,
+    state: &shared::State,
+    user_id: &shared::UserId,
+    mode: DwarfsMode,
+) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
-
         if player.dwarfs.len() > 0 {
             table![
                 C!["dwarfs", "list"],
@@ -551,11 +546,15 @@ fn dwarfs(model: &Model, state: &shared::State, user_id: &shared::UserId, mode: 
                         h3![C!["title"], &dwarf.name],
                         p![
                             C!["subtitle"],
+                            if dwarf.auto_idle {
+                                format!(
+                                    "Auto-idling, resuming work shortly."
+                                )
+                            } else
                             if let Some((quest_type, _, _)) = dwarf.participates_in_quest {
                                 format!(
-                                    "Participating in quest {} since {}.",
+                                    "Participating in quest {}.",
                                     quest_type,
-                                    fmt_time(dwarf.occupation_duration)
                                 )
                             } else {
                                 format!(
@@ -666,7 +665,7 @@ fn dwarf(
                                 ev(Ev::Click, move |_| Msg::send_event(
                                     ClientEvent::ToggleAutoIdle
                                 )),
-                                if player.auto_functions.auto_idle && is_premium { "Disable Auto Idling" } else { "Enable Auto Idling" },
+                                if player.auto_functions.auto_idle && is_premium { "Disable Auto Idling" } else { "Enable Auto Idling for all Dwarfs" },
                                 if !is_premium {
                                     tip("This functionality requires a premium account.")
                                 } else {
@@ -700,7 +699,7 @@ fn dwarf(
                                 ],
                             ]]
                         ],
-                    ]    
+                    ]
                 ],
                 div![
                     h3!["Equipment"],
@@ -765,7 +764,6 @@ fn dwarf(
                                     } else {
                                         Vec::new()
                                     }
-                                    
                                 ],
                                 td![C!["list-item-content", "shrink"],
                                     button![
@@ -828,7 +826,6 @@ fn dwarf(
                     })]
                     */
                 ],
-                
                 div![
                     C!["occupation"],
                     h3!["Work"],
@@ -847,7 +844,7 @@ fn dwarf(
                         table![C!["list"],
                             enum_iterator::all::<Occupation>().filter(|occupation| player.base.curr_level >= occupation.unlocked_at_level()).map(|occupation| {
                                 let all_items = enum_iterator::all::<Item>().filter_map(|item| item.item_probability(occupation).map(|_| item)).collect::<Vec<_>>();
-                                tr![C!["list-item-row"],
+                                tr![C!["list-item-row", if occupation == dwarf.occupation { "selected" } else { "" }],
                                     td![img![C!["list-item-image"], attrs! { At::Src => Image::from(occupation).as_at_value() } ]],
                                     td![C!["list-item-content", "grow"],
                                         h3![C!["title"],
@@ -877,7 +874,6 @@ fn dwarf(
                                                 "Select"
                                             ],
                                         ]
-                                        
                                         /*if !occupation.requires_stats().is_zero() {
                                             p![
                                                 h4!["Requires"],
@@ -925,7 +921,7 @@ fn dwarf(
                                 */
                             })
                         ]
-                    }                     
+                    }
                 ]
             ]
         } else {
@@ -933,7 +929,10 @@ fn dwarf(
                 C!["content"],
                 h2!["There's Noone Here!"],
                 p!["This dwarf has died!"],
-                a![attrs! { At::Href => format!("{}/dwarfs", model.base_path()) }, "Go back"],
+                a![
+                    attrs! { At::Href => format!("{}/dwarfs", model.base_path()) },
+                    "Go back"
+                ],
             ]
         }
     } else {
@@ -997,7 +996,12 @@ fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
     ]
 }
 
-fn quest(model: &Model, state: &shared::State, user_id: &shared::UserId, quest_id: QuestId) -> Node<Msg> {
+fn quest(
+    model: &Model,
+    state: &shared::State,
+    user_id: &shared::UserId,
+    quest_id: QuestId,
+) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
         let quest = state.quests.get(&quest_id);
 
@@ -1029,23 +1033,31 @@ fn quest(model: &Model, state: &shared::State, user_id: &shared::UserId, quest_i
                             )]
                         },
                         p![format!("This quest requires {}.", quest.quest_type.occupation().to_string().to_lowercase())],
-                        p![  
+                        p![
                             match quest.quest_type {
                                 QuestType::KillTheDragon => p!["A dragon was found high up in the mountains in the forbidden lands. Send your best warriors to defeat it."],
-                                QuestType::ArenaFight => p!["The King of the Dwarfs has invited the exilants to compete in an arena fight against monsters and creatures from the forbidden lands. The toughest warrior will be rewarded with a gift from the king personally."],
+                                QuestType::ArenaFight => p!["The King of the dwarfs has invited the exilants to compete in an arena fight against monsters and creatures from the forbidden lands. The toughest warrior will be rewarded with a gift from the king personally."],
                                 QuestType::ExploreNewLands => p!["Send dwarfs to explore new lands and find a place for a new settlement. The new settlement will be a better version of your previous settlement that allows a larger maximal population. Additionally, the new settlement will attract more and better dwarfs."],
-                                QuestType::FeastForAGuest => p!["Your village is visted by an ominous guest. Go hunting and organize a feast for the guest, and he may stay."],
-                                QuestType::FreeTheVillage => p!["The Elven Village was raided by the Orks. Free the Elves to earn a reward!"],
-                                QuestType::ADwarfGotLost => p!["Search for a dwarf that got lost in the wilderness. If you find him first, he may stay in your settlement!"],
+                                QuestType::FeastForAGuest => p!["Your village is visted by an ominous guest that tells you disturbing stories about the elves. Although the stories seem unbelievable, he still seems like wise man. Go hunting and organize a feast for the guest, and he may stay."],
+                                QuestType::FreeTheVillage => p!["The elven village was raided by the orks in an attempt to capture the elven magician. Free the elven village and fight the orks to earn a reward!"],
+                                QuestType::ADwarfGotLost => p!["Search for a dwarf that got lost. It is unclear why so many dwarfs have disappeared in recent times, but that is a mistery that you may uncover later. If you find the lost dwarf first, he may stay in your settlement!"],
                                 QuestType::AFishingFriend => p!["Go fishing and make friends!"],
-                                QuestType::ADwarfInDanger => p!["Free a dwarf that gets robbed by Orks. If you free him first, he may stay in your settlement!"],
-                                QuestType::ForTheKing => p!["Fight a ruthless battle to become the king over all of Exile Island!"],
+                                QuestType::ADwarfInDanger => p!["A dwarf was abducted by the orks. They didn't hurt him yet, but the elves tell you that he is in danger and needs to be freed as soon as possible. If you free him first, he may stay in your settlement!"],
+                                QuestType::ForTheKing => p!["Fight a ruthless battle to become the king over all the dwarfen settlements!"],
                                 QuestType::DrunkFishing => p!["Participate in the drunk fishing contest! The dwarf that is the most successful drunk fisher gets a reward."],
                                 QuestType::CollapsedCave => p!["A cave has collapsed and a dwarf is trapped inside. Be the first to save is life and he will move into your settlement."],
                                 QuestType::TheHiddenTreasure => p!["The first who finds the hidden treasure can keep it."],
                                 QuestType::CatStuckOnATree => p!["A cat is stuck on a tree. Help her get on the ground an she will gladly follow you home."],
+                                QuestType::AttackTheOrks => p!["The orc camp was sptted near the elven village in preparation for an attak. Attack them first and get a reward from the elves!"],
+                                QuestType::FreeTheDwarf => p!["The dwarfen king was captured by the orks. It seems like they don't want to kill him, but instead persuade him to attack the elves instead. Of course, the dwarfs would never do such a thing! Free him and he will join your settlement."],
+                                QuestType::FarmersContest => p!["Participate in the farmers contest. The best farmer gets a reward."],
+                                QuestType::CrystalsForTheElves => p!["The Elves need special crystals to cast their magic. Although they don't want to tell you what they will use the crystals for, you accept the offer. Bring them some and they will reward you."],
+                                QuestType::ElvenVictory => p!["The elves are winning the war against the orks. They need wood to build large fenced areas where the surviving orks will be captured."],
+                                QuestType::ADarkSecret => p!["While exploring the elven regions, you find a dark secret. The elves are not what they seem to be. They have used their his magic on the dwarfs to turn them into orks. It seems like the orks were never the barbaric enemies that they seemed like, they are just unfortunate dwarfen souls like you and me. A devious plan by the elves to divide and weaken the dwarfen kingdom!"],
+                                QuestType::TheMassacre => p!["The elves have unleased their dark magic in a final attempt to eliminate all orks. Realizing that you have helped in this terrible act by providing the elves with the crystals needed for their dark magic, you attempt to fight the elven magicians to stop the massacre."],
+                                QuestType::TheElvenWar => p!["All of the dwarfen settlements have realized their mistake and have united to fight the elves. The united dwarfen armies have to fight the elven magicians in order to restore peace in the forbidden lands. Send the best fighters that you have, or the forbidden lands will be lost forever to the elven dark magic."],
                             },
-                        ], 
+                        ],
                         h3!["Rewards"],
                         match quest.quest_type.reward_mode() {
                             RewardMode::BestGetsAll(money) => div![p![format!("The best player gets {money} coins, the rest gets nothing.")]],
@@ -1065,11 +1077,15 @@ fn quest(model: &Model, state: &shared::State, user_id: &shared::UserId, quest_i
                                 p![format!("The best player will get the following items:")],
                                 p![bundle(&items, player, false)]
                             ],
+                            RewardMode::ItemsByChance(items) => div![
+                                p![format!("The participants will have a chance to get the following items. The better your score, the better are your chances to win:")],
+                                p![bundle(&items, player, false)]
+                            ],
                             RewardMode::NewDwarf(num) => div![p![format!("The best participant gets {num} new dwarf for their settlement.")]],
+                            RewardMode::NewDwarfByChance(num) => div![p![format!("The participants have a chance to win {num} new dwarf for their settlement. The better your score, the better are your chances to win.")]],
                         },
                     ]
                 ],
-                
                 h3!["Participate"],
                 table![C!["list"],
                 (0..quest
@@ -1083,7 +1099,6 @@ fn quest(model: &Model, state: &shared::State, user_id: &shared::UserId, quest_i
                     })
                     .map(|(dwarf_idx, dwarf_id)| {
                         let dwarf = dwarf_id.map(|dwarf_id| player.dwarfs.get(&dwarf_id).unwrap());
-        
                         tr![
                             C!["list-item-row"],
                             if let Some(dwarf) = dwarf {
@@ -1147,7 +1162,10 @@ fn quest(model: &Model, state: &shared::State, user_id: &shared::UserId, quest_i
                 C!["content"],
                 h2!["There's Nothing Here!"],
                 p!["This quest was completed!"],
-                a![attrs! { At::Href => format!("{}/quests", model.base_path()) }, "Go back"],
+                a![
+                    attrs! { At::Href => format!("{}/quests", model.base_path()) },
+                    "Go back"
+                ],
             ]
         }
     } else {
@@ -1179,7 +1197,6 @@ fn enumerate(num: usize) -> String {
 
 fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
-
         let is_premium = model
             .state
             .get_user_data(user_id)
@@ -1242,7 +1259,20 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                 div![C!["image-aside"],
                     img![attrs! {At::Src => Image::LootCrate.as_at_value()}],
                     div![
-                        p!["A loot crate contains a random epic or legendary item. You can earn loot crates by completing quests."],
+                        p![format!("A loot crate contains a random epic or legendary item. You can earn loot crates by completing quests. You can also get a loot crate every {} for free.", fmt_time(FREE_LOOT_CRATE))],
+                        button![
+                            if player.reward_time <= state.time {
+                                attrs! {}
+                            } else {
+                                attrs! {At::Disabled => "true"}
+                            },
+                            ev(Ev::Click, move |_| Msg::send_event(ClientEvent::OpenDailyReward)),
+                            if player.reward_time <= state.time {
+                                format!("Open Free Loot Crate")
+                            } else {
+                                format!("Open Free Loot Crate (available in {})", fmt_time(player.reward_time - state.time))
+                            },
+                        ],
                         button![
                             if player.money >= LOOT_CRATE_COST && is_premium {
                                 attrs! {}
@@ -1259,7 +1289,6 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                         ]
                     ]
                 ]
-                
             ],
             div![
                 h3!["Hire Dwarf"],
@@ -1285,13 +1314,12 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                             ]
                         })
                     ],
-                ] 
+                ]
             ]
         ]
     } else {
         Node::Empty
     }
-
 }
 
 fn inventory(
@@ -1301,7 +1329,6 @@ fn inventory(
     mode: InventoryMode,
 ) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
-
         let is_premium = model
             .state
             .get_user_data(user_id)
@@ -1443,7 +1470,6 @@ fn inventory(
                         td![img![C!["list-item-image"], attrs! {At::Src => Image::from(item).as_at_value()}]],
                         td![
                             C!["list-item-content", "grow"],
-                            
                             h3![C!["title"], format!("{} {item}", big_number(n))],
                             p![
                                 C!["subtitle"], if let Some(item_type) = item.item_type() {
@@ -1463,8 +1489,7 @@ fn inventory(
                                     Node::Empty
                                 },
                             ],
-                            
-  
+
                             // Show stats
                             if !item.provides_stats().is_zero() {
                                 div![
@@ -1520,7 +1545,7 @@ fn inventory(
                                     "Equip"
                                 ]
                             ]
-                        } else {     
+                        } else {
                             td![
                                 C!["list-item-content", "shrink"],
                                 if let Some(requires) = item.requires() {
@@ -1668,7 +1693,7 @@ fn inventory(
                                                 ]
                                             ]
                                         }
-                                    ] 
+                                    ]
                                 } else {
                                     Vec::new()
                                 },
@@ -1680,7 +1705,7 @@ fn inventory(
                                         if player.auto_functions.auto_store.contains(&item) && is_premium {
                                             button![
                                                 ev(Ev::Click, move |_| Msg::send_event(
-                                                    ClientEvent::ToggleAutoStore(item)
+                                                    ClientEvent::ToggleAutoSell(item)
                                                 )),
                                                 "Disable Auto"
                                             ]
@@ -1690,14 +1715,14 @@ fn inventory(
                                                     if is_premium && player
                                                         .inventory
                                                         .items
-                                                        .check_remove(&Bundle::new().add(item, 1))                                                
+                                                        .check_remove(&Bundle::new().add(item, 1))
                                                     {
                                                         attrs! {}
                                                     } else {
                                                         attrs! {At::Disabled => "true"}
                                                     },
                                                     ev(Ev::Click, move |_| Msg::send_event(
-                                                        ClientEvent::AddToFoodStorage(item, 1)
+                                                        ClientEvent::Sell(item, 1)
                                                     )),
                                                     format!("1x"),
                                                     if !is_premium {
@@ -1717,7 +1742,7 @@ fn inventory(
                                                         attrs! {At::Disabled => "true"}
                                                     },
                                                     ev(Ev::Click, move |_| Msg::send_event(
-                                                        ClientEvent::AddToFoodStorage(item, 10)
+                                                        ClientEvent::Sell(item, 10)
                                                     )),
                                                     format!("10x"),
                                                     if !is_premium {
@@ -1737,7 +1762,7 @@ fn inventory(
                                                         attrs! {At::Disabled => "true"}
                                                     },
                                                     ev(Ev::Click, move |_| Msg::send_event(
-                                                        ClientEvent::AddToFoodStorage(item, 100)
+                                                        ClientEvent::Sell(item, 100)
                                                     )),
                                                     format!("100x"),
                                                     if !is_premium {
@@ -1753,7 +1778,7 @@ fn inventory(
                                                         attrs! {At::Disabled => "true"}
                                                     },
                                                     ev(Ev::Click, move |_| Msg::send_event(
-                                                        ClientEvent::ToggleAutoStore(item)
+                                                        ClientEvent::ToggleAutoSell(item)
                                                     )),
                                                     "Auto",
                                                     if !is_premium {
@@ -1764,11 +1789,10 @@ fn inventory(
                                                 ]
                                             ]
                                         }
-                                    ] 
+                                    ]
                                 } else {
                                     Vec::new()
                                 },
-                            
                             ]
                         }
                     ]),
@@ -1798,25 +1822,27 @@ fn chat(
                 C!["togglable"],
                 div![
                     C!["messages"],
-                    state.chat.messages.iter().map(|(user_id, message)| {
+                    state.chat.messages.iter().map(|(user_id, message, time)| {
                         let username = &client_state
                             .get_user_data(&user_id)
                             .map(|data| data.username.clone())
                             .unwrap_or_default();
                         div![
                             C!["message"],
-                            span![C!["username"], format!("{username}")],
-                            span![": "],
+                            span![C!["time"], format!("{} ago, ", fmt_time(*time))],
+                            span![C!["username"], format!("{username}:")],
                             span![C!["message"], format!("{message}")]
                         ]
                     }),
                 ],
                 div![
                     input![
+                        id!["chat-input"],
                         attrs! {At::Type => "text", At::Value => model.message, At::Placeholder => "Type your message here ..."},
                         input_ev(Ev::Input, Msg::ChangeMessage)
                     ],
                     button![
+                        id!["chat-submit"],
                         if message.is_empty() {
                             attrs! {At::Disabled => "true"}
                         } else {
@@ -1824,7 +1850,7 @@ fn chat(
                         },
                         ev(Ev::Click, move |_| Msg::SubmitMessage),
                         "Send",
-                    ],
+                    ]
                 ]
             ]
         } else {
@@ -1841,7 +1867,6 @@ fn history(
     client_state: &ClientState<shared::State>,
 ) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
-
         div![
             id!["history"],
             if model.history_visible {
@@ -2043,9 +2068,11 @@ fn stats(stats: &Stats) -> Node<Msg> {
 
     v.sort_by_key(|t| -t.0);
 
-    span![itertools::intersperse(v
-        .into_iter()
-        .map(|(num, abv)| span![format!("{abv} "), stars(num, false)]), br![])]
+    span![itertools::intersperse(
+        v.into_iter()
+            .map(|(num, abv)| span![format!("{abv} "), stars(num, false)]),
+        br![]
+    )]
 }
 
 fn stats_simple(stats: &Stats) -> String {
@@ -2149,7 +2176,12 @@ fn nav(model: &Model) -> Node<Msg> {
     ]]
     */
 
-    nav![div![
+    nav![
+        a![
+            C!["button"],
+            attrs! {At::Href => "/"},
+            "Home"
+        ],
         a![
             C!["button"],
             if let Page::Base = model.page {
@@ -2196,7 +2228,7 @@ fn nav(model: &Model) -> Node<Msg> {
             "Ranking",
         ],
         //a![C!["button"], attrs! { At::Href => "/account"}, "Account"]
-    ]]
+    ]
 }
 
 fn tip<T: std::fmt::Display>(text: T) -> Node<Msg> {

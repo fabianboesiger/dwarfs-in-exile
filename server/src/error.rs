@@ -1,5 +1,8 @@
 use askama_axum::IntoResponse;
-use axum::{http::StatusCode, response::{Redirect, Response}};
+use axum::{
+    http::StatusCode,
+    response::{Redirect, Response},
+};
 use stripe::StripeError;
 use thiserror::Error;
 
@@ -33,12 +36,16 @@ impl IntoResponse for ServerError {
             ServerError::InvalidSession | ServerError::UserDeleted => {
                 Redirect::to("/login").into_response()
             }
-            ServerError::NoAdminPermissions => (StatusCode::UNAUTHORIZED, format!("{self}")).into_response(),
-            ServerError::ValidationError(_) => (StatusCode::BAD_REQUEST, format!("{self}")).into_response(),
+            ServerError::NoAdminPermissions => {
+                (StatusCode::UNAUTHORIZED, format!("{self}")).into_response()
+            }
+            ServerError::ValidationError(_) => {
+                (StatusCode::BAD_REQUEST, format!("{self}")).into_response()
+            }
             _ => {
                 tracing::error!("an internal server error occurred: {self}");
                 (StatusCode::INTERNAL_SERVER_ERROR, format!("{self}")).into_response()
-            },
+            }
         }
     }
 }

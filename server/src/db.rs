@@ -2,7 +2,11 @@ use sqlx::{sqlite::SqliteConnectOptions, SqlitePool};
 use std::str::FromStr;
 
 pub async fn setup() -> Result<SqlitePool, Box<dyn std::error::Error>> {
-    let options = SqliteConnectOptions::from_str(&format!("sqlite:{}", dotenv::var("DATABASE_FILE").unwrap()))?.create_if_missing(true);
+    let options = SqliteConnectOptions::from_str(&format!(
+        "sqlite:{}",
+        dotenv::var("DATABASE_FILE").unwrap()
+    ))?
+    .create_if_missing(true);
 
     let pool = SqlitePool::connect_with(options).await?;
 
@@ -30,6 +34,25 @@ pub async fn setup() -> Result<SqlitePool, Box<dyn std::error::Error>> {
             winner INTEGER,
             FOREIGN KEY(winner) REFERENCES users(user_id)
         )
+    "#,
+    )
+    .execute(&mut transaction)
+    .await?;
+
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS settings (
+            free_premium INTEGER NOT NULL
+        )
+    "#,
+    )
+    .execute(&mut transaction)
+    .await?;
+
+    sqlx::query(
+        r#"
+        INSERT INTO settings (free_premium)
+        VALUES (0)
     "#,
     )
     .execute(&mut transaction)

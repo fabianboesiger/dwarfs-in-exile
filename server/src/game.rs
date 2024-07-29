@@ -1,7 +1,12 @@
 use askama::Template;
 use askama_axum::{IntoResponse, Response};
 use axum::{
-    extract::{ws::{Message, WebSocket, WebSocketUpgrade}, Path}, response::Redirect, Extension
+    extract::{
+        ws::{Message, WebSocket, WebSocketUpgrade},
+        Path,
+    },
+    response::Redirect,
+    Extension,
 };
 use engine_shared::{utils::custom_map::CustomMap, GameId, State};
 use futures_util::{sink::SinkExt, stream::StreamExt};
@@ -31,7 +36,6 @@ impl GameStore {
     }
 
     pub async fn load_all(self) -> Result<GameState, sqlx::Error> {
-        
         let open_worlds: Vec<(GameId,)> = sqlx::query_as(
             r#"
                     SELECT id
@@ -83,7 +87,10 @@ impl engine_server::BackendStore<shared::State> for GameStore {
         .await?;
 
         let state: shared::State = result
-            .map(|(data,)| data.map(|data| rmp_serde::from_slice(&data[..]).unwrap()).unwrap_or_default())
+            .map(|(data,)| {
+                data.map(|data| rmp_serde::from_slice(&data[..]).unwrap())
+                    .unwrap_or_default()
+            })
             .unwrap();
 
         Ok(state)
@@ -98,7 +105,7 @@ impl engine_server::BackendStore<shared::State> for GameStore {
         )
         .fetch_all(&self.db)
         .await
-        .unwrap(); 
+        .unwrap();
 
         let users = users
             .into_iter()
@@ -170,7 +177,12 @@ pub async fn ws_handler(
     Extension(game_state): Extension<GameState>,
 ) -> Result<Response, ServerError> {
     tracing::info!("new websocket connection");
-    let user_id = UserId(session.get::<i64>(crate::USER_ID_KEY).await?.ok_or(ServerError::InvalidSession)?);
+    let user_id = UserId(
+        session
+            .get::<i64>(crate::USER_ID_KEY)
+            .await?
+            .ok_or(ServerError::InvalidSession)?,
+    );
 
     Ok(ws.on_upgrade(move |socket: WebSocket| async move {
         let (conn_req, mut conn_res) = game_state.new_connection(user_id, game_id).await;
@@ -209,11 +221,13 @@ pub async fn get_game(
     Path(_game_id): Path<usize>,
     session: Session,
 ) -> Result<Response, ServerError> {
-    session.get::<i64>(crate::USER_ID_KEY).await?.ok_or(ServerError::InvalidSession)?;
+    session
+        .get::<i64>(crate::USER_ID_KEY)
+        .await?
+        .ok_or(ServerError::InvalidSession)?;
 
     Ok(GameTemplate::default().into_response())
 }
-
 
 #[derive(Template, Default)]
 #[template(path = "game-select.html")]
@@ -225,7 +239,10 @@ pub async fn get_game_select(
     Extension(pool): Extension<SqlitePool>,
     session: Session,
 ) -> Result<Response, ServerError> {
-    session.get::<i64>(crate::USER_ID_KEY).await?.ok_or(ServerError::InvalidSession)?;
+    session
+        .get::<i64>(crate::USER_ID_KEY)
+        .await?
+        .ok_or(ServerError::InvalidSession)?;
 
     let result: Vec<(GameId,)> = sqlx::query_as(
         r#"
@@ -237,17 +254,16 @@ pub async fn get_game_select(
     .fetch_all(&pool)
     .await?;
 
-    let current_worlds: Vec<GameId> = result.into_iter().map(|(id, )| id).collect();
+    let current_worlds: Vec<GameId> = result.into_iter().map(|(id,)| id).collect();
 
     if current_worlds.len() == 1 {
         Ok(Redirect::temporary(&format!("/game/{}", current_worlds[0])).into_response())
     } else {
         Ok(GameSelectTemplate { current_worlds }.into_response())
     }
-
 }
 
-/* 
+/*
 #[derive(Template, Default)]
 #[template(path = "game-select.html")]
 pub struct GameSelectTemplate {
