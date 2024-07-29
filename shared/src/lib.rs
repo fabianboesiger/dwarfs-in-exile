@@ -35,6 +35,63 @@ pub type Time = u64;
 
 pub type QuestId = u64;
 
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Sequence)]
+pub enum IntroStep {
+    Mining,
+    Logging,
+    SettlementExpansion,
+    Hunting,
+    FoodPreparation,
+    Idling,
+    SettlementExpansion2,
+    Quests,
+}
+
+impl IntroStep {
+    pub fn next(&self) -> Option<IntroStep> {
+        match self {
+            IntroStep::Mining => Some(IntroStep::Logging),
+            IntroStep::Logging => Some(IntroStep::SettlementExpansion),
+            IntroStep::SettlementExpansion => Some(IntroStep::Hunting),
+            IntroStep::Hunting => Some(IntroStep::FoodPreparation),
+            IntroStep::FoodPreparation => Some(IntroStep::Idling),
+            IntroStep::Idling => Some(IntroStep::SettlementExpansion2),
+            IntroStep::SettlementExpansion2 => Some(IntroStep::Quests),
+            IntroStep::Quests => None,
+        }
+    }
+
+    pub fn complete(&self, player: &Player) -> bool {
+        match self {
+            IntroStep::Mining => player.inventory.items.get(&Item::Stone).copied().unwrap_or(0) >= 10,
+            IntroStep::Logging => player.inventory.items.get(&Item::Wood).copied().unwrap_or(0) >= 10,
+            IntroStep::SettlementExpansion => player.base.curr_level >= 2,
+            IntroStep::Hunting => player.inventory.items.get(&Item::RawMeat).copied().unwrap_or(0) >= 10,
+            IntroStep::FoodPreparation => player.base.food > 0,
+            IntroStep::Idling => player.dwarfs.values().any(|dwarf| dwarf.actual_occupation() == Occupation::Idling),
+            IntroStep::SettlementExpansion2 => player.base.curr_level >= 3,
+            IntroStep::Quests => player.dwarfs
+                .values()
+                .any(|dwarf| dwarf.participates_in_quest.map(|(quest_type, _, _)| matches!(quest_type.reward_mode(), RewardMode::NewDwarf(_) | RewardMode::NewDwarfByChance(_))).unwrap_or(false)),
+        }
+    }
+}
+
+impl std::fmt::Display for IntroStep {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            IntroStep::Mining => write!(f, "Into the Mines"),
+            IntroStep::Logging => write!(f, "Into the Woods"),
+            IntroStep::SettlementExpansion => write!(f, "Expand Your Settlement"),
+            IntroStep::Hunting => write!(f, "A Well Fed Population"),
+            IntroStep::FoodPreparation => write!(f, "Dinner is Ready"),
+            IntroStep::Idling => write!(f, "Time for a Break"),
+            IntroStep::SettlementExpansion2 => write!(f, "Further Expansion"),
+            IntroStep::Quests => write!(f, "Finding Friends"),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct UserId(pub i64);
 
