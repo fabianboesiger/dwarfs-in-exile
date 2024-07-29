@@ -331,7 +331,6 @@ input[type=checkbox] {
     top: 0;
     left: 0;
     background-color: rgba(0, 100, 100, 0.3);
-    border-right: 1px solid rgb(0, 100, 100);
 }
 
 .score-bar-marker {
@@ -340,7 +339,7 @@ input[type=checkbox] {
     top: 0;
     left: 0;
     background: none;
-    border-right: 1px solid rgb(100, 0, 0);
+    border-right: 1px solid rgb(0, 100, 100);
 }
 
 .score-bar-overlay {

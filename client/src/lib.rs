@@ -343,7 +343,7 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
 }
 
 fn ranking(state: &shared::State, client_state: &ClientState<shared::State>) -> Node<Msg> {
-    let mut players: Vec<_> = state.players.iter().collect();
+    let mut players: Vec<_> = state.players.iter().filter(|(user_id, player)| player.is_active(state.time) && client_state.get_user_data(user_id).is_some()).collect();
     players.sort_by_key(|(_, p)| (-(p.base.prestige as i64), -(p.dwarfs.len() as i64)));
 
     div![
@@ -980,7 +980,7 @@ fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                             .count();
                         let mut contestants = quest.contestants.values().map(|c| c.achieved_score).collect::<Vec<_>>();
                         contestants.sort();
-                        let best_score = contestants.pop().unwrap();
+                        let best_score = contestants.last().copied().unwrap();
                         p![score_bar(
                             contestant.achieved_score,
                             best_score,
@@ -991,7 +991,7 @@ fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                     } else {
                         let mut contestants = quest.contestants.values().map(|c| c.achieved_score).collect::<Vec<_>>();
                         contestants.sort();
-                        let best_score = contestants.pop().unwrap_or_default();
+                        let best_score = contestants.last().copied().unwrap_or_default();
                         p![score_bar(0, best_score, 0, quest.contestants.len(), contestants)]
                     },
                     a![
@@ -1026,14 +1026,14 @@ fn quest(
                             let rank = quest.contestants.values().filter(|c| c.achieved_score >= contestant.achieved_score).count();
                             let mut contestants = quest.contestants.values().map(|c| c.achieved_score).collect::<Vec<_>>();
                             contestants.sort();
-                            let best_score = contestants.pop().unwrap();
+                            let best_score = contestants.last().copied().unwrap();
                             p![
                                 score_bar(contestant.achieved_score, best_score, rank, quest.contestants.len(), contestants)
                             ]
                         } else {
                             let mut contestants = quest.contestants.values().map(|c| c.achieved_score).collect::<Vec<_>>();
                             contestants.sort();
-                            let best_score = contestants.pop().unwrap_or_default();
+                            let best_score = contestants.last().copied().unwrap_or_default();
                             p![score_bar(
                                 0,
                                 best_score,
@@ -1839,7 +1839,7 @@ fn chat(
                             .unwrap_or_default();
                         div![
                             C!["message"],
-                            span![C!["time"], format!("{} ago, ", fmt_time(*time))],
+                            span![C!["time"], format!("{} ago, ", fmt_time(state.time - time))],
                             span![C!["username"], format!("{username}:")],
                             span![C!["message"], format!("{message}")]
                         ]
