@@ -1130,12 +1130,12 @@ impl Player {
 
     pub fn open_loot_crate(&mut self, rng: &mut impl Rng, time: Time) {
         let possible_items: Vec<Item> = enum_iterator::all::<Item>()
-            .filter(|item| {
+            /*.filter(|item| {
                 matches!(item.item_rarity(), ItemRarity::Epic | ItemRarity::Legendary)
-            })
+            })*/
             .collect();
         let item = *possible_items.choose(rng).unwrap();
-        let bundle = Bundle::new().add(item, 1);
+        let bundle = Bundle::new().add(item, (10000 / item.item_rarity_num()).max(1).min(100));
         self.log.add(time, LogMsg::OpenedLootCrate(bundle.clone()));
         self.add_items(bundle, time, true); 
     }

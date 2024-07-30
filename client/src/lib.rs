@@ -1401,7 +1401,7 @@ fn base(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node
                 div![C!["image-aside"],
                     img![attrs! {At::Src => Image::LootCrate.as_at_value()}],
                     div![
-                        p![format!("A loot crate contains a random epic or legendary item. You can earn loot crates by completing quests. You can also get a loot crate every {} for free.", fmt_time(FREE_LOOT_CRATE))],
+                        p![format!("A loot crate contains a random item. You can earn loot crates by completing quests. You can also get a loot crate every {} for free.", fmt_time(FREE_LOOT_CRATE))],
                         button![
                             if player.reward_time <= state.time {
                                 attrs! {}
@@ -1628,6 +1628,14 @@ fn inventory(
                                     span![C!["short-info"], format!("{} Coins", item.money_value())]
                                 } else {
                                     Node::Empty
+                                },
+                                if cfg!(debug_assertions) {
+                                    vec![
+                                        span![C!["short-info"], format!("Rarity: {}", item.item_rarity_num())],
+                                        span![C!["short-info"], format!("Loot Crate QTY: {}", (10000 / item.item_rarity_num()).max(1).min(100))],
+                                    ]
+                                } else {
+                                    Vec::new()
                                 },
                             ],
 
