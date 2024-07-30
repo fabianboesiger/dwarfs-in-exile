@@ -135,28 +135,17 @@ impl Default for DwarfsFilter {
     }
 }
 
-/*
 pub struct QuestsFilter {
-    participating: Option<Occupation>,
-    sort: DwarfsSort,
+    participating: bool,
 }
 
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
-pub enum QuestsSort {
-    LeastHealth,
-    WorstAssigned,
-    BestIn(Occupation)
-}
-
-impl Default for DwarfsFilter {
+impl Default for QuestsFilter {
     fn default() -> Self {
         Self {
-            occupation: None,
-            sort: DwarfsSort::LeastHealth,
+            participating: false,
         }
     }
 }
-    */
 
 pub struct Model {
     state: ClientState<shared::State>,
@@ -166,6 +155,7 @@ pub struct Model {
     history_visible: bool,
     inventory_filter: InventoryFilter,
     dwarfs_filter: DwarfsFilter,
+    quests_filter: QuestsFilter,
     map_time: (Time, u64),
     game_id: GameId,
 }
@@ -216,30 +206,11 @@ fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
         history_visible: false,
         inventory_filter: InventoryFilter::default(),
         dwarfs_filter: DwarfsFilter::default(),
+        quests_filter: QuestsFilter::default(),
         map_time: (0, 0),
         game_id,
     }
 }
-
-// ------ ------
-//    Update
-// ------ ------
-/*
-#[derive(Debug)]
-pub enum Msg {
-    WebSocketOpened,
-    CloseWebSocket,
-    WebSocketClosed(CloseEvent),
-    WebSocketFailed,
-    ReconnectWebSocket(usize),
-    SendGameEvent(ClientEvent),
-    ReceiveGameEvent(EventData),
-    InitGameState(SyncData),
-
-}
-
-impl EngineMsg<shared::State> for Msg {}
-*/
 
 #[derive(Debug)]
 pub enum Msg {
@@ -262,6 +233,8 @@ pub enum Msg {
     DwarfsFilterReset,
     DwarfsFilterOccupation(Option<Occupation>),
     DwarfsFilterSort(DwarfsSort),
+    QuestsFilterReset,
+    QuestsFilterParticipating,
     GoToItem(Item),
 }
 
@@ -341,6 +314,12 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
         }
         Msg::DwarfsFilterOccupation(occupation) => {
             model.dwarfs_filter.occupation = occupation;
+        }
+        Msg::QuestsFilterReset => {
+            model.quests_filter = QuestsFilter::default();
+        }
+        Msg::QuestsFilterParticipating => {
+            model.quests_filter.participating = !model.quests_filter.participating;
         }
         Msg::AssignToQuest(quest_id, dwarf_idx, dwarf_id) => {
             if dwarf_id.is_some() {
@@ -1111,53 +1090,80 @@ fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
     let mut quests = state.quests.iter().collect::<Vec<_>>();
     quests.sort_by_key(|(_, quest)| quest.time_left);
 
-
-    table![
-        C!["quests", "list"],
-        quests.iter().map(|(quest_id, quest)| {
-            tr![
-                C!["list-item-row"],
-                td![img![
-                    C!["list-item-image"],
-                    attrs! {At::Src => Image::from(quest.quest_type).as_at_value()}
-                ]],
-                td![
-                    C!["list-item-content"],
-                    h3![C!["title"], format!("{}", quest.quest_type)],
-                    p![
-                        C!["subtitle"],
-                        format!("{} remaining.", fmt_time(quest.time_left))
+    div![
+        div![
+            C!["filter"],
+            div![
+                div![
+                    input![
+                        id!["participating"],
+                        attrs! {At::Type => "checkbox", At::Checked => model.quests_filter.participating.as_at_value()},
+                        ev(Ev::Click, |_| Msg::QuestsFilterParticipating),
                     ],
-                    if let Some(contestant) = quest.contestants.get(user_id) {
-                        let rank = quest
-                            .contestants
-                            .values()
-                            .filter(|c| c.achieved_score >= contestant.achieved_score)
-                            .count();
-                        let mut contestants = quest.contestants.values().map(|c| c.achieved_score).collect::<Vec<_>>();
-                        contestants.sort();
-                        let best_score = contestants.last().copied().unwrap();
-                        p![score_bar(
-                            contestant.achieved_score,
-                            best_score,
-                            rank,
-                            quest.contestants.len(),
-                            contestants
-                        )]
-                    } else {
-                        let mut contestants = quest.contestants.values().map(|c| c.achieved_score).collect::<Vec<_>>();
-                        contestants.sort();
-                        let best_score = contestants.last().copied().unwrap_or_default();
-                        p![score_bar(0, best_score, 0, quest.contestants.len(), contestants)]
-                    },
-                    a![
-                        C!["button"],
-                        attrs! { At::Href => format!("{}/quests/{}", model.base_path(), quest_id) },
-                        "Details"
+                    label![attrs! {At::For => "participating"}, "Participating"]
+                ],
+            ],
+            div![
+                button![
+                    ev(Ev::Click, move |_| Msg::QuestsFilterReset),
+                    "Reset Filter",
+                ],
+            ]
+
+        ],
+        table![
+            C!["quests", "list"],
+            quests.iter().filter(|(_, quest)| {
+                if model.quests_filter.participating {
+                    quest.contestants.contains_key(user_id)
+                } else {
+                    true
+                }
+            }).map(|(quest_id, quest)| {
+                tr![
+                    C!["list-item-row"],
+                    td![img![
+                        C!["list-item-image"],
+                        attrs! {At::Src => Image::from(quest.quest_type).as_at_value()}
+                    ]],
+                    td![
+                        C!["list-item-content"],
+                        h3![C!["title"], format!("{}", quest.quest_type)],
+                        p![
+                            C!["subtitle"],
+                            format!("{} remaining.", fmt_time(quest.time_left))
+                        ],
+                        if let Some(contestant) = quest.contestants.get(user_id) {
+                            let rank = quest
+                                .contestants
+                                .values()
+                                .filter(|c| c.achieved_score >= contestant.achieved_score)
+                                .count();
+                            let mut contestants = quest.contestants.values().map(|c| c.achieved_score).collect::<Vec<_>>();
+                            contestants.sort();
+                            let best_score = contestants.last().copied().unwrap();
+                            p![score_bar(
+                                contestant.achieved_score,
+                                best_score,
+                                rank,
+                                quest.contestants.len(),
+                                contestants
+                            )]
+                        } else {
+                            let mut contestants = quest.contestants.values().map(|c| c.achieved_score).collect::<Vec<_>>();
+                            contestants.sort();
+                            let best_score = contestants.last().copied().unwrap_or_default();
+                            p![score_bar(0, best_score, 0, quest.contestants.len(), contestants)]
+                        },
+                        a![
+                            C!["button"],
+                            attrs! { At::Href => format!("{}/quests/{}", model.base_path(), quest_id) },
+                            "Details"
+                        ]
                     ]
                 ]
-            ]
-        })
+            })
+        ]
     ]
 }
 
