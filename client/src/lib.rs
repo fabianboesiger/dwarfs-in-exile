@@ -135,6 +135,29 @@ impl Default for DwarfsFilter {
     }
 }
 
+/*
+pub struct QuestsFilter {
+    participating: Option<Occupation>,
+    sort: DwarfsSort,
+}
+
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+pub enum QuestsSort {
+    LeastHealth,
+    WorstAssigned,
+    BestIn(Occupation)
+}
+
+impl Default for DwarfsFilter {
+    fn default() -> Self {
+        Self {
+            occupation: None,
+            sort: DwarfsSort::LeastHealth,
+        }
+    }
+}
+    */
+
 pub struct Model {
     state: ClientState<shared::State>,
     page: Page,
@@ -1266,7 +1289,11 @@ fn quest(
                                 ],*/
                                 button![
                                     ev(Ev::Click, move |_| Msg::ChangePage(Page::Dwarfs(DwarfsMode::Select(DwarfsSelect::Quest(quest_id, dwarf_idx))))),
-                                    "Swap Dwarf"
+                                    if dwarf_id.is_some() {
+                                        "Change Dwarf"
+                                    } else {
+                                        "Select Dwarf"
+                                    }
                                 ],
                                 if dwarf_id.is_some() {
                                     /*button![
