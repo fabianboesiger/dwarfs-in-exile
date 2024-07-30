@@ -1050,7 +1050,7 @@ impl Player {
     }
 
     pub fn is_active(&self, time: Time) -> bool {
-        (time - self.last_online) / SPEED < ONE_DAY
+        (time - self.last_online) / SPEED < ONE_DAY && !self.dwarfs.is_empty()
     }
 
     pub fn new_dwarf(&mut self, rng: &mut impl Rng, next_dwarf_id: &mut DwarfId, time: Time) {
@@ -2639,7 +2639,7 @@ impl QuestType {
     pub fn one_at_a_time(self) -> bool {
         matches!(
             self.reward_mode(),
-            RewardMode::Prestige | RewardMode::BecomeKing
+            RewardMode::BecomeKing
         )
     }
 
