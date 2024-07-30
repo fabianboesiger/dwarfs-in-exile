@@ -1374,7 +1374,8 @@ impl Item {
             | Item::Headlamp
             | Item::BearClawBoots
             | Item::GoldenRing
-            | Item::RhinoHornPants => Some(ItemType::Clothing),
+            | Item::RhinoHornPants
+            | Item::CrystalNecklace => Some(ItemType::Clothing),
 
             Item::Bow
             | Item::PoisonedBow
