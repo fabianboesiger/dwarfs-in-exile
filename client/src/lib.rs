@@ -11,7 +11,7 @@ use shared::{
     LOOT_CRATE_COST, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS,
 };
 use std::str::FromStr;
-use web_sys::{js_sys::Date, HtmlSelectElement};
+use web_sys::js_sys::Date;
 
 #[cfg(not(debug_assertions))]
 const HOST: &str = "dwarfs-in-exile.com";
@@ -90,6 +90,13 @@ pub struct InventoryFilter {
     pets: bool,
     clothing: bool,
     tools: bool,
+    sort: InventorySort,
+}
+
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+pub enum InventorySort {
+    Rarity,
+    Usefulness(Occupation)
 }
 
 impl Default for InventoryFilter {
@@ -102,17 +109,18 @@ impl Default for InventoryFilter {
             pets: false,
             clothing: false,
             tools: false,
+            sort: InventorySort::Rarity,
         }
     }
 }
 
-struct DwarfsFilter {
-    job: Option<Occupation>,
+pub struct DwarfsFilter {
+    occupation: Option<Occupation>,
     sort: DwarfsSort,
 }
 
-#[derive(PartialEq, Eq, Clone, Copy)]
-enum DwarfsSort {
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+pub enum DwarfsSort {
     LeastHealth,
     BestIn(Occupation)
 }
@@ -120,31 +128,11 @@ enum DwarfsSort {
 impl Default for DwarfsFilter {
     fn default() -> Self {
         Self {
-            job: None,
+            occupation: None,
             sort: DwarfsSort::LeastHealth,
         }
     }
 }
-
-struct QuestsFilter {
-    sort: QuestsSort,
-}
-
-enum QuestsSort {
-    LeastTimeRemaining,
-    MostTimeRemaining,
-    LeastParticipants,
-    MostParticipants,
-}
-
-impl Default for QuestsFilter {
-    fn default() -> Self {
-        Self {
-            sort: QuestsSort::LeastTimeRemaining,
-        }
-    }
-}
-
 
 pub struct Model {
     state: ClientState<shared::State>,
@@ -154,8 +142,6 @@ pub struct Model {
     history_visible: bool,
     inventory_filter: InventoryFilter,
     dwarfs_filter: DwarfsFilter,
-    dwarfs_filter_occupation_ref: ElRef<HtmlSelectElement>,
-    quests_filter: QuestsFilter,
     map_time: (Time, u64),
     game_id: GameId,
 }
@@ -206,10 +192,8 @@ fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
         history_visible: false,
         inventory_filter: InventoryFilter::default(),
         dwarfs_filter: DwarfsFilter::default(),
-        quests_filter: QuestsFilter::default(),
         map_time: (0, 0),
         game_id,
-        dwarfs_filter_occupation_ref: ElRef::default(),
     }
 }
 
@@ -253,6 +237,7 @@ pub enum Msg {
     InventoryFilterReset,
     DwarfsFilterReset,
     DwarfsFilterOccupation(Option<Occupation>),
+    DwarfsFilterSort(DwarfsSort),
     GoToItem(Item),
 }
 
@@ -327,12 +312,11 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
         Msg::DwarfsFilterReset => {
             model.dwarfs_filter = DwarfsFilter::default();
         }
+        Msg::DwarfsFilterSort(sort) => {
+            model.dwarfs_filter.sort = sort;
+        }
         Msg::DwarfsFilterOccupation(occupation) => {
-            model.dwarfs_filter.job = occupation;
-            model.dwarfs_filter_occupation_ref.get().unwrap().set_selected_index(match occupation {
-                None => 0,
-                Some(occupation) => occupation as i32 + 1
-            })
+            model.dwarfs_filter.occupation = occupation;
         }
         Msg::AssignToQuest(quest_id, dwarf_idx, dwarf_id) => {
             if dwarf_id.is_some() {
@@ -604,49 +588,50 @@ fn dwarfs(
     if let Some(player) = state.players.get(user_id) {
         if player.dwarfs.len() > 0 {
             let mut dwarfs = player.dwarfs.iter().collect::<Vec<_>>();
-            dwarfs.sort_by_key(|(_, dwarf)| match model.dwarfs_filter.sort {
-                DwarfsSort::LeastHealth => dwarf.health,
-                DwarfsSort::BestIn(_) => todo!(),
+            dwarfs.sort_by_key(|(_, dwarf)| {
+                let mut sort = model.dwarfs_filter.sort;
+                if let DwarfsMode::Select(DwarfsSelect::Quest(quest_id, _dwarf_idx)) = mode {
+                    let occupation = state.quests.get(&quest_id).unwrap().quest_type.occupation();
+                    sort = DwarfsSort::BestIn(occupation);
+                }
+                match sort {
+                    DwarfsSort::LeastHealth => dwarf.health,
+                    DwarfsSort::BestIn(occupation) => u64::MAX - dwarf.effectiveness(occupation),
+                }
             });
 
             div![
                 div![
                     C!["filter"],
                     div![
-                        div![
-                            label![attrs!{At::For => "job"}],
-                            select![id!["job"],
-                                el_ref(&model.dwarfs_filter_occupation_ref),
-                                option![attrs!{At::Selected => (model.dwarfs_filter.job == None).as_at_value(), At::Value => "0" }, format!("All")],
-                                enum_iterator::all::<Occupation>()
-                                    .map(|occupation| {
-                                        option![attrs!{At::Selected => (model.dwarfs_filter.job == Some(occupation)).as_at_value(), At::Value => (occupation as usize + 1) }, format!("{occupation}")]
-                                    }),
-                                input_ev(Ev::Change, |s| {
-                                    match s.parse().unwrap() {
-                                        0 => Msg::DwarfsFilterOccupation(None),
-                                        i => {
-                                            let occupation = enum_iterator::all::<Occupation>().skip(i - 1).next().unwrap();
-                                            Msg::DwarfsFilterOccupation(Some(occupation))
-                                        }
-                                    }
-                                })
-                            ]
-                        ],
+                        div![C!["button-row"],                            
+                            enum_iterator::all::<Occupation>()
+                                .filter(|occupation| player.base.curr_level >= occupation.unlocked_at_level())
+                                .map(|occupation| {
+                                    button![
+                                        attrs!{ At::Disabled => (model.dwarfs_filter.occupation == Some(occupation)).as_at_value() },
+                                        ev(Ev::Click, move |_| Msg::DwarfsFilterOccupation(Some(occupation))),
+                                        format!("{occupation}")
+                                    ]
+                                }),
+                        ]
+                    ],
+                    div![
                         button![
                             ev(Ev::Click, move |_| Msg::DwarfsFilterReset),
                             "Reset Filter",
                         ],
                     ]
+
                 ],
                 table![
                     C!["dwarfs", "list"],
                     dwarfs.iter().filter(|(_, dwarf)| {
-                        (if let Some(job) = model.dwarfs_filter.job {
+                        if let Some(job) = model.dwarfs_filter.occupation {
                             dwarf.occupation == job
                         } else {
                             true
-                        })
+                        }
                     }).map(|(&id, dwarf)| tr![
                         C!["dwarf", format!("dwarf-{}", id)],
                         C!["list-item-row"],
@@ -659,23 +644,38 @@ fn dwarfs(
                             h3![C!["title"], &dwarf.name],
                             p![
                                 C!["subtitle"],
-                                if dwarf.auto_idle {
-                                    format!(
-                                        "Auto-idling, resuming work shortly."
-                                    )
-                                } else
                                 if let Some((quest_type, _, _)) = dwarf.participates_in_quest {
-                                    format!(
-                                        "Participating in quest {}.",
-                                        quest_type,
-                                    )
+                                    div![
+                                        if dwarf.auto_idle {
+                                            format!(
+                                                "Auto-idling, resuming quest {} shortly.",
+                                                quest_type,
+                                            )
+                                        } else {
+                                            format!(
+                                                "Participating in quest {}.",
+                                                quest_type,
+                                            )
+                                        },
+                                        stars(dwarf.effectiveness(quest_type.occupation()) as i8, true)
+                                    ]
                                 } else {
-                                    format!(
-                                        "{} since {}.",
-                                        dwarf.occupation,
-                                        fmt_time(dwarf.occupation_duration)
-                                    )
-                                }
+                                    div![
+                                        if dwarf.auto_idle {
+                                            format!(
+                                                "Auto-idling, resuming occupation {} shortly.",
+                                                dwarf.occupation,
+                                            )
+                                        } else {
+                                            format!(
+                                                "{} since {}.",
+                                                dwarf.occupation,
+                                                fmt_time(dwarf.occupation_duration)
+                                            )
+                                        },
+                                        stars(dwarf.effectiveness(dwarf.occupation) as i8, true)
+                                    ]
+                                },
                             ],
                             health_bar(dwarf.health, MAX_HEALTH),
                             p![match mode {
@@ -1458,7 +1458,7 @@ fn inventory(
         div![
             div![
                 C!["filter"],
-                div![
+                div![C!["no-shrink"],
                     div![
                         input![
                             id!["owned"],
@@ -1476,7 +1476,7 @@ fn inventory(
                         label![attrs! {At::For => "craftable"}, "Craftable"]
                     ]
                 ],
-                div![
+                div![C!["no-shrink"],
                     div![
                         input![
                             id!["food"],
@@ -1523,8 +1523,17 @@ fn inventory(
             ],
             table![
                 C!["items", "list"],
-                items
-                    .sorted_by_rarity()
+                {
+                    let mut sort = model.inventory_filter.sort;
+                    if let InventoryMode::Select(InventorySelect::Equipment(dwarf_id, _item_type)) = mode {
+                        let occupation = player.dwarfs.get(&dwarf_id).unwrap().actual_occupation();
+                        sort = InventorySort::Usefulness(occupation);
+                    }
+                    match sort {
+                        InventorySort::Rarity => items.sorted_by_rarity(),
+                        InventorySort::Usefulness(occupation) => items.sorted_by_usefulness(occupation),
+                    }
+                }
                     .into_iter()
                     .filter(|(item, n)| {
                         item.to_string()
@@ -2298,48 +2307,28 @@ fn nav(model: &Model) -> Node<Msg> {
     nav![
         a![C!["button"], attrs! {At::Href => "/"}, "Home"],
         a![
-            C!["button"],
-            if let Page::Base = model.page {
-                attrs! {At::Disabled => "true", At::Href => model.base_path()}
-            } else {
-                attrs! {At::Href => model.base_path()}
-            },
+            C!["button", if let Page::Base = model.page { "active" } else { "" }],
+            attrs! {At::Href => model.base_path()},
             "Settlement"
         ],
         a![
-            C!["button"],
-            if let Page::Dwarfs(DwarfsMode::Overview) = model.page {
-                attrs! {At::Disabled => "true", At::Href => format!("{}/dwarfs", model.base_path())}
-            } else {
-                attrs! {At::Href => format!("{}/dwarfs", model.base_path())}
-            },
+            C!["button", if let Page::Dwarfs(DwarfsMode::Overview) = model.page { "active" } else { "" }],
+            attrs! {At::Href => format!("{}/dwarfs", model.base_path())},
             "Dwarfs",
         ],
         a![
-            C!["button"],
-            if let Page::Inventory(InventoryMode::Overview) = model.page {
-                attrs! {At::Disabled => "true",  At::Href => format!("{}/inventory", model.base_path())}
-            } else {
-                attrs! {At::Href => format!("{}/inventory", model.base_path())}
-            },
+            C!["button", if let Page::Inventory(InventoryMode::Overview) = model.page { "active" } else { "" }],
+            attrs! {At::Href => format!("{}/inventory", model.base_path())},
             "Inventory",
         ],
         a![
-            C!["button"],
-            if let Page::Quests = model.page {
-                attrs! {At::Disabled => "true", At::Href => format!("{}/quests", model.base_path())}
-            } else {
-                attrs! {At::Href => format!("{}/quests", model.base_path())}
-            },
+            C!["button", if let Page::Quests = model.page { "active" } else { "" }],
+            attrs! {At::Href => format!("{}/quests", model.base_path())},
             "Quests",
         ],
         a![
-            C!["button"],
-            if let Page::Ranking = model.page {
-                attrs! {At::Disabled => "true", At::Href => format!("{}/ranking", model.base_path())}
-            } else {
-                attrs! {At::Href => format!("{}/ranking", model.base_path())}
-            },
+            C!["button", if let Page::Ranking = model.page { "active" } else { "" }],
+            attrs! {At::Href => format!("{}/ranking", model.base_path())},
             "Ranking",
         ],
         //a![C!["button"], attrs! { At::Href => "/account"}, "Account"]

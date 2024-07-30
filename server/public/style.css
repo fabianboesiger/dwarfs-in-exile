@@ -1,3 +1,8 @@
+:root {
+    --ui-background-default: #ffffff;
+    --ui-background-highlight: #dddddd;
+}
+
 #background {
     position: fixed;
     top: 0;
@@ -21,7 +26,7 @@ body {
 }
 
 header {
-    background: white;
+    background: var(--ui-background-default);
     padding: 8px;
     z-index: 1500;
     position: relative;
@@ -50,7 +55,7 @@ h1 > a {
 }
 
 .content {
-    border-bottom: 1px solid white;
+    border-bottom: 1px solid var(--ui-background-default);
 }
 
 form > div {
@@ -220,7 +225,7 @@ header {
     overflow-y: auto;
     max-height: 384px;
     line-break: anywhere;
-    border-top: 1px solid white;
+    border-top: 1px solid var(--ui-background-default);
 }
 
 .messages .username, .messages .time {
@@ -241,8 +246,8 @@ th, td {
     text-align: left;
     padding-left: 4px;
     padding-right: 4px;
-    border-bottom: 1px solid white;
-    border-top: 1px solid white;
+    border-bottom: 1px solid var(--ui-background-default);
+    border-top: 1px solid var(--ui-background-default);
     background: rgba(255, 255, 255, 0.2);
 }
 
@@ -251,16 +256,27 @@ nav {
     top: 0;
     z-index: 1000;
     text-align: center;
-    background: white;
+    background: var(--ui-background-default);
     height: 32px;
     box-shadow: 0 8px 8px -8px black;
     display: flex;
     flex-wrap: nowrap;
     justify-content: center;
-    align-items: center;
+    align-items: end;
 }
 
-nav button, nav a.button, .occupation button {
+nav a.button {
+    width: auto;
+    margin: 0;
+}
+
+nav a.button.active {
+    width: auto;
+    margin: 0;
+    background: var(--ui-background-highlight);
+}
+
+.occupation button {
     width: auto;
     margin: 0;
 }
@@ -270,7 +286,7 @@ nav button, nav a.button, .occupation button {
     position: sticky;
     top: 32px;
     z-index: 1000;
-    background: white;
+    background: var(--ui-background-highlight);
     display: flex;
     gap: 8px;
     justify-content: space-between;
@@ -282,12 +298,13 @@ nav button, nav a.button, .occupation button {
 
 .filter > * {
     display: inline-block;
-    flex-shrink: 0;
+    flex-grow: 1;
+    flex-shrink: 1;
 }
 
-.filter > :last-child {
-    flex-grow: 0;
-    flex-shrink: 1;
+
+.filter > *.no-shrink {
+    flex-shrink: 0;
 }
 
 input[type=checkbox] {
@@ -424,7 +441,6 @@ input[type=checkbox] {
 
 .button-row {
     display: flex;
-    justify-content: stretch;
     align-items: stretch;
     flex-wrap: wrap;
 }

@@ -821,7 +821,7 @@ impl engine_shared::State for State {
                             let num_quests = if cfg!(debug_assertions) {
                                 30
                             } else {
-                                (active_players / 3).max(3).min(30)
+                                (active_players / 5).max(3).min(30)
                             };
 
                             let max_prestige = self
@@ -967,6 +967,7 @@ impl<T: BundleType> Bundle<T> {
     }
 }
 
+
 impl Bundle<Item> {
     pub fn sorted_by_name(self) -> Vec<(Item, u64)> {
         let mut vec: Vec<_> = self.0.into_iter().collect();
@@ -974,13 +975,19 @@ impl Bundle<Item> {
         vec
     }
 
-    pub fn sorted_by_rarity(self) -> Vec<(Item, u64)>
-where {
+    pub fn sorted_by_rarity(self) -> Vec<(Item, u64)> {
         let mut vec: Vec<_> = self.0.into_iter().collect();
         vec.sort_by_key(|(item, _)| (item.item_rarity(), format!("{}", item)));
         vec
     }
+
+    pub fn sorted_by_usefulness(self, occupation: Occupation) -> Vec<(Item, u64)> {
+        let mut vec: Vec<_> = self.0.into_iter().collect();
+        vec.sort_by_key(|(item, _)| (u64::MAX - item.usefulness_for(occupation), item.item_rarity(), format!("{}", item)));
+        vec
+    }
 }
+
 
 impl<T: BundleType> Deref for Bundle<T> {
     type Target = CustomMap<T, u64>;
