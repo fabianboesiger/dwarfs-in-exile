@@ -265,7 +265,7 @@ nav button, nav a.button, .occupation button {
     margin: 0;
 }
 
-.inventory-filter {
+.filter {
     width: 100%;
     position: sticky;
     top: 32px;
@@ -280,12 +280,12 @@ nav button, nav a.button, .occupation button {
     box-shadow: 0 8px 8px -8px black;
 }
 
-.inventory-filter > * {
+.filter > * {
     display: inline-block;
     flex-shrink: 0;
 }
 
-.inventory-filter > :last-child {
+.filter > :last-child {
     flex-grow: 0;
     flex-shrink: 1;
 }

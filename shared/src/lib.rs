@@ -1373,6 +1373,8 @@ pub enum Item {
     DiamondAxe,
     DiamondPickaxe,
     DiamondSword,
+    RhinoHornPants,
+    DynamiteCrossbow,
 }
 
 impl Into<usize> for Item {
@@ -1427,7 +1429,10 @@ impl Item {
             | Item::Gloves
             | Item::BearClawGloves
             | Item::Headlamp
-            | Item::BearClawBoots => Some(ItemType::Clothing),
+            | Item::BearClawBoots
+            | Item::GoldenRing
+            | Item::RhinoHornPants
+            | Item::CrystalNecklace => Some(ItemType::Clothing),
 
             Item::Bow
             | Item::PoisonedBow
@@ -1452,7 +1457,8 @@ impl Item {
             | Item::Bag
             | Item::DiamondAxe
             | Item::DiamondPickaxe
-            | Item::DiamondSword => Some(ItemType::Tool),
+            | Item::DiamondSword 
+            | Item::DynamiteCrossbow => Some(ItemType::Tool),
 
             Item::Parrot
             | Item::Wolf
@@ -1478,15 +1484,14 @@ impl Item {
     pub fn provides_stats(self) -> Stats {
         match self {
             Item::ChainMail => Stats {
-                agility: -4,
+                agility: -2,
                 ..Default::default()
             },
             Item::LeatherArmor => Stats {
-                agility: -1,
                 ..Default::default()
             },
             Item::Backpack => Stats {
-                agility: -4,
+                agility: -2,
                 ..Default::default()
             },
             Item::Musket => Stats {
@@ -1548,6 +1553,14 @@ impl Item {
                 perception: 6,
                 ..Default::default()
             },
+            Item::GoldenRing => Stats {
+                strength: 1,
+                endurance: 1,
+                agility: 1,
+                intelligence: 1,
+                perception: 1,
+                ..Default::default()
+            },
             Item::RingOfIntelligence => Stats {
                 intelligence: 8,
                 ..Default::default()
@@ -1575,6 +1588,12 @@ impl Item {
                 intelligence: 6,
                 perception: 6,
             },
+            Item::RhinoHornPants => Stats {
+                strength: 8,
+                endurance: 8,
+                intelligence: -4,
+                ..Default::default()
+            },
             _ => Stats::default(),
         }
     }
@@ -1595,7 +1614,8 @@ impl Item {
     // sefulness from 0 - 10
     pub fn usefulness_for(self, occupation: Occupation) -> u64 {
         match (self, occupation) {
-            (Item::Crossbow, Occupation::Hunting | Occupation::Fighting) => 8,
+            (Item::Crossbow, Occupation::Hunting | Occupation::Fighting) => 7,
+            (Item::DynamiteCrossbow, Occupation::Hunting | Occupation::Fighting) => 10,
             (Item::Bow, Occupation::Hunting | Occupation::Fighting) => 5,
             (Item::PoisonedBow, Occupation::Hunting | Occupation::Fighting) => 8,
             (Item::Spear, Occupation::Hunting | Occupation::Fighting) => 4,
@@ -1609,6 +1629,7 @@ impl Item {
             (Item::Dragon, Occupation::Fighting) => 10,
             (Item::Donkey, Occupation::Gathering) => 6,
             (Item::Donkey, Occupation::Farming) => 6,
+            (Item::Donkey, Occupation::Exploring) => 6,
             (Item::Wolf, Occupation::Hunting) => 10,
             (Item::Wolf, Occupation::Fighting) => 4,
             (Item::Axe, Occupation::Logging) => 6,
@@ -1620,6 +1641,7 @@ impl Item {
             (Item::Pitchfork, Occupation::Farming) => 6,
             (Item::ChainMail, Occupation::Fighting) => 8,
             (Item::LeatherArmor, Occupation::Fighting) => 4,
+            (Item::RhinoHornPants, Occupation::Fighting) => 6,
             (Item::Bird, Occupation::Mining | Occupation::Rockhounding) => 3,
             (Item::Musket, Occupation::Hunting) => 10,
             (Item::Musket, Occupation::Fighting) => 6,
@@ -1634,7 +1656,7 @@ impl Item {
             (Item::Helmet, Occupation::Fighting) => 6,
             (Item::Headlamp, Occupation::Mining | Occupation::Rockhounding) => 8,
             (Item::RhinoHornHelmet, Occupation::Fighting) => 8,
-            (Item::Horse, Occupation::Fighting) => 5,
+            (Item::Horse, Occupation::Fighting | Occupation::Exploring) => 4,
             (Item::Horse, Occupation::Farming | Occupation::Logging) => 7,
             (Item::Map, Occupation::Exploring) => 8,
             (Item::Map, Occupation::Gathering) => 6,
@@ -2042,6 +2064,11 @@ impl Craftable for Item {
                     .add(Item::BlackPowder, 10)
                     .add(Item::Fabric, 1),
             ),
+            Item::DynamiteCrossbow => Some(
+                Bundle::new()
+                    .add(Item::Dynamite, 1)
+                    .add(Item::Crossbow, 1),
+            ),
             Item::Fabric => Some(Bundle::new().add(Item::String, 3)),
             Item::Backpack => Some(Bundle::new().add(Item::String, 2).add(Item::Leather, 5)),
             Item::Bag => Some(Bundle::new().add(Item::String, 1).add(Item::Fabric, 2)),
@@ -2124,6 +2151,7 @@ impl Craftable for Item {
             Item::DiamondAxe => Some(Bundle::new().add(Item::Axe, 1).add(Item::Diamond, 3)),
             Item::DiamondPickaxe => Some(Bundle::new().add(Item::Pickaxe, 1).add(Item::Diamond, 3)),
             Item::DiamondSword => Some(Bundle::new().add(Item::Sword, 1).add(Item::Diamond, 3)),
+            Item::RhinoHornPants => Some(Bundle::new().add(Item::RhinoHorn, 1).add(Item::LeatherArmor, 1)),
             _ => None,
         }
     }

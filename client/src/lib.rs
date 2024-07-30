@@ -11,7 +11,7 @@ use shared::{
     LOOT_CRATE_COST, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS,
 };
 use std::str::FromStr;
-use web_sys::js_sys::Date;
+use web_sys::{js_sys::Date, HtmlSelectElement};
 
 #[cfg(not(debug_assertions))]
 const HOST: &str = "dwarfs-in-exile.com";
@@ -106,6 +106,46 @@ impl Default for InventoryFilter {
     }
 }
 
+struct DwarfsFilter {
+    job: Option<Occupation>,
+    sort: DwarfsSort,
+}
+
+#[derive(PartialEq, Eq, Clone, Copy)]
+enum DwarfsSort {
+    LeastHealth,
+    BestIn(Occupation)
+}
+
+impl Default for DwarfsFilter {
+    fn default() -> Self {
+        Self {
+            job: None,
+            sort: DwarfsSort::LeastHealth,
+        }
+    }
+}
+
+struct QuestsFilter {
+    sort: QuestsSort,
+}
+
+enum QuestsSort {
+    LeastTimeRemaining,
+    MostTimeRemaining,
+    LeastParticipants,
+    MostParticipants,
+}
+
+impl Default for QuestsFilter {
+    fn default() -> Self {
+        Self {
+            sort: QuestsSort::LeastTimeRemaining,
+        }
+    }
+}
+
+
 pub struct Model {
     state: ClientState<shared::State>,
     page: Page,
@@ -113,6 +153,9 @@ pub struct Model {
     chat_visible: bool,
     history_visible: bool,
     inventory_filter: InventoryFilter,
+    dwarfs_filter: DwarfsFilter,
+    dwarfs_filter_occupation_ref: ElRef<HtmlSelectElement>,
+    quests_filter: QuestsFilter,
     map_time: (Time, u64),
     game_id: GameId,
 }
@@ -162,8 +205,11 @@ fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
         chat_visible: false,
         history_visible: false,
         inventory_filter: InventoryFilter::default(),
+        dwarfs_filter: DwarfsFilter::default(),
+        quests_filter: QuestsFilter::default(),
         map_time: (0, 0),
         game_id,
+        dwarfs_filter_occupation_ref: ElRef::default(),
     }
 }
 
@@ -205,6 +251,8 @@ pub enum Msg {
     InventoryFilterClothing,
     InventoryFilterName(String),
     InventoryFilterReset,
+    DwarfsFilterReset,
+    DwarfsFilterOccupation(Option<Occupation>),
     GoToItem(Item),
 }
 
@@ -275,6 +323,16 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
         }
         Msg::InventoryFilterReset => {
             model.inventory_filter = InventoryFilter::default();
+        }
+        Msg::DwarfsFilterReset => {
+            model.dwarfs_filter = DwarfsFilter::default();
+        }
+        Msg::DwarfsFilterOccupation(occupation) => {
+            model.dwarfs_filter.job = occupation;
+            model.dwarfs_filter_occupation_ref.get().unwrap().set_selected_index(match occupation {
+                None => 0,
+                Some(occupation) => occupation as i32 + 1
+            })
         }
         Msg::AssignToQuest(quest_id, dwarf_idx, dwarf_id) => {
             if dwarf_id.is_some() {
@@ -545,75 +603,118 @@ fn dwarfs(
 ) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
         if player.dwarfs.len() > 0 {
-            table![
-                C!["dwarfs", "list"],
-                player.dwarfs.iter().map(|(&id, dwarf)| tr![
-                    C!["dwarf", format!("dwarf-{}", id)],
-                    C!["list-item-row"],
-                    td![img![
-                        C!["list-item-image"],
-                        attrs! {At::Src => Image::dwarf_from_name(&dwarf.name).as_at_value()}
-                    ]],
-                    td![
-                        C!["list-item-content"],
-                        h3![C!["title"], &dwarf.name],
-                        p![
-                            C!["subtitle"],
-                            if dwarf.auto_idle {
-                                format!(
-                                    "Auto-idling, resuming work shortly."
-                                )
-                            } else
-                            if let Some((quest_type, _, _)) = dwarf.participates_in_quest {
-                                format!(
-                                    "Participating in quest {}.",
-                                    quest_type,
-                                )
-                            } else {
-                                format!(
-                                    "{} since {}.",
-                                    dwarf.occupation,
-                                    fmt_time(dwarf.occupation_duration)
-                                )
-                            }
+            let mut dwarfs = player.dwarfs.iter().collect::<Vec<_>>();
+            dwarfs.sort_by_key(|(_, dwarf)| match model.dwarfs_filter.sort {
+                DwarfsSort::LeastHealth => dwarf.health,
+                DwarfsSort::BestIn(_) => todo!(),
+            });
+
+            div![
+                div![
+                    C!["filter"],
+                    div![
+                        div![
+                            label![attrs!{At::For => "job"}],
+                            select![id!["job"],
+                                el_ref(&model.dwarfs_filter_occupation_ref),
+                                option![attrs!{At::Selected => (model.dwarfs_filter.job == None).as_at_value(), At::Value => "0" }, format!("All")],
+                                enum_iterator::all::<Occupation>()
+                                    .map(|occupation| {
+                                        option![attrs!{At::Selected => (model.dwarfs_filter.job == Some(occupation)).as_at_value(), At::Value => (occupation as usize + 1) }, format!("{occupation}")]
+                                    }),
+                                input_ev(Ev::Change, |s| {
+                                    match s.parse().unwrap() {
+                                        0 => Msg::DwarfsFilterOccupation(None),
+                                        i => {
+                                            let occupation = enum_iterator::all::<Occupation>().skip(i - 1).next().unwrap();
+                                            Msg::DwarfsFilterOccupation(Some(occupation))
+                                        }
+                                    }
+                                })
+                            ]
                         ],
-                        health_bar(dwarf.health, MAX_HEALTH),
-                        p![match mode {
-                            DwarfsMode::Overview => {
-                                a![
-                                    C!["button"],
-                                    attrs! { At::Href => format!("{}/dwarfs/{}", model.base_path(), id) },
-                                    "Details"
-                                ]
-                            }
-                            DwarfsMode::Select(DwarfsSelect::Quest(quest_id, dwarf_idx)) => {
-                                div![button![
-                                    ev(Ev::Click, move |_| Msg::AssignToQuest(
-                                        quest_id,
-                                        dwarf_idx,
-                                        Some(id)
-                                    )),
+                        button![
+                            ev(Ev::Click, move |_| Msg::DwarfsFilterReset),
+                            "Reset Filter",
+                        ],
+                    ]
+                ],
+                table![
+                    C!["dwarfs", "list"],
+                    dwarfs.iter().filter(|(_, dwarf)| {
+                        (if let Some(job) = model.dwarfs_filter.job {
+                            dwarf.occupation == job
+                        } else {
+                            true
+                        })
+                    }).map(|(&id, dwarf)| tr![
+                        C!["dwarf", format!("dwarf-{}", id)],
+                        C!["list-item-row"],
+                        td![img![
+                            C!["list-item-image"],
+                            attrs! {At::Src => Image::dwarf_from_name(&dwarf.name).as_at_value()}
+                        ]],
+                        td![
+                            C!["list-item-content"],
+                            h3![C!["title"], &dwarf.name],
+                            p![
+                                C!["subtitle"],
+                                if dwarf.auto_idle {
                                     format!(
-                                        "Assign to Quest {}",
-                                        state.quests.get(&quest_id).unwrap().quest_type
-                                    ),
-                                    br![],
-                                    stars(
-                                        dwarf.effectiveness(
-                                            state
-                                                .quests
-                                                .get(&quest_id)
-                                                .unwrap()
-                                                .quest_type
-                                                .occupation()
-                                        ) as i8,
-                                        true
+                                        "Auto-idling, resuming work shortly."
                                     )
-                                ]]
-                            }
-                        }]
-                    ],
-                ])
+                                } else
+                                if let Some((quest_type, _, _)) = dwarf.participates_in_quest {
+                                    format!(
+                                        "Participating in quest {}.",
+                                        quest_type,
+                                    )
+                                } else {
+                                    format!(
+                                        "{} since {}.",
+                                        dwarf.occupation,
+                                        fmt_time(dwarf.occupation_duration)
+                                    )
+                                }
+                            ],
+                            health_bar(dwarf.health, MAX_HEALTH),
+                            p![match mode {
+                                DwarfsMode::Overview => {
+                                    a![
+                                        C!["button"],
+                                        attrs! { At::Href => format!("{}/dwarfs/{}", model.base_path(), id) },
+                                        "Details"
+                                    ]
+                                }
+                                DwarfsMode::Select(DwarfsSelect::Quest(quest_id, dwarf_idx)) => {
+                                    div![button![
+                                        ev(Ev::Click, move |_| Msg::AssignToQuest(
+                                            quest_id,
+                                            dwarf_idx,
+                                            Some(id)
+                                        )),
+                                        format!(
+                                            "Assign to Quest {}",
+                                            state.quests.get(&quest_id).unwrap().quest_type
+                                        ),
+                                        br![],
+                                        stars(
+                                            dwarf.effectiveness(
+                                                state
+                                                    .quests
+                                                    .get(&quest_id)
+                                                    .unwrap()
+                                                    .quest_type
+                                                    .occupation()
+                                            ) as i8,
+                                            true
+                                        )
+                                    ]]
+                                }
+                            }]
+                        ],
+                    ])
+                ]
             ]
         } else {
             div![
@@ -956,9 +1057,13 @@ fn dwarf(
 fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     //let _player = state.players.get(user_id).unwrap();
 
+    let mut quests = state.quests.iter().collect::<Vec<_>>();
+    quests.sort_by_key(|(_, quest)| quest.time_left);
+
+
     table![
         C!["quests", "list"],
-        state.quests.iter().map(|(quest_id, quest)| {
+        quests.iter().map(|(quest_id, quest)| {
             tr![
                 C!["list-item-row"],
                 td![img![
@@ -1352,7 +1457,7 @@ fn inventory(
 
         div![
             div![
-                C!["inventory-filter"],
+                C!["filter"],
                 div![
                     div![
                         input![
