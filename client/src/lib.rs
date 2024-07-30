@@ -956,9 +956,13 @@ fn dwarf(
 fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     //let _player = state.players.get(user_id).unwrap();
 
+    let mut quests = state.quests.iter().collect::<Vec<_>>();
+    quests.sort_by_key(|(_, quest)| quest.time_left);
+
+
     table![
         C!["quests", "list"],
-        state.quests.iter().map(|(quest_id, quest)| {
+        quests.iter().map(|(quest_id, quest)| {
             tr![
                 C!["list-item-row"],
                 td![img![
