@@ -247,19 +247,18 @@ impl engine_shared::State for State {
                     match event {
                         ClientEvent::Init => {}
                         ClientEvent::HireDwarf(dwarf_type) => {
-                            if is_premium {
-                                if player.money >= dwarf_type.cost()
-                                    && player.dwarfs.len() < player.base.max_dwarfs()
-                                {
-                                    player.money -= dwarf_type.cost();
-                                    let dwarf = Dwarf::new(rng, dwarf_type.min_stars() * 2);
-                                    player
-                                        .log
-                                        .add(self.time, LogMsg::NewDwarf(dwarf.name.clone()));
-                                    player.dwarfs.insert(self.next_dwarf_id, dwarf);
-                                    self.next_dwarf_id += 1;
-                                }
+                            if player.money >= dwarf_type.cost()
+                                && player.dwarfs.len() < player.base.max_dwarfs()
+                            {
+                                player.money -= dwarf_type.cost();
+                                let dwarf = Dwarf::new(rng, dwarf_type.min_stars() * 2);
+                                player
+                                    .log
+                                    .add(self.time, LogMsg::NewDwarf(dwarf.name.clone()));
+                                player.dwarfs.insert(self.next_dwarf_id, dwarf);
+                                self.next_dwarf_id += 1;
                             }
+                            
                         }
                         ClientEvent::ToggleAutoCraft(item) => {
                             if is_premium {
@@ -357,7 +356,8 @@ impl engine_shared::State for State {
                             }
                         }
                         ClientEvent::OpenLootCrate => {
-                            if is_premium {
+                            if player.money >= LOOT_CRATE_COST {
+                                player.money -= LOOT_CRATE_COST;
                                 player.open_loot_crate(rng, self.time);
                             }
                         }
@@ -1114,7 +1114,7 @@ impl Player {
     }
 
     pub fn is_active(&self, time: Time) -> bool {
-        (time - self.last_online) / SPEED < ONE_DAY
+        (time - self.last_online) / SPEED < ONE_DAY && !self.dwarfs.is_empty()
     }
 
     pub fn new_dwarf(&mut self, rng: &mut impl Rng, next_dwarf_id: &mut DwarfId, time: Time) {
@@ -1129,18 +1129,15 @@ impl Player {
     }
 
     pub fn open_loot_crate(&mut self, rng: &mut impl Rng, time: Time) {
-        if self.money >= LOOT_CRATE_COST {
-            self.money -= LOOT_CRATE_COST;
-            let possible_items: Vec<Item> = enum_iterator::all::<Item>()
-                .filter(|item| {
-                    matches!(item.item_rarity(), ItemRarity::Epic | ItemRarity::Legendary)
-                })
-                .collect();
-            let item = *possible_items.choose(rng).unwrap();
-            let bundle = Bundle::new().add(item, 1);
-            self.log.add(time, LogMsg::OpenedLootCrate(bundle.clone()));
-            self.add_items(bundle, time, true);
-        }
+        let possible_items: Vec<Item> = enum_iterator::all::<Item>()
+            .filter(|item| {
+                matches!(item.item_rarity(), ItemRarity::Epic | ItemRarity::Legendary)
+            })
+            .collect();
+        let item = *possible_items.choose(rng).unwrap();
+        let bundle = Bundle::new().add(item, 1);
+        self.log.add(time, LogMsg::OpenedLootCrate(bundle.clone()));
+        self.add_items(bundle, time, true); 
     }
 
     pub fn can_prestige(&self) -> bool {
@@ -2734,7 +2731,7 @@ impl QuestType {
     pub fn one_at_a_time(self) -> bool {
         matches!(
             self.reward_mode(),
-            RewardMode::Prestige | RewardMode::BecomeKing
+            RewardMode::BecomeKing
         )
     }
 
