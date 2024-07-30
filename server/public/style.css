@@ -291,7 +291,7 @@ nav a.button.active {
     gap: 8px;
     justify-content: space-between;
     flex-wrap: nowrap;
-    padding: 4px;
+    padding: 8px;
     box-sizing: border-box;
     box-shadow: 0 8px 8px -8px black;
 }
@@ -499,7 +499,7 @@ input[type=checkbox] {
     flex-grow: 0;
 }
 
-h4 {
+h4, .title {
     margin-bottom: 0;
 }
 

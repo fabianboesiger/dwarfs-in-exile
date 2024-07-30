@@ -122,6 +122,7 @@ pub struct DwarfsFilter {
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum DwarfsSort {
     LeastHealth,
+    WorstAssigned,
     BestIn(Occupation)
 }
 
@@ -597,6 +598,13 @@ fn dwarfs(
                 match sort {
                     DwarfsSort::LeastHealth => dwarf.health,
                     DwarfsSort::BestIn(occupation) => u64::MAX - dwarf.effectiveness(occupation),
+                    DwarfsSort::WorstAssigned => if let Some((quest_type, _, _)) = dwarf.participates_in_quest {
+                        dwarf.effectiveness(quest_type.occupation()) + 1
+                    } else if dwarf.occupation == Occupation::Idling {
+                        0
+                    } else {
+                        dwarf.effectiveness(dwarf.occupation) + 1
+                    }
                 }
             });
 
@@ -605,7 +613,7 @@ fn dwarfs(
                     C!["filter"],
                     div![
                         div![C!["button-row"],                            
-                            enum_iterator::all::<Occupation>()
+                            /*enum_iterator::all::<Occupation>()
                                 .filter(|occupation| player.base.curr_level >= occupation.unlocked_at_level())
                                 .map(|occupation| {
                                     button![
@@ -613,7 +621,17 @@ fn dwarfs(
                                         ev(Ev::Click, move |_| Msg::DwarfsFilterOccupation(Some(occupation))),
                                         format!("{occupation}")
                                     ]
-                                }),
+                                }),*/
+                            button![
+                                attrs!{ At::Disabled => (model.dwarfs_filter.sort == DwarfsSort::LeastHealth).as_at_value() },
+                                ev(Ev::Click, move |_| Msg::DwarfsFilterSort(DwarfsSort::LeastHealth)),
+                                format!("Least Health")
+                            ],
+                            button![
+                                attrs!{ At::Disabled => (model.dwarfs_filter.sort == DwarfsSort::WorstAssigned).as_at_value() },
+                                ev(Ev::Click, move |_| Msg::DwarfsFilterSort(DwarfsSort::WorstAssigned)),
+                                format!("Worst Performing")
+                            ]
                         ]
                     ],
                     div![
@@ -657,7 +675,12 @@ fn dwarfs(
                                                 quest_type,
                                             )
                                         },
-                                        stars(dwarf.effectiveness(quest_type.occupation()) as i8, true)
+                                        br![],
+                                        if dwarf.occupation != Occupation::Idling {
+                                            stars(dwarf.effectiveness(quest_type.occupation()) as i8, true)
+                                        } else {
+                                            Node::Empty
+                                        }
                                     ]
                                 } else {
                                     div![
@@ -673,7 +696,12 @@ fn dwarfs(
                                                 fmt_time(dwarf.occupation_duration)
                                             )
                                         },
-                                        stars(dwarf.effectiveness(dwarf.occupation) as i8, true)
+                                        br![],
+                                        if dwarf.occupation != Occupation::Idling {
+                                            stars(dwarf.effectiveness(dwarf.occupation) as i8, true)
+                                        } else {
+                                            Node::Empty
+                                        }
                                     ]
                                 },
                             ],
@@ -1238,12 +1266,17 @@ fn quest(
                                 ],*/
                                 button![
                                     ev(Ev::Click, move |_| Msg::ChangePage(Page::Dwarfs(DwarfsMode::Select(DwarfsSelect::Quest(quest_id, dwarf_idx))))),
-                                    "Change"
+                                    "Swap Dwarf"
                                 ],
                                 if dwarf_id.is_some() {
-                                    button![
+                                    /*button![
                                         ev(Ev::Click, move |_| Msg::AssignToQuest(quest_id, dwarf_idx, None)),
-                                        "Remove"
+                                        "Remove Dwarf"
+                                    ]*/
+                                    a![
+                                        C!["button"],
+                                        attrs! { At::Href => format!("{}/dwarfs/{}", model.base_path(), dwarf_id.unwrap()) },
+                                        "Dwarf Details"
                                     ]
                                 } else {
                                     Node::Empty
