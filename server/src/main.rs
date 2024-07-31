@@ -105,7 +105,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ServeDir::new(dotenv::var("PUBLIC_DIR").unwrap())
                     .precompressed_br()
                     .precompressed_gzip(),
-            ).layer(middleware::from_fn(set_static_cache_control)),
+            )
+            .layer(middleware::from_fn(set_static_cache_control)),
         )
         .route("/", get(index::get_index))
         .route("/store", get(store::get_store))

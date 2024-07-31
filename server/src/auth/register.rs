@@ -15,9 +15,17 @@ use super::{form_error, ToTemplate, ValidatedForm};
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct RegisterForm {
-    #[validate(length(min = 1, max = 16, message = "The username must not be empty and contain at most 16 characters"))]
+    #[validate(length(
+        min = 1,
+        max = 16,
+        message = "The username must not be empty and contain at most 16 characters"
+    ))]
     username: String,
-    #[validate(length(min = 4, max = 32, message = "Password must contain at least 4 and at most 32 characters"))]
+    #[validate(length(
+        min = 4,
+        max = 32,
+        message = "Password must contain at least 4 and at most 32 characters"
+    ))]
     password: String,
     #[validate(must_match(other = "password", message = "The passwords must match"))]
     password_repeat: String,

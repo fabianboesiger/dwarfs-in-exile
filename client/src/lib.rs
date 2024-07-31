@@ -6,9 +6,7 @@ use images::Image;
 use itertools::Itertools;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType,
-    LogMsg, Occupation, Player, QuestId, QuestType, RewardMode, Stats, Time, FREE_LOOT_CRATE,
-    LOOT_CRATE_COST, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS,
+    Bundle, ClientEvent, Craftable, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, QuestId, QuestType, RewardMode, Stats, Time, TutorialRequirement, TutorialReward, TutorialStep, FREE_LOOT_CRATE, LOOT_CRATE_COST, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS
 };
 use std::str::FromStr;
 use web_sys::js_sys::Date;
@@ -96,7 +94,7 @@ pub struct InventoryFilter {
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum InventorySort {
     Rarity,
-    Usefulness(Occupation)
+    Usefulness(Occupation),
 }
 
 impl Default for InventoryFilter {
@@ -123,7 +121,7 @@ pub struct DwarfsFilter {
 pub enum DwarfsSort {
     LeastHealth,
     WorstAssigned,
-    BestIn(Occupation)
+    BestIn(Occupation),
 }
 
 impl Default for DwarfsFilter {
@@ -158,6 +156,7 @@ pub struct Model {
     quests_filter: QuestsFilter,
     map_time: (Time, u64),
     game_id: GameId,
+    show_tutorial: bool,
 }
 
 impl Model {
@@ -209,6 +208,7 @@ fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
         quests_filter: QuestsFilter::default(),
         map_time: (0, 0),
         game_id,
+        show_tutorial: false,
     }
 }
 
@@ -236,6 +236,7 @@ pub enum Msg {
     QuestsFilterReset,
     QuestsFilterParticipating,
     GoToItem(Item),
+    ToggleTutorial,
 }
 
 impl EngineMsg<shared::State> for Msg {}
@@ -321,6 +322,9 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
         Msg::QuestsFilterParticipating => {
             model.quests_filter.participating = !model.quests_filter.participating;
         }
+        Msg::ToggleTutorial => {
+            model.show_tutorial = !model.show_tutorial;
+        }
         Msg::AssignToQuest(quest_id, dwarf_idx, dwarf_id) => {
             if dwarf_id.is_some() {
                 orders.notify(subs::UrlRequested::new(
@@ -365,6 +369,7 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
             div![id!["background"]],
             header![h1![a![attrs! { At::Href => "/" }, "Dwarfs in Exile"]]],
             nav(model),
+            tutorial(model, state, user_id),
             main![match model.page {
                 Page::Dwarfs(mode) => dwarfs(model, state, user_id, mode),
                 Page::Dwarf(dwarf_id) => dwarf(model, state, user_id, dwarf_id),
@@ -387,8 +392,94 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
     }
 }
 
+fn tutorial(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
+    if let Some(player) = state.players.get(user_id) {
+        log!("tutorial step", player.tutorial_step);
+        if let Some(step) = player.tutorial_step {
+            if model.show_tutorial {
+                div![
+                    id!["tutorial-panel"],
+                    C!["panel"],
+                    img![C!["panel-image"], attrs! { At::Src => "/logo.jpg" } ],
+                    div![C!["panel-content"],
+                        h3![format!("{}", step)],
+                        match step {
+                            TutorialStep::Welcome => div![
+                                p!["Hey, you, welcome to the forbidden lands! You just arrived here? Oh well, seems like I'm your new best friend now! No worries, I'll show you around!"]
+                            ],
+                            TutorialStep::Mining => div![
+                                p!["The first thing that we should do is go mining. With mining we get stones that we can use to upgrade the settlement."],
+                                p!["Go to the dwarf overview, click on a dwarf and send him mining."]
+                            ],
+                            TutorialStep::Logging => div![
+                                p!["Wood is very important for expanding your settlement."],
+                                p!["Go to the dwarf overview, click on a dwarf and send him logging."]
+                            ],
+                            TutorialStep::SettlementExpansion2 => div![],
+                            TutorialStep::Hunting => div![],
+                            TutorialStep::FoodPreparation => div![],
+                            TutorialStep::Idling => div![],
+                            TutorialStep::SettlementExpansion3 => div![],
+                            TutorialStep::Quests => div![],
+                            TutorialStep::SettlementExpansion5 => div![],
+                            TutorialStep::Presitge => div![]
+                        },
+                        h4!["Requirements"],
+                        match step.requires() {
+                            TutorialRequirement::Nothing => p!["No requirements."],
+                            TutorialRequirement::PrestigeLevel(prestige) => p![],
+                            TutorialRequirement::Items(items) => div![
+                                p!["The following items need to be in your inventory"],
+                                bundle(&items, player, true)
+                            ],
+                            TutorialRequirement::BaseLevel(level) => p![],
+                            TutorialRequirement::Food(food) => p![],
+                            TutorialRequirement::AnyDwarfOccupation(occupation) => p![],
+                            TutorialRequirement::NumberOfDwarfs(dwarfs) => p![],
+                        },
+                        h4!["Rewards"],
+                        match step.reward() {
+                            TutorialReward::Dwarfs(num) if num == 1 => p![format!("A new dwarf")],
+                            TutorialReward::Dwarfs(num) => p![format!("{num} dwarfs")],
+                            TutorialReward::Items(items) => bundle(&items, player, false),
+                            TutorialReward::Money(money) => p![format!("{money} coins")],
+                        },
+                        button![
+                            attrs! { At::Disabled => (!step.requires().complete(player)).as_at_value() },
+                            ev(Ev::Click, move |_| Msg::send_event(ClientEvent::NextTutorialStep)),
+                            "Complete Quest"
+                        ],
+                        button![
+                            ev(Ev::Click, move |_| Msg::ToggleTutorial),
+                            "Close"
+                        ],
+                    ]
+                    
+                ]
+            } else {
+                button![
+                    id!["tutorial-button"],
+                    C![ if step.requires().complete(player) { "complete" } else { "incomplete" } ],
+                    ev(Ev::Click, move |_| Msg::ToggleTutorial),
+                    img![ attrs! { At::Src => "/logo.jpg" } ],
+                ]
+            }
+        } else {
+            Node::Empty
+        }
+    } else {
+        Node::Empty
+    }
+}
+
 fn ranking(state: &shared::State, client_state: &ClientState<shared::State>) -> Node<Msg> {
-    let mut players: Vec<_> = state.players.iter().filter(|(user_id, player)| player.is_active(state.time) && client_state.get_user_data(user_id).is_some()).collect();
+    let mut players: Vec<_> = state
+        .players
+        .iter()
+        .filter(|(user_id, player)| {
+            player.is_active(state.time) && client_state.get_user_data(user_id).is_some()
+        })
+        .collect();
     players.sort_by_key(|(_, p)| (-(p.base.prestige as i64), -(p.dwarfs.len() as i64)));
 
     div![
@@ -544,15 +635,14 @@ fn score_bar(curr: u64, max: u64, rank: usize, max_rank: usize, markers: Vec<u64
         } else {
             Node::Empty
         },
-        markers.iter()
-            .map(|marker| {
-                div![
-                    C!["score-bar-marker"],
-                    attrs! {
-                        At::Style => format!("width: calc(100% / {max} * {marker});")
-                    }
-                ]
-            }),
+        markers.iter().map(|marker| {
+            div![
+                C!["score-bar-marker"],
+                attrs! {
+                    At::Style => format!("width: calc(100% / {max} * {marker});")
+                }
+            ]
+        }),
         div![
             C!["score-bar-overlay"],
             if curr == 0 {
@@ -600,12 +690,14 @@ fn dwarfs(
                 match sort {
                     DwarfsSort::LeastHealth => dwarf.health,
                     DwarfsSort::BestIn(occupation) => u64::MAX - dwarf.effectiveness(occupation),
-                    DwarfsSort::WorstAssigned => if let Some((quest_type, _, _)) = dwarf.participates_in_quest {
-                        dwarf.effectiveness(quest_type.occupation()) + 1
-                    } else if dwarf.occupation == Occupation::Idling {
-                        0
-                    } else {
-                        dwarf.effectiveness(dwarf.occupation) + 1
+                    DwarfsSort::WorstAssigned => {
+                        if let Some((quest_type, _, _)) = dwarf.participates_in_quest {
+                            dwarf.effectiveness(quest_type.occupation()) + 1
+                        } else if dwarf.occupation == Occupation::Idling {
+                            0
+                        } else {
+                            dwarf.effectiveness(dwarf.occupation) + 1
+                        }
                     }
                 }
             });
@@ -647,6 +739,14 @@ fn dwarfs(
                 table![
                     C!["dwarfs", "list"],
                     dwarfs.iter().filter(|(_, dwarf)| {
+                        if let DwarfsMode::Select(DwarfsSelect::Quest(quest_id, _)) = mode {
+                            if let Some((_, dwarf_quest_id, _)) = dwarf.participates_in_quest {
+                                if dwarf_quest_id == quest_id {
+                                    return false;
+                                }
+                            }
+                        }
+
                         if let Some(job) = model.dwarfs_filter.occupation {
                             dwarf.occupation == job
                         } else {
@@ -2365,27 +2465,62 @@ fn nav(model: &Model) -> Node<Msg> {
     nav![
         a![C!["button"], attrs! {At::Href => "/"}, "Home"],
         a![
-            C!["button", if let Page::Base = model.page { "active" } else { "" }],
+            C![
+                "button",
+                if let Page::Base = model.page {
+                    "active"
+                } else {
+                    ""
+                }
+            ],
             attrs! {At::Href => model.base_path()},
             "Settlement"
         ],
         a![
-            C!["button", if let Page::Dwarfs(DwarfsMode::Overview) = model.page { "active" } else { "" }],
+            C![
+                "button",
+                if let Page::Dwarfs(DwarfsMode::Overview) = model.page {
+                    "active"
+                } else {
+                    ""
+                }
+            ],
             attrs! {At::Href => format!("{}/dwarfs", model.base_path())},
             "Dwarfs",
         ],
         a![
-            C!["button", if let Page::Inventory(InventoryMode::Overview) = model.page { "active" } else { "" }],
+            C![
+                "button",
+                if let Page::Inventory(InventoryMode::Overview) = model.page {
+                    "active"
+                } else {
+                    ""
+                }
+            ],
             attrs! {At::Href => format!("{}/inventory", model.base_path())},
             "Inventory",
         ],
         a![
-            C!["button", if let Page::Quests = model.page { "active" } else { "" }],
+            C![
+                "button",
+                if let Page::Quests = model.page {
+                    "active"
+                } else {
+                    ""
+                }
+            ],
             attrs! {At::Href => format!("{}/quests", model.base_path())},
             "Quests",
         ],
         a![
-            C!["button", if let Page::Ranking = model.page { "active" } else { "" }],
+            C![
+                "button",
+                if let Page::Ranking = model.page {
+                    "active"
+                } else {
+                    ""
+                }
+            ],
             attrs! {At::Href => format!("{}/ranking", model.base_path())},
             "Ranking",
         ],
