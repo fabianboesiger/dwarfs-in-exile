@@ -67,31 +67,22 @@ pub enum TutorialRequirement {
     BaseLevel(u64),
     Food(Food),
     AnyDwarfOccupation(Occupation),
-    NumberOfDwarfs(usize)
+    NumberOfDwarfs(usize),
 }
 
 impl TutorialRequirement {
     pub fn complete(&self, player: &Player) -> bool {
         match self {
-            TutorialRequirement::Nothing => { true }
-            TutorialRequirement::PrestigeLevel(prestige) => {
-                player.base.prestige >= *prestige
-            }
-            TutorialRequirement::Items(bundle) => {
-                player
-                    .inventory
-                    .items
-                    .check_remove(bundle)
-            }
-            TutorialRequirement::BaseLevel(level) => {
-                player.base.curr_level >= *level
-            }
+            TutorialRequirement::Nothing => true,
+            TutorialRequirement::PrestigeLevel(prestige) => player.base.prestige >= *prestige,
+            TutorialRequirement::Items(bundle) => player.inventory.items.check_remove(bundle),
+            TutorialRequirement::BaseLevel(level) => player.base.curr_level >= *level,
             TutorialRequirement::Food(food) => player.base.food >= *food,
             TutorialRequirement::AnyDwarfOccupation(occupation) => player
                 .dwarfs
                 .values()
                 .any(|dwarf| dwarf.actual_occupation() == *occupation),
-                TutorialRequirement::NumberOfDwarfs(dwarfs) => player.dwarfs.len() >= *dwarfs,
+            TutorialRequirement::NumberOfDwarfs(dwarfs) => player.dwarfs.len() >= *dwarfs,
         }
     }
 }
@@ -155,13 +146,15 @@ impl TutorialStep {
             TutorialStep::Mining => TutorialRequirement::Items(Bundle::new().add(Item::Stone, 10)),
             TutorialStep::Logging => TutorialRequirement::Items(Bundle::new().add(Item::Wood, 10)),
             TutorialStep::SettlementExpansion2 => TutorialRequirement::BaseLevel(2),
-            TutorialStep::Hunting => TutorialRequirement::Items(Bundle::new().add(Item::RawMeat, 10)),
+            TutorialStep::Hunting => {
+                TutorialRequirement::Items(Bundle::new().add(Item::RawMeat, 10))
+            }
             TutorialStep::FoodPreparation => TutorialRequirement::Food(1),
             TutorialStep::Idling => TutorialRequirement::AnyDwarfOccupation(Occupation::Idling),
             TutorialStep::SettlementExpansion3 => TutorialRequirement::BaseLevel(3),
             TutorialStep::Quests => TutorialRequirement::NumberOfDwarfs(3),
             TutorialStep::SettlementExpansion5 => TutorialRequirement::BaseLevel(5),
-            TutorialStep::Presitge => TutorialRequirement::PrestigeLevel(2)
+            TutorialStep::Presitge => TutorialRequirement::PrestigeLevel(2),
         }
     }
 
@@ -427,8 +420,7 @@ impl engine_shared::State for State {
                         }
                         ClientEvent::Restart => {
                             if player.dwarfs.len() == 0 {
-                                let player =
-                                    Player::new(self.time, rng, &mut self.next_dwarf_id);
+                                let player = Player::new(self.time, rng, &mut self.next_dwarf_id);
                                 self.players.insert(user_id, player);
                             }
                         }
@@ -1299,13 +1291,12 @@ impl Player {
                             if qty > 0 {
                                 if self.inventory.items.remove_checked(requires.mul(qty)) {
                                     self.inventory.add(Bundle::new().add(item, qty), time);
-    
+
                                     items_added = true;
                                 }
                             }
                         }
                     }
-
                 }
             }
 
@@ -1711,21 +1702,16 @@ impl Base {
             let multiplier = |unlocked_at_prestige: u64| {
                 let prev_prestige = unlocked_at_prestige - 1;
                 let starting_level = (prev_prestige * 10).saturating_sub(1);
-                self.curr_level.saturating_sub(starting_level) * self.prestige.saturating_sub(prev_prestige)
+                self.curr_level.saturating_sub(starting_level)
+                    * self.prestige.saturating_sub(prev_prestige)
             };
 
             Some(
                 Bundle::new()
                     .add(Item::Wood, 50 * multiplier(1))
                     .add(Item::Stone, 50 * multiplier(1))
-                    .add(
-                        Item::Nail,
-                        10 * multiplier(3),
-                    )
-                    .add(
-                        Item::Fabric,
-                        10 * multiplier(5),
-                    ),
+                    .add(Item::Nail, 10 * multiplier(3))
+                    .add(Item::Fabric, 10 * multiplier(5)),
             )
         } else {
             None

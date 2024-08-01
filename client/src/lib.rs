@@ -6,7 +6,10 @@ use images::Image;
 use itertools::Itertools;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, QuestId, QuestType, RewardMode, Stats, Time, TutorialRequirement, TutorialReward, TutorialStep, VillageType, FREE_LOOT_CRATE, LOOT_CRATE_COST, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS
+    Bundle, ClientEvent, Craftable, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType,
+    LogMsg, Occupation, Player, QuestId, QuestType, RewardMode, Stats, Time, TutorialRequirement,
+    TutorialReward, TutorialStep, VillageType, FREE_LOOT_CRATE, LOOT_CRATE_COST, MAX_HEALTH, SPEED,
+    WINNER_NUM_PREMIUM_DAYS,
 };
 use std::str::FromStr;
 use web_sys::js_sys::Date;
@@ -494,9 +497,13 @@ fn tutorial(model: &Model, state: &shared::State, user_id: &shared::UserId) -> N
             } else {
                 button![
                     id!["tutorial-button"],
-                    C![ if step.requires().complete(player) { "complete" } else { "incomplete" } ],
+                    C![if step.requires().complete(player) {
+                        "complete"
+                    } else {
+                        "incomplete"
+                    }],
                     ev(Ev::Click, move |_| Msg::ToggleTutorial),
-                    img![ attrs! { At::Src => "/logo.jpg" } ],
+                    img![attrs! { At::Src => "/logo.jpg" }],
                 ]
             }
         } else {
@@ -1527,16 +1534,14 @@ impl Unlock {
 
 fn base(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
-
-        let mut unlocks = (1..100).map(Unlock::MaxPopulation)
+        let mut unlocks = (1..100)
+            .map(Unlock::MaxPopulation)
             .chain(enum_iterator::all::<Occupation>().map(Unlock::Occupation))
             .chain(enum_iterator::all::<Item>().map(Unlock::Item))
             .collect::<Vec<_>>();
 
         unlocks.sort_by_key(|item| item.unlocked_at_level());
         unlocks.retain(|item| item.unlocked_at_level() > player.base.curr_level);
-        
-
 
         div![C!["content"],
             h2!["Your Settlement"],

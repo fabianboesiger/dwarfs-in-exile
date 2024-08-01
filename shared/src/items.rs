@@ -152,10 +152,13 @@ impl Craftable for Item {
 
             Item::Poison => Some((10, Bundle::new().add(Item::PufferFish, 1))),
             Item::PoisonedBow => Some((11, Bundle::new().add(Item::Bow, 1).add(Item::Poison, 1))),
-            Item::PoisonedSpear => Some((12, Bundle::new().add(Item::Spear, 1).add(Item::Poison, 1))),
-            
+            Item::PoisonedSpear => {
+                Some((12, Bundle::new().add(Item::Spear, 1).add(Item::Poison, 1)))
+            }
+
             Item::String => Some((6, Bundle::new().add(Item::Hemp, 3))),
-            Item::FishingRod => Some((7,
+            Item::FishingRod => Some((
+                7,
                 Bundle::new()
                     .add(Item::Wood, 3)
                     .add(Item::String, 3)
@@ -165,8 +168,11 @@ impl Craftable for Item {
             Item::Fabric => Some((8, Bundle::new().add(Item::String, 3))),
             Item::Backpack => Some((9, Bundle::new().add(Item::String, 2).add(Item::Leather, 5))),
             Item::Bag => Some((10, Bundle::new().add(Item::String, 1).add(Item::Fabric, 2))),
-            Item::LeatherArmor => Some((10, Bundle::new().add(Item::Leather, 8).add(Item::String, 3))),
-            Item::Helmet => Some((7,
+            Item::LeatherArmor => {
+                Some((10, Bundle::new().add(Item::Leather, 8).add(Item::String, 3)))
+            }
+            Item::Helmet => Some((
+                7,
                 Bundle::new()
                     .add(Item::Iron, 3)
                     .add(Item::Leather, 1)
@@ -176,24 +182,31 @@ impl Craftable for Item {
             Item::Headlamp => Some((13, Bundle::new().add(Item::Helmet, 1).add(Item::Lantern, 1))),
             Item::Map => Some((13, Bundle::new().add(Item::Fabric, 5))),
             Item::FishingHat => Some((11, Bundle::new().add(Item::Fabric, 5))),
-            Item::FishingNet => Some((25, Bundle::new().add(Item::String, 20).add(Item::Iron, 2))),              
+            Item::FishingNet => Some((25, Bundle::new().add(Item::String, 20).add(Item::Iron, 2))),
             Item::Boots => Some((9, Bundle::new().add(Item::Leather, 5).add(Item::String, 2))),
-            Item::BearClawBoots => Some((15, Bundle::new().add(Item::BearClaw, 1).add(Item::Boots, 1))),
+            Item::BearClawBoots => {
+                Some((15, Bundle::new().add(Item::BearClaw, 1).add(Item::Boots, 1)))
+            }
             Item::Gloves => Some((10, Bundle::new().add(Item::Leather, 5).add(Item::String, 2))),
-            Item::BearClawGloves => Some((16, Bundle::new().add(Item::BearClaw, 1).add(Item::Gloves, 1))),
+            Item::BearClawGloves => Some((
+                16,
+                Bundle::new().add(Item::BearClaw, 1).add(Item::Gloves, 1),
+            )),
             Item::Overall => Some((17, Bundle::new().add(Item::Fabric, 5).add(Item::String, 5))),
 
             Item::BakedPotato => Some((18, Bundle::new().add(Item::Potato, 1).add(Item::Coal, 1))),
             Item::Flour => Some((21, Bundle::new().add(Item::Wheat, 3))),
             Item::Bread => Some((22, Bundle::new().add(Item::Flour, 3))),
-            Item::BlueberryCake => Some((23,
+            Item::BlueberryCake => Some((
+                23,
                 Bundle::new()
                     .add(Item::Blueberry, 5)
                     .add(Item::Flour, 3)
                     .add(Item::Egg, 2)
                     .add(Item::Milk, 1),
             )),
-            Item::ApplePie => Some((23,
+            Item::ApplePie => Some((
+                23,
                 Bundle::new()
                     .add(Item::Apple, 5)
                     .add(Item::Flour, 3)
@@ -202,44 +215,50 @@ impl Craftable for Item {
             )),
 
             Item::Soup => Some((24, Bundle::new().add(Item::Potato, 3).add(Item::Carrot, 3))),
-            
-            Item::Crossbow => Some((21,
+
+            Item::Crossbow => Some((
+                21,
                 Bundle::new()
                     .add(Item::Wood, 5)
                     .add(Item::Iron, 10)
                     .add(Item::Nail, 3),
             )),
-            
+
             Item::BlackPowder => Some((28, Bundle::new().add(Item::Coal, 2).add(Item::Sulfur, 1))),
-            Item::Musket => Some((29,
+            Item::Musket => Some((
+                29,
                 Bundle::new()
                     .add(Item::Wood, 10)
                     .add(Item::Iron, 20)
                     .add(Item::BlackPowder, 5),
             )),
-            Item::Dynamite => Some((30,
+            Item::Dynamite => Some((
+                30,
                 Bundle::new()
                     .add(Item::BlackPowder, 10)
                     .add(Item::Fabric, 1),
             )),
-            Item::DynamiteCrossbow => {
-                Some((32, Bundle::new().add(Item::Dynamite, 1).add(Item::Crossbow, 1)))
-            }
+            Item::DynamiteCrossbow => Some((
+                32,
+                Bundle::new().add(Item::Dynamite, 1).add(Item::Crossbow, 1),
+            )),
 
-             
-            Item::Wheel => Some((36,
+            Item::Wheel => Some((
+                36,
                 Bundle::new()
                     .add(Item::Iron, 3)
                     .add(Item::Wood, 5)
                     .add(Item::Nail, 5),
             )),
-            Item::Wheelbarrow => Some((38,
+            Item::Wheelbarrow => Some((
+                38,
                 Bundle::new()
                     .add(Item::Wheel, 1)
                     .add(Item::Iron, 2)
                     .add(Item::Nail, 5),
             )),
-            Item::Plough => Some((40,
+            Item::Plough => Some((
+                40,
                 Bundle::new()
                     .add(Item::Wheel, 2)
                     .add(Item::Iron, 10)
@@ -249,28 +268,34 @@ impl Craftable for Item {
 
             Item::Gold => Some((26, Bundle::new().add(Item::GoldOre, 1).add(Item::Coal, 1))),
             Item::GoldenRing => Some((28, Bundle::new().add(Item::Gold, 3))),
-            Item::RingOfIntelligence => Some((50,
+            Item::RingOfIntelligence => Some((
+                50,
                 Bundle::new()
                     .add(Item::GoldenRing, 1)
                     .add(Item::Fluorite, 1),
             )),
-            Item::RingOfStrength => {
-                Some((52, Bundle::new().add(Item::GoldenRing, 1).add(Item::Agate, 1)))
-            }
-            Item::RingOfPerception => Some((54,
+            Item::RingOfStrength => Some((
+                52,
+                Bundle::new().add(Item::GoldenRing, 1).add(Item::Agate, 1),
+            )),
+            Item::RingOfPerception => Some((
+                54,
                 Bundle::new()
                     .add(Item::GoldenRing, 1)
                     .add(Item::Sodalite, 1),
             )),
-            Item::RingOfEndurance => {
-                Some((56, Bundle::new().add(Item::GoldenRing, 1).add(Item::Ruby, 1)))
-            }
-            Item::RingOfAgility => Some((58,
+            Item::RingOfEndurance => Some((
+                56,
+                Bundle::new().add(Item::GoldenRing, 1).add(Item::Ruby, 1),
+            )),
+            Item::RingOfAgility => Some((
+                58,
                 Bundle::new()
                     .add(Item::GoldenRing, 1)
                     .add(Item::Selenite, 1),
             )),
-            Item::CrystalNecklace => Some((60,
+            Item::CrystalNecklace => Some((
+                60,
                 Bundle::new()
                     .add(Item::String, 1)
                     .add(Item::Fluorite, 1)
@@ -280,18 +305,30 @@ impl Craftable for Item {
                     .add(Item::Selenite, 1),
             )),
 
-            
             Item::DiamondAxe => Some((62, Bundle::new().add(Item::Axe, 1).add(Item::Diamond, 3))),
-            Item::DiamondPickaxe => Some((64, Bundle::new().add(Item::Pickaxe, 1).add(Item::Diamond, 3))),
-            Item::DiamondSword => Some((66, Bundle::new().add(Item::Sword, 1).add(Item::Diamond, 3))),
-            
-            Item::TigerFangDagger => Some((40, Bundle::new().add(Item::TigerFang, 1).add(Item::Dagger, 1))),
-            Item::RhinoHornHelmet => {
-                Some((42, Bundle::new().add(Item::RhinoHorn, 1).add(Item::Helmet, 1)))
+            Item::DiamondPickaxe => Some((
+                64,
+                Bundle::new().add(Item::Pickaxe, 1).add(Item::Diamond, 3),
+            )),
+            Item::DiamondSword => {
+                Some((66, Bundle::new().add(Item::Sword, 1).add(Item::Diamond, 3)))
             }
+
+            Item::TigerFangDagger => Some((
+                40,
+                Bundle::new().add(Item::TigerFang, 1).add(Item::Dagger, 1),
+            )),
+            Item::RhinoHornHelmet => Some((
+                42,
+                Bundle::new().add(Item::RhinoHorn, 1).add(Item::Helmet, 1),
+            )),
             Item::Longsword => Some((44, Bundle::new().add(Item::Wood, 1).add(Item::Iron, 10))),
-            Item::Dragon => Some((48, Bundle::new().add(Item::DragonsEgg, 1).add(Item::Coal, 100))),
-            Item::RhinoHornPants => Some((70,
+            Item::Dragon => Some((
+                48,
+                Bundle::new().add(Item::DragonsEgg, 1).add(Item::Coal, 100),
+            )),
+            Item::RhinoHornPants => Some((
+                70,
                 Bundle::new()
                     .add(Item::RhinoHorn, 1)
                     .add(Item::LeatherArmor, 1),
@@ -822,7 +859,8 @@ impl Item {
 
         if let Some(requires) = self.requires() {
             update_rarity(
-                requires.1
+                requires
+                    .1
                     .iter()
                     .map(|(item, n)| item.item_rarity_num() * *n)
                     .sum(),
@@ -840,7 +878,12 @@ impl Item {
         };
 
         if let Some(requires) = self.requires() {
-            if let Some(max_depth) = requires.1.iter().map(|(item, _)| item.crafting_depth()).max() {
+            if let Some(max_depth) = requires
+                .1
+                .iter()
+                .map(|(item, _)| item.crafting_depth())
+                .max()
+            {
                 update_depth(max_depth + 1)
             }
         }

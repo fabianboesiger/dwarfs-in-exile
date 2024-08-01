@@ -41,6 +41,16 @@ async fn set_static_cache_control(request: Request, next: Next) -> Response<Body
             HeaderValue::from_static("public, max-age=2592000"),
         );
         response
+    } else if request.uri().to_string().ends_with(".wasm")
+        || request.uri().to_string().ends_with(".js")
+        || request.uri().to_string().ends_with(".css")
+    {
+        let mut response = next.run(request).await;
+        response.headers_mut().insert(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("public, max-age=0"),
+        );
+        response
     } else {
         next.run(request).await
     }
