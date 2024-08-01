@@ -6,7 +6,7 @@ use images::Image;
 use itertools::Itertools;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, QuestId, QuestType, RewardMode, Stats, Time, TutorialRequirement, TutorialReward, TutorialStep, FREE_LOOT_CRATE, LOOT_CRATE_COST, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS
+    Bundle, ClientEvent, Craftable, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, QuestId, QuestType, RewardMode, Stats, Time, TutorialRequirement, TutorialReward, TutorialStep, VillageType, FREE_LOOT_CRATE, LOOT_CRATE_COST, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS
 };
 use std::str::FromStr;
 use web_sys::js_sys::Date;
@@ -394,67 +394,102 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
 
 fn tutorial(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
-        log!("tutorial step", player.tutorial_step);
         if let Some(step) = player.tutorial_step {
             if model.show_tutorial {
                 div![
-                    id!["tutorial-panel"],
-                    C!["panel"],
-                    img![C!["panel-image"], attrs! { At::Src => "/logo.jpg" } ],
-                    div![C!["panel-content"],
-                        h3![format!("{}", step)],
-                        match step {
-                            TutorialStep::Welcome => div![
-                                p!["Hey, you, welcome to the forbidden lands! You just arrived here? Oh well, seems like I'm your new best friend now! No worries, I'll show you around!"]
+                    C!["panel-wrapper"],
+                    div![
+                        id!["tutorial-panel"],
+                        C!["panel"],
+                        img![C!["panel-image"], attrs! { At::Src => "/logo.jpg" } ],
+                        div![C!["panel-content"],
+                            h3![format!("{}", step)],
+                            match step {
+                                TutorialStep::Welcome => div![
+                                    p!["Hey, you, welcome to the forbidden lands! You just arrived here? Oh well, seems like I'm your new best friend now! No worries, I'll show you around!"]
+                                ],
+                                TutorialStep::Mining => div![
+                                    p!["The first thing that we should do is go mining. With mining we get stones that we can use to upgrade the settlement."],
+                                    p!["Go to the dwarf overview, click on a dwarf and send him mining."]
+                                ],
+                                TutorialStep::Logging => div![
+                                    p!["Wood is very important for expanding your settlement."],
+                                    p!["Go to the dwarf overview, click on a dwarf and send him logging."]
+                                ],
+                                TutorialStep::SettlementExpansion2 => div![
+                                    p!["To expand your settlement, you need to have enough resources. You can see the requirements in the settlement overview."],
+                                    p!["Go to the settlement overview and upgrade your settlement."]
+                                ],
+                                TutorialStep::Hunting => div![
+                                    p!["Hunting is a great way to get food. Food is important to keep your dwarfs healthy."],
+                                    p!["Go to the dwarf overview, click on a dwarf and send him hunting."]
+                                ],
+                                TutorialStep::FoodPreparation => div![
+                                    p!["Food is important to keep your dwarfs alive."],
+                                    p!["In the inventory, craft cooked meat and store it as food in your settlement."],
+                                ],
+                                TutorialStep::Idling => div![
+                                    p!["Your dwarfs need to rest from time to time. If they are idling and there is enough food, they will recover their health."],
+                                    p!["If a dwarfs health reaches zero, he will die."]
+                                ],
+                                TutorialStep::SettlementExpansion3 => div![
+                                    p!["Further expand your settlement to make space for mor more dwarfs."],
+                                ],
+                                TutorialStep::Quests => div![
+                                    p!["Quests are a great way to earn money, or get new dwarfs and items."],
+                                    p!["Go to the quest overview and do quests until you get a new dwarf."]
+                                ],
+                                TutorialStep::SettlementExpansion5 => div![
+                                    p!["Further expand your settlement to make space for more dwarfs."],
+                                ],
+                                TutorialStep::Presitge => div![
+                                    p!["Your current settlement can't expand any further. You need to start a new settlement to upgrade it even further."],
+                                    p!["Be aware that during this process, you will lose all your items as well as your food."]
+                                ]
+                            },
+                            h4!["Requirements"],
+                            match step.requires() {
+                                TutorialRequirement::Nothing => p!["No requirements."],
+                                TutorialRequirement::PrestigeLevel(prestige) => p![
+                                    format!("Expand your settlement to a {}.", enum_iterator::all::<VillageType>().skip(prestige as usize).next().unwrap())
+                                ],
+                                TutorialRequirement::Items(items) => div![
+                                    p!["The following items need to be in your inventory:"],
+                                    bundle(&items, player, true)
+                                ],
+                                TutorialRequirement::BaseLevel(level) => p![
+                                    format!("Expand your settlement until it reaches level {} (your current level is {}).", level, player.base.curr_level)
+
+                                ],
+                                TutorialRequirement::Food(food) => p![
+                                    format!("Store food until you have {} food in your settlement (you have {} food).", food, player.base.food)
+                                ],
+                                TutorialRequirement::AnyDwarfOccupation(occupation) => p![
+                                    format!("Send any dwarf {}.", occupation)
+                                ],
+                                TutorialRequirement::NumberOfDwarfs(dwarfs) => p![
+                                    format!("Expand your settlement until it reaches a population of {} (your current population is {}).", dwarfs, player.dwarfs.len())
+                                ],
+                            },
+                            h4!["Rewards"],
+                            match step.reward() {
+                                TutorialReward::Dwarfs(num) if num == 1 => p![format!("A new dwarf")],
+                                TutorialReward::Dwarfs(num) => p![format!("{num} dwarfs")],
+                                TutorialReward::Items(items) => bundle(&items, player, false),
+                                TutorialReward::Money(money) => p![format!("{money} coins")],
+                            },
+                            button![
+                                attrs! { At::Disabled => (!step.requires().complete(player)).as_at_value() },
+                                ev(Ev::Click, move |_| Msg::send_event(ClientEvent::NextTutorialStep)),
+                                "Complete Quest"
                             ],
-                            TutorialStep::Mining => div![
-                                p!["The first thing that we should do is go mining. With mining we get stones that we can use to upgrade the settlement."],
-                                p!["Go to the dwarf overview, click on a dwarf and send him mining."]
+                            button![
+                                ev(Ev::Click, move |_| Msg::ToggleTutorial),
+                                "Close"
                             ],
-                            TutorialStep::Logging => div![
-                                p!["Wood is very important for expanding your settlement."],
-                                p!["Go to the dwarf overview, click on a dwarf and send him logging."]
-                            ],
-                            TutorialStep::SettlementExpansion2 => div![],
-                            TutorialStep::Hunting => div![],
-                            TutorialStep::FoodPreparation => div![],
-                            TutorialStep::Idling => div![],
-                            TutorialStep::SettlementExpansion3 => div![],
-                            TutorialStep::Quests => div![],
-                            TutorialStep::SettlementExpansion5 => div![],
-                            TutorialStep::Presitge => div![]
-                        },
-                        h4!["Requirements"],
-                        match step.requires() {
-                            TutorialRequirement::Nothing => p!["No requirements."],
-                            TutorialRequirement::PrestigeLevel(prestige) => p![],
-                            TutorialRequirement::Items(items) => div![
-                                p!["The following items need to be in your inventory"],
-                                bundle(&items, player, true)
-                            ],
-                            TutorialRequirement::BaseLevel(level) => p![],
-                            TutorialRequirement::Food(food) => p![],
-                            TutorialRequirement::AnyDwarfOccupation(occupation) => p![],
-                            TutorialRequirement::NumberOfDwarfs(dwarfs) => p![],
-                        },
-                        h4!["Rewards"],
-                        match step.reward() {
-                            TutorialReward::Dwarfs(num) if num == 1 => p![format!("A new dwarf")],
-                            TutorialReward::Dwarfs(num) => p![format!("{num} dwarfs")],
-                            TutorialReward::Items(items) => bundle(&items, player, false),
-                            TutorialReward::Money(money) => p![format!("{money} coins")],
-                        },
-                        button![
-                            attrs! { At::Disabled => (!step.requires().complete(player)).as_at_value() },
-                            ev(Ev::Click, move |_| Msg::send_event(ClientEvent::NextTutorialStep)),
-                            "Complete Quest"
-                        ],
-                        button![
-                            ev(Ev::Click, move |_| Msg::ToggleTutorial),
-                            "Close"
-                        ],
+                        ]
+                        
                     ]
-                    
                 ]
             } else {
                 button![
@@ -480,12 +515,12 @@ fn ranking(state: &shared::State, client_state: &ClientState<shared::State>) -> 
             player.is_active(state.time) && client_state.get_user_data(user_id).is_some()
         })
         .collect();
-    players.sort_by_key(|(_, p)| (-(p.base.prestige as i64), -(p.dwarfs.len() as i64)));
+    players.sort_by_key(|(_, p)| -(p.base.curr_level as i64));
 
     div![
         C!["content"],
         h2!["Ranking"],
-        p![format!("To win this game, you need to meet two conditions. First, expand your settlement until it becomes a Megalopolis. Second, become the king of this world. If both conditions are met, the game will be over and you will be the winner. As a reward, you get gifted a free premium account for {} days.", WINNER_NUM_PREMIUM_DAYS)],
+        p![format!("To win this game, you need to meet two conditions. First, expand your settlement until you reach level 100. Second, become the king of this world. If both conditions are met, the game will be over and you will be the winner. As a reward, you get gifted a free premium account for {} days.", WINNER_NUM_PREMIUM_DAYS)],
         if let Some(king) = state.king {
             p![format!("All hail our King {}!", client_state.get_user_data(&king).map(|data| data.username.clone()).unwrap_or_default()), tip("The king gets one tenth of all money that was earned. Make sure you become the king as soon as the quest becomes available.")]
         } else {
@@ -495,8 +530,7 @@ fn ranking(state: &shared::State, client_state: &ClientState<shared::State>) -> 
             tr![
                 th!["Rank"],
                 th!["Username"],
-                th!["Settlement"],
-                th!["Population"]
+                th!["Level"],
             ],
             players.iter().enumerate().map(|(i, (user_id, player))| {
                 let rank = i + 1;
@@ -522,8 +556,7 @@ fn ranking(state: &shared::State, client_state: &ClientState<shared::State>) -> 
                             "●"
                         ]
                     ],
-                    td![format!("{}", player.base.village_type())],
-                    td![player.dwarfs.len()]
+                    td![player.base.curr_level]
                 ]
             })
         ]
@@ -1476,17 +1509,44 @@ fn enumerate(num: usize) -> String {
     }
 }
 
+enum Unlock {
+    Item(Item),
+    Occupation(Occupation),
+    MaxPopulation(u64),
+}
+
+impl Unlock {
+    fn unlocked_at_level(&self) -> u64 {
+        match self {
+            Unlock::Item(item) => item.unlocked_at_level(),
+            Unlock::Occupation(occupation) => occupation.unlocked_at_level(),
+            Unlock::MaxPopulation(level) => *level,
+        }
+    }
+}
+
 fn base(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
+
+        let mut unlocks = (1..100).map(Unlock::MaxPopulation)
+            .chain(enum_iterator::all::<Occupation>().map(Unlock::Occupation))
+            .chain(enum_iterator::all::<Item>().map(Unlock::Item))
+            .collect::<Vec<_>>();
+
+        unlocks.sort_by_key(|item| item.unlocked_at_level());
+        unlocks.retain(|item| item.unlocked_at_level() > player.base.curr_level);
+        
+
+
         div![C!["content"],
             h2!["Your Settlement"],
             table![
+                tr![th!["Level"], td![format!("{}", player.base.curr_level)]],
                 tr![th![
                     "Settlement Type",
                     tip("There are ten different types of settlements that get gradually better: Outpost, Dwelling, Hamlet, Village, Small Town, Large Town, Small City, Large City, Metropolis, Megalopolis. To move on to a better settlement type, you need to complete a special quest. Better settlements attract more and better dwarfs.")],
                     td![format!("{}", player.base.village_type())]
                 ],
-                //tr![th!["Settlement Level"], td![format!("{} / {}", player.base.curr_level, player.base.max_level())]],
                 tr![th!["Population", tip("Upgrade your settlement to increase the maximum population. You can get new dwarfs from certain quests or at random.")], td![format!("{}/{}", player.dwarfs.len(), player.base.max_dwarfs())]],
                 tr![th!["Money", tip("Earn money by doing quests. With money, you can buy loot crates.")], td![format!("{} coins", player.money)]],
                 tr![th!["Food", tip("Your settlement can store food for your dwarfs to consume. One quantity of food restores 0.1% of a dwarfs health. Let your dwarfs idle so that they have time to consume food and restore their health or enable auto-idling for all dwarfs.")], td![format!("{} food", player.base.food)]],
@@ -1497,11 +1557,25 @@ fn base(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node
                 if let Some(requires) = player.base.upgrade_cost() {
                     div![
                         p!["Upgrade your settlement to increase the maximum population and unlock new occupations for your dwarfs. New dwarfs can be collected by doing quests, or they can simply wander into to your settlement from time to time. Dwarfs can also be hired by using coins."],
-                        if let Some(unlocked_occupation) = enum_iterator::all::<Occupation>().filter(|occupation| occupation.unlocked_at_level() == player.base.curr_level + 1).next() {
-                            p![format!("The next upgrade increases your maximal population by one and unlocks the occupation {}.", unlocked_occupation)]
-                        } else {
-                            p!["The next upgrade increases your maximal population by one."]
-                        },
+                        h4!["Next Unlocks"],
+                        div![
+                            C!["next-unlocks"],
+                            unlocks.iter().map(|unlock| {
+                                div![C!["next-unlock", if unlock.unlocked_at_level() == player.base.curr_level + 1 { "next" } else { "future" }],
+                                    img![attrs! {At::Src => match unlock {
+                                        Unlock::Item(item) => Image::from(*item).as_at_value(),
+                                        Unlock::Occupation(occupation) => Image::from(*occupation).as_at_value(),
+                                        Unlock::MaxPopulation(level) => Image::dwarf_from_name(&format!("{}", level)).as_at_value(),
+                                    }}],
+                                    p![strong![match unlock {
+                                        Unlock::Item(item) => format!("{}", item),
+                                        Unlock::Occupation(occupation) => format!("{}", occupation),
+                                        Unlock::MaxPopulation(_) => format!("+1 Maximum Population"),
+                                    }], br![], format!("Unlocked at level {}", unlock.unlocked_at_level())]
+                                ]
+                            }),
+                        ],
+                        h4!["Requires"],
                         bundle(&requires, player, true),
                         button![
                             if player.inventory.items.check_remove(&requires) {
@@ -1528,6 +1602,7 @@ fn base(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node
                         ]
                     ]
                 },
+                
             ],
             div![
                 h3!["Open Loot Crate"],
@@ -1694,8 +1769,8 @@ fn inventory(
                             } else {
                                 false
                             }) || (if model.inventory_filter.craftable {
-                                if let Some(requires) = item.requires() {
-                                    player.inventory.items.check_remove(&requires)
+                                if let Some((level, requires)) = item.requires() {
+                                    player.inventory.items.check_remove(&requires) && player.base.curr_level >= level
                                 } else {
                                     false
                                 }
@@ -1830,70 +1905,75 @@ fn inventory(
                         } else {
                             td![
                                 C!["list-item-content", "shrink"],
-                                if let Some(requires) = item.requires() {
+                                if let Some((level, requires)) = item.requires() {
                                     vec![
                                         h4!["Crafting"],
                                         bundle(&requires, player, true),
-                                        if player.auto_functions.auto_craft.contains(&item) && is_premium {
-                                            button![
-                                                ev(Ev::Click, move |_| Msg::send_event(
-                                                    ClientEvent::ToggleAutoCraft(item)
-                                                )),
-                                                "Disable Auto",
-                                            ]
-                                        } else {
-                                            div![C!["button-row"],
+                                        if player.base.curr_level >= level {
+                                            if player.auto_functions.auto_craft.contains(&item) && is_premium {
                                                 button![
-                                                    if player.inventory.items.check_remove(&requires) {
-                                                        attrs! {}
-                                                    } else {
-                                                        attrs! {At::Disabled => "true"}
-                                                    },
-                                                    ev(Ev::Click, move |_| Msg::send_event(
-                                                        ClientEvent::Craft(item, 1)
-                                                    )),
-                                                    "1x",
-                                                ],
-                                                button![
-                                                    if player.inventory.items.check_remove(&requires.clone().mul(10)) {
-                                                        attrs! {}
-                                                    } else {
-                                                        attrs! {At::Disabled => "true"}
-                                                    },
-                                                    ev(Ev::Click, move |_| Msg::send_event(
-                                                        ClientEvent::Craft(item, 10)
-                                                    )),
-                                                    "10x",
-                                                ],
-                                                button![
-                                                    if player.inventory.items.check_remove(&requires.clone().mul(100)) {
-                                                        attrs! {}
-                                                    } else {
-                                                        attrs! {At::Disabled => "true"}
-                                                    },
-                                                    ev(Ev::Click, move |_| Msg::send_event(
-                                                        ClientEvent::Craft(item, 100)
-                                                    )),
-                                                    "100x",
-                                                ],
-                                                button![
-                                                    if is_premium {
-                                                        attrs! {}
-                                                    } else {
-                                                        attrs! {At::Disabled => "true"}
-                                                    },
                                                     ev(Ev::Click, move |_| Msg::send_event(
                                                         ClientEvent::ToggleAutoCraft(item)
                                                     )),
-                                                    "Auto",
-                                                    if !is_premium {
-                                                        tip("This functionality requires a premium account.")
-                                                    } else {
-                                                        Node::Empty
-                                                    }
+                                                    "Disable Auto",
                                                 ]
-                                            ]
+                                            } else {
+                                                div![C!["button-row"],
+                                                    button![
+                                                        if player.inventory.items.check_remove(&requires) {
+                                                            attrs! {}
+                                                        } else {
+                                                            attrs! {At::Disabled => "true"}
+                                                        },
+                                                        ev(Ev::Click, move |_| Msg::send_event(
+                                                            ClientEvent::Craft(item, 1)
+                                                        )),
+                                                        "1x",
+                                                    ],
+                                                    button![
+                                                        if player.inventory.items.check_remove(&requires.clone().mul(10)) {
+                                                            attrs! {}
+                                                        } else {
+                                                            attrs! {At::Disabled => "true"}
+                                                        },
+                                                        ev(Ev::Click, move |_| Msg::send_event(
+                                                            ClientEvent::Craft(item, 10)
+                                                        )),
+                                                        "10x",
+                                                    ],
+                                                    button![
+                                                        if player.inventory.items.check_remove(&requires.clone().mul(100)) {
+                                                            attrs! {}
+                                                        } else {
+                                                            attrs! {At::Disabled => "true"}
+                                                        },
+                                                        ev(Ev::Click, move |_| Msg::send_event(
+                                                            ClientEvent::Craft(item, 100)
+                                                        )),
+                                                        "100x",
+                                                    ],
+                                                    button![
+                                                        if is_premium {
+                                                            attrs! {}
+                                                        } else {
+                                                            attrs! {At::Disabled => "true"}
+                                                        },
+                                                        ev(Ev::Click, move |_| Msg::send_event(
+                                                            ClientEvent::ToggleAutoCraft(item)
+                                                        )),
+                                                        "Auto",
+                                                        if !is_premium {
+                                                            tip("This functionality requires a premium account.")
+                                                        } else {
+                                                            Node::Empty
+                                                        }
+                                                    ]
+                                                ]
+                                            }
+                                        } else {
+                                            p!["Unlocked at level ", level]
                                         }
+                                        
 
                                     ]
                                 } else {

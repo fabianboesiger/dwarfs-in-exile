@@ -47,7 +47,47 @@
                 <div class="image-aside">
                     <img src="/offline.jpg">
                     <div>
-                        <p>The game server is currently not reachable. Please come back in a few minutes. Thank you for your understanding!</p>
+                        <p>The game server is currently not reachable due to an update. Please come back in a minute. Thank you for your understanding!</p>
+                        <progress value="0" max="1"></progress>
+                        <script>
+                            function setCookie(name, value, expiresSeconds) {
+                                const d = new Date();
+                                d.setTime(d.getTime() + (expiresSeconds * 60 * 1000));
+                                let expires = "expires="+ d.toUTCString();
+                                document.cookie = name + "=" + value + ";" + expires + ";path=/";
+                            }
+
+                            function getCookie(name) {
+                                name = name + "=";
+                                let decodedCookie = decodeURIComponent(document.cookie);
+                                let ca = decodedCookie.split(';');
+                                for(let i = 0; i <ca.length; i++) {
+                                    let c = ca[i];
+                                    while (c.charAt(0) == ' ') {
+                                    c = c.substring(1);
+                                    }
+                                    if (c.indexOf(name) == 0) {
+                                    return c.substring(name.length, c.length);
+                                    }
+                                }
+                                return "";
+                            }
+
+                            const SECONDS = 60;
+                            const FPS = 10;
+                            const RELOAD_SECONDS = 30;
+
+                            var progress = document.querySelector('progress');
+                            progress.value = getCookie('progress') || 0;
+                            var counter = 0;
+                            setInterval(function() {
+                                progress.value += (progress.max - progress.value) / (SECONDS * FPS);
+                                if (counter++ >= RELOAD_SECONDS * FPS) {
+                                    setCookie('progress', progress.value, 60);
+                                    window.location.reload();
+                                }
+                            }, 1000 / FPS);
+                        </script>
                     </div>
                 </div>
             </div>

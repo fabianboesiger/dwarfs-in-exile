@@ -292,12 +292,14 @@ impl State {
     }
 
     fn craft(player: &mut Player, item: Item, qty: u64) {
-        if let Some(requires) = item.requires() {
-            if player.inventory.items.remove_checked(requires.mul(qty)) {
-                player
-                    .inventory
-                    .items
-                    .add_checked(Bundle::new().add(item, qty));
+        if let Some((level, requires)) = item.requires() {
+            if player.base.curr_level >= level {
+                if player.inventory.items.remove_checked(requires.mul(qty)) {
+                    player
+                        .inventory
+                        .items
+                        .add_checked(Bundle::new().add(item, qty));
+                }
             }
         }
     }
@@ -322,9 +324,7 @@ impl engine_shared::State for State {
     fn has_winner(&self) -> Option<UserId> {
         let mut winner = None;
         for (user_id, player) in &self.players {
-            if (matches!(player.base.village_type(), VillageType::Megalopolis)
-                && self.king == Some(*user_id))
-            {
+            if player.base.curr_level == 100 && self.king == Some(*user_id) {
                 winner = Some(*user_id);
             }
         }
@@ -1152,7 +1152,7 @@ pub trait BundleType: Hash + Eq + PartialEq + Copy + Ord {
 }
 
 pub trait Craftable: Sequence + BundleType {
-    fn requires(self) -> Option<Bundle<Item>>;
+    fn requires(self) -> Option<(u64, Bundle<Item>)>;
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, Hash)]
@@ -1195,6 +1195,7 @@ pub struct Player {
     pub auto_functions: AutoFunctions,
     pub prestige_quest_completed: bool,
     pub reward_time: Time,
+    #[serde(default = "TutorialStep::first")]
     pub tutorial_step: Option<TutorialStep>,
 }
 
@@ -1292,16 +1293,19 @@ impl Player {
             let mut items_added = false;
             // Auto-craft!
             for &item in &self.auto_functions.auto_craft {
-                if let Some(requires) = item.requires() {
-                    if let Some(qty) = self.inventory.items.can_remove_x_times(&requires) {
-                        if qty > 0 {
-                            if self.inventory.items.remove_checked(requires.mul(qty)) {
-                                self.inventory.add(Bundle::new().add(item, qty), time);
-
-                                items_added = true;
+                if let Some((level, requires)) = item.requires() {
+                    if self.base.curr_level >= level {
+                        if let Some(qty) = self.inventory.items.can_remove_x_times(&requires) {
+                            if qty > 0 {
+                                if self.inventory.items.remove_checked(requires.mul(qty)) {
+                                    self.inventory.add(Bundle::new().add(item, qty), time);
+    
+                                    items_added = true;
+                                }
                             }
                         }
                     }
+
                 }
             }
 
@@ -1699,22 +1703,28 @@ impl Base {
     }
 
     pub fn max_dwarfs(&self) -> usize {
-        self.curr_level as usize * 1
+        self.curr_level as usize
     }
 
     pub fn upgrade_cost(&self) -> Option<Bundle<Item>> {
         if self.curr_level < self.max_level() {
+            let multiplier = |unlocked_at_prestige: u64| {
+                let prev_prestige = unlocked_at_prestige - 1;
+                let starting_level = (prev_prestige * 10).saturating_sub(1);
+                self.curr_level.saturating_sub(starting_level) * self.prestige.saturating_sub(prev_prestige)
+            };
+
             Some(
                 Bundle::new()
-                    .add(Item::Wood, self.curr_level * 50 * self.prestige)
-                    .add(Item::Stone, self.curr_level * 50 * self.prestige)
+                    .add(Item::Wood, 50 * multiplier(1))
+                    .add(Item::Stone, 50 * multiplier(1))
                     .add(
                         Item::Nail,
-                        self.curr_level.saturating_sub(10) * 10 * self.prestige,
+                        10 * multiplier(3),
                     )
                     .add(
                         Item::Fabric,
-                        self.curr_level.saturating_sub(20) * 10 * self.prestige,
+                        10 * multiplier(5),
                     ),
             )
         } else {
@@ -1744,7 +1754,7 @@ impl Base {
     }
 }
 
-#[derive(Display)]
+#[derive(Display, Sequence)]
 #[strum(serialize_all = "title_case")]
 pub enum VillageType {
     Outpost,
