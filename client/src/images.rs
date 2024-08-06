@@ -6,7 +6,7 @@ use rand_chacha::{
 };
 use seed::virtual_dom::{AsAtValue, AtValue};
 use sha2::{Digest, Sha256};
-use shared::{Item, Occupation, QuestType, VillageType};
+use shared::{Item, Occupation, QuestType, VillageType, WorldEvent};
 use strum::Display;
 
 #[derive(Display)]
@@ -157,6 +157,10 @@ pub enum Image {
     DynamiteCrossbow,
     RhinoHornPants,
     Dolphin,
+    Drought,
+    Flood,
+    Earthquake,
+    Plague,
 }
 
 impl AsAtValue for Image {
@@ -345,6 +349,17 @@ impl From<VillageType> for Image {
             VillageType::LargeCity => Image::LargeCity,
             VillageType::Metropolis => Image::Metropolis,
             VillageType::Megalopolis => Image::Megalopolis,
+        }
+    }
+}
+
+impl From<WorldEvent> for Image {
+    fn from(world_event: WorldEvent) -> Self {
+        match world_event {
+            WorldEvent::Drought => Image::Drought,
+            WorldEvent::Flood => Image::Flood,
+            WorldEvent::Earthquake => Image::Earthquake,
+            WorldEvent::Plague => Image::Plague,
         }
     }
 }

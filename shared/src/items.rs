@@ -656,207 +656,162 @@ impl Item {
         match occupation {
             Occupation::Mining => match self {
                 Item::Stone => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_MINUTE / 2,
                 }),
                 Item::IronOre => Some(ItemProbability {
-                    starting_from_tick: ONE_MINUTE * 3,
                     expected_ticks_per_drop: ONE_MINUTE * 3,
                 }),
                 Item::Coal => Some(ItemProbability {
-                    starting_from_tick: ONE_MINUTE * 2,
                     expected_ticks_per_drop: ONE_MINUTE * 2,
                 }),
                 Item::Sulfur => Some(ItemProbability {
-                    starting_from_tick: ONE_HOUR,
                     expected_ticks_per_drop: ONE_HOUR,
                 }),
                 Item::GoldOre => Some(ItemProbability {
-                    starting_from_tick: ONE_HOUR * 2,
                     expected_ticks_per_drop: ONE_HOUR * 2,
                 }),
                 _ => None,
             },
             Occupation::Rockhounding => match self {
                 Item::Fluorite => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 Item::Agate => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 Item::Sodalite => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 Item::Ruby => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 Item::Selenite => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 Item::Diamond => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 _ => None,
             },
             Occupation::Logging => match self {
                 Item::Wood => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_MINUTE / 2,
                 }),
                 Item::Apple => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_MINUTE * 5,
                 }),
                 Item::Parrot => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 Item::Bird => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 _ => None,
             },
             Occupation::Hunting => match self {
                 Item::RawMeat => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_MINUTE * 5,
                 }),
                 Item::Leather => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_MINUTE * 5,
                 }),
                 Item::Bone => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_MINUTE * 10,
                 }),
                 _ => None,
             },
             Occupation::Gathering => match self {
                 Item::Blueberry => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_MINUTE,
                 }),
                 Item::Apple => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_MINUTE * 2,
                 }),
                 Item::Hemp => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_MINUTE * 3,
                 }),
                 _ => None,
             },
             Occupation::Fishing => match self {
                 Item::RawFish => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_MINUTE * 5,
                 }),
                 Item::PufferFish => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_HOUR,
                 }),
                 Item::Boots => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_HOUR * 2,
                 }),
                 Item::Gloves => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_HOUR * 2,
                 }),
                 Item::GoldenRing => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_HOUR * 6,
                 }),
                 Item::Dolphin => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY * 3,
                 }),
                 _ => None,
             },
             Occupation::Fighting => match self {
                 Item::Wolf => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 Item::TigerFang => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 Item::BearClaw => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 Item::RhinoHorn => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 Item::RawMeat => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_MINUTE * 10,
                 }),
                 Item::Leather => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_MINUTE * 10,
                 }),
                 Item::Bone => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_MINUTE * 20,
                 }),
                 _ => None,
             },
             Occupation::Exploring => match self {
                 Item::Cat => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY * 7,
                 }),
                 Item::Parrot => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 Item::Bird => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 Item::Donkey => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 Item::Horse => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 _ => None,
             },
             Occupation::Farming => match self {
                 Item::Milk => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_MINUTE * 5,
                 }),
                 Item::Egg => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_MINUTE * 5,
                 }),
                 Item::Wheat => Some(ItemProbability {
-                    starting_from_tick: ONE_HOUR,
                     expected_ticks_per_drop: ONE_MINUTE * 10,
                 }),
                 Item::Potato => Some(ItemProbability {
-                    starting_from_tick: ONE_HOUR * 3,
                     expected_ticks_per_drop: ONE_MINUTE * 10,
                 }),
                 Item::Carrot => Some(ItemProbability {
-                    starting_from_tick: ONE_HOUR * 3,
                     expected_ticks_per_drop: ONE_MINUTE * 10,
                 }),
                 Item::Hemp => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_MINUTE,
                 }),
                 _ => None,
@@ -950,7 +905,6 @@ impl From<u64> for ItemRarity {
 }
 
 pub struct ItemProbability {
-    pub starting_from_tick: u64,
     pub expected_ticks_per_drop: u64,
 }
 

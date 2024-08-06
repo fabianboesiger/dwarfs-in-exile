@@ -39,6 +39,43 @@ pub type Time = u64;
 
 pub type QuestId = u64;
 
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq, Sequence, Copy)]
+pub enum WorldEvent {
+    Drought,
+    Flood,
+    Earthquake,
+    Plague,
+}
+
+impl WorldEvent {
+    fn occupation_divider(&self, occupation: Occupation) -> u32 {
+        match (self, occupation) {
+            (WorldEvent::Drought, Occupation::Farming | Occupation::Gathering | Occupation::Hunting) => 3,
+            (WorldEvent::Flood, Occupation::Farming | Occupation::Gathering | Occupation::Fishing) => 3,
+            (WorldEvent::Earthquake, Occupation::Mining | Occupation::Logging | Occupation::Rockhounding) => 3,
+             _ => 1
+        }
+    }
+
+    fn health_cost_multiplier(&self) -> u64 {
+        match self {
+            WorldEvent::Plague => 3,
+             _ => 1
+        }
+    }
+}
+
+impl std::fmt::Display for WorldEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            WorldEvent::Drought => write!(f, "Drought"),
+            WorldEvent::Flood => write!(f, "Flood"),
+            WorldEvent::Earthquake => write!(f, "Earthquake"),
+            WorldEvent::Plague => write!(f, "Plague"),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Sequence, Hash)]
 pub enum TutorialStep {
     Welcome,
@@ -253,6 +290,8 @@ pub struct State {
     pub quests: CustomMap<QuestId, Quest>,
     pub time: Time,
     pub king: Option<UserId>,
+    #[serde(default)]
+    pub event: Option<WorldEvent>,
 }
 
 impl State {
@@ -548,6 +587,23 @@ impl engine_shared::State for State {
                         ServerEvent::Tick => {
                             self.time += 1;
 
+                            if self.event.is_some() {
+                                if rng.gen_ratio(
+                                    1,
+                                    ONE_DAY as u32,
+                                ) {
+                                    self.event = None;
+                                }
+                            } else {
+                                if rng.gen_ratio(
+                                    1,
+                                    ONE_DAY as u32,
+                                ) {
+                                    self.event = Some(enum_iterator::all().choose(rng).unwrap());
+                                }
+                            }
+
+
                             for (user_id, player) in self.players.iter_mut() {
                                 let is_premium = user_data
                                     .get(user_id)
@@ -568,7 +624,7 @@ impl engine_shared::State for State {
                                 sorted_by_health.sort_by_key(|dwarf| dwarf.health);
                                 for dwarf in sorted_by_health {
                                     dwarf.decr_health(
-                                        dwarf.actual_occupation().health_cost_per_second(),
+                                        dwarf.actual_occupation().health_cost_per_second() * self.event.as_ref().map(|f| f.health_cost_multiplier()).unwrap_or(1),
                                     );
                                     if dwarf.actual_occupation() == Occupation::Idling {
                                         if player.base.food > 0 {
@@ -676,20 +732,15 @@ impl engine_shared::State for State {
                                         {
                                             for item in enum_iterator::all::<Item>() {
                                                 if let Some(ItemProbability {
-                                                    starting_from_tick,
                                                     expected_ticks_per_drop,
                                                 }) =
                                                     item.item_probability(dwarf.actual_occupation())
                                                 {
-                                                    if dwarf.occupation_duration
-                                                        >= starting_from_tick
-                                                    {
-                                                        if rng.gen_ratio(
-                                                            1,
-                                                            expected_ticks_per_drop as u32,
-                                                        ) {
-                                                            added_items = added_items.add(item, 1);
-                                                        }
+                                                    if rng.gen_ratio(
+                                                        1,
+                                                        expected_ticks_per_drop as u32 * self.event.as_ref().map(|f| f.occupation_divider(dwarf.actual_occupation())).unwrap_or(1),
+                                                    ) {
+                                                        added_items = added_items.add(item, 1);
                                                     }
                                                 }
                                             }

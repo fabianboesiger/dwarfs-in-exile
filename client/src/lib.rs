@@ -6,10 +6,7 @@ use images::Image;
 use itertools::Itertools;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType,
-    LogMsg, Occupation, Player, QuestId, QuestType, RewardMode, Stats, Time, TutorialRequirement,
-    TutorialReward, TutorialStep, VillageType, FREE_LOOT_CRATE, LOOT_CRATE_COST, MAX_HEALTH, SPEED,
-    WINNER_NUM_PREMIUM_DAYS,
+    Bundle, ClientEvent, Craftable, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, QuestId, QuestType, RewardMode, Stats, Time, TutorialRequirement, TutorialReward, TutorialStep, VillageType, WorldEvent, FREE_LOOT_CRATE, LOOT_CRATE_COST, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS
 };
 use std::str::FromStr;
 use web_sys::js_sys::Date;
@@ -1544,6 +1541,27 @@ fn base(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node
         unlocks.retain(|item| item.unlocked_at_level() > player.base.curr_level);
 
         div![C!["content"],
+            if let Some(event) = state.event {
+                div![
+                    C!["important"],
+                    strong![format!("Event: {}", event)],
+                    div![
+                        C!["image-aside", "small"],
+                        img![attrs! {At::Src => Image::from(event).as_at_value()}],
+                        div![
+                            match event {
+                                WorldEvent::Drought => p!["There is a drought happening. The drought makes it harder to farm, gather and hunt. Make sure that your dwarfs don't starve!"],
+                                WorldEvent::Flood => p!["A flood has occurred. The flood makes it harder to farm, gather and fish. Make sure that your dwarfs don't starve!"],
+                                WorldEvent::Earthquake => p!["An earthquake has occurred. The earthquake makes it harder to mine, rockhound and log. Be aware of your resource production!"],
+                                WorldEvent::Plague => p!["A plague is happening. The plague makes lets your dwarfs lose health muck faster. Make sure that your dwarfs don't die!"],
+                            }
+                        ]
+                    ]
+                ]
+            } else {
+                Node::Empty
+            },
+
             h2!["Your Settlement"],
             table![
                 tr![th!["Level"], td![format!("{}", player.base.curr_level)]],
