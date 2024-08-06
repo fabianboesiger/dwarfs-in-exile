@@ -6,6 +6,7 @@ mod error;
 mod game;
 mod index;
 mod store;
+mod wiki;
 
 use error::*;
 
@@ -121,6 +122,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .layer(middleware::from_fn(set_static_cache_control)),
         )
         .route("/", get(index::get_index))
+        .route("/wiki", get(wiki::get_wiki))
         .route("/store", get(store::get_store))
         .route("/about", get(about::get_about))
         .nest(
