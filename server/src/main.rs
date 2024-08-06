@@ -91,14 +91,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         loop {
             interval.tick().await;
 
-            if game_state_clone.has_runing_games().await {
+            for user_id in game_state_clone.has_runing_games().await {
                 sqlx::query(
                     r#" 
                             UPDATE users
                             SET premium = premium - 1
                             WHERE premium > 0
+                            AND id = $1
                         "#,
                 )
+                .bind(user_id.0)
                 .execute(&pool_clone)
                 .await
                 .unwrap();

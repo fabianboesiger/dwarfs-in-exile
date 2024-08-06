@@ -129,6 +129,7 @@ pub enum Item {
     DiamondSword,
     RhinoHornPants,
     DynamiteCrossbow,
+    Dolphin,
 }
 
 impl Craftable for Item {
@@ -431,7 +432,8 @@ impl Item {
             | Item::Dragon
             | Item::Donkey
             | Item::Bird
-            | Item::Horse => Some(ItemType::Pet),
+            | Item::Horse 
+            | Item::Dolphin => Some(ItemType::Pet),
 
             Item::Apple
             | Item::Blueberry
@@ -559,6 +561,10 @@ impl Item {
                 intelligence: -4,
                 ..Default::default()
             },
+            Item::Dolphin => Stats {
+                agility: 4,
+                ..Default::default()
+            },
             _ => Stats::default(),
         }
     }
@@ -573,7 +579,7 @@ impl Item {
     }
 
     pub fn money_value(self) -> Money {
-        self.item_rarity_num() / 2000
+        self.item_rarity_num() / 5000
     }
 
     // sefulness from 0 - 10
@@ -641,6 +647,7 @@ impl Item {
             (Item::Wheelbarrow, Occupation::Gathering) => 8,
             (Item::Plough, Occupation::Farming) => 10,
             (Item::Lantern, Occupation::Mining | Occupation::Rockhounding) => 4,
+            (Item::Dolphin, Occupation::Fishing) => 10,
             _ => 0,
         }
     }
@@ -767,6 +774,10 @@ impl Item {
                     starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_HOUR * 6,
                 }),
+                Item::Dolphin => Some(ItemProbability {
+                    starting_from_tick: 0,
+                    expected_ticks_per_drop: ONE_DAY * 3,
+                }),
                 _ => None,
             },
             Occupation::Fighting => match self {
@@ -785,6 +796,18 @@ impl Item {
                 Item::RhinoHorn => Some(ItemProbability {
                     starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
+                }),
+                Item::RawMeat => Some(ItemProbability {
+                    starting_from_tick: 0,
+                    expected_ticks_per_drop: ONE_MINUTE * 10,
+                }),
+                Item::Leather => Some(ItemProbability {
+                    starting_from_tick: 0,
+                    expected_ticks_per_drop: ONE_MINUTE * 10,
+                }),
+                Item::Bone => Some(ItemProbability {
+                    starting_from_tick: 0,
+                    expected_ticks_per_drop: ONE_MINUTE * 20,
                 }),
                 _ => None,
             },
@@ -831,6 +854,10 @@ impl Item {
                 Item::Carrot => Some(ItemProbability {
                     starting_from_tick: ONE_HOUR * 3,
                     expected_ticks_per_drop: ONE_MINUTE * 10,
+                }),
+                Item::Hemp => Some(ItemProbability {
+                    starting_from_tick: 0,
+                    expected_ticks_per_drop: ONE_MINUTE,
                 }),
                 _ => None,
             },

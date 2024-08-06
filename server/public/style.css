@@ -733,3 +733,12 @@ ul {
 .next-unlock.future > img {
     filter: grayscale(100%);
 }
+
+figure {
+    margin: 0;
+    background: rgba(255, 255, 255, 0.2);
+}
+
+figure > figcaption {
+    padding: 8px;
+}

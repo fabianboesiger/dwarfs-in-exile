@@ -40,7 +40,7 @@ impl GameStore {
             r#"
                     SELECT id
                     FROM games
-                    WHERE winner IS NULL
+                    WHERE closed = 0
                 "#,
         )
         .fetch_all(&self.db)
@@ -129,7 +129,8 @@ impl engine_server::BackendStore<shared::State> for GameStore {
                 r#"
                         UPDATE games
                         SET data = $2,
-                        winner = $3
+                        winner = $3,
+                        closed = 1
                         WHERE id = $1
                     "#,
             )
@@ -248,7 +249,7 @@ pub async fn get_game_select(
         r#"
                 SELECT id
                 FROM games
-                WHERE winner IS NULL
+                WHERE closed = 0
             "#,
     )
     .fetch_all(&pool)

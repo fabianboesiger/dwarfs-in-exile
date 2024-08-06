@@ -222,28 +222,24 @@ impl From<String> for UserData {
 }
 */
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, Sequence, Display)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Sequence, Display, PartialEq, Eq)]
 #[strum(serialize_all = "title_case")]
 pub enum HireDwarfType {
     Standard,
-    Advanced,
-    Expert,
+
 }
 
 impl HireDwarfType {
     pub fn min_stars(&self) -> u64 {
         match self {
-            HireDwarfType::Standard => 2,
-            HireDwarfType::Advanced => 3,
-            HireDwarfType::Expert => 4,
+            HireDwarfType::Standard => 1,
+
         }
     }
 
     pub fn cost(&self) -> u64 {
         match self {
-            HireDwarfType::Standard => 2000,
-            HireDwarfType::Advanced => 5000,
-            HireDwarfType::Expert => 10000,
+            HireDwarfType::Standard => 10000,
         }
     }
 }
@@ -322,6 +318,10 @@ impl engine_shared::State for State {
             }
         }
         return winner;
+    }
+
+    fn players(&self) -> CustomSet<Self::UserId> {
+        self.players.keys().copied().collect()
     }
 
     fn update(
@@ -534,9 +534,7 @@ impl engine_shared::State for State {
                             Self::add_to_food_storage(player, item, qty);
                         }
                         ClientEvent::Sell(item, qty) => {
-                            if is_premium {
-                                Self::sell(player, item, qty);
-                            }
+                            Self::sell(player, item, qty);
                         }
                         ClientEvent::Prestige => {
                             if player.can_prestige() && player.prestige_quest_completed {
@@ -559,7 +557,7 @@ impl engine_shared::State for State {
                                 // Chance for a new dwarf!
                                 if rng.gen_ratio(
                                     1,
-                                    ONE_DAY as u32 / 20 * (21 - player.base.prestige) as u32,
+                                    ONE_DAY as u32 /* / 20 * (21 - player.base.prestige) as u32 */,
                                 ) {
                                     player.new_dwarf(rng, &mut self.next_dwarf_id, self.time);
                                 }
@@ -605,6 +603,75 @@ impl engine_shared::State for State {
                                 let mut added_items = Bundle::new();
                                 for (_, dwarf) in player.dwarfs.iter_mut() {
                                     if !dwarf.dead() {
+                                        
+                                        // Improve stats while working.
+                                        if rng.gen_ratio(
+                                            dwarf.actual_occupation().requires_stats().agility as u32,
+                                            ONE_DAY as u32 * 10,
+                                        ) && dwarf.stats.agility < 10 {
+                                            dwarf.stats.agility += 1;
+                                            player.log.add(
+                                                self.time,
+                                                LogMsg::DwarfUpgrade(
+                                                    dwarf.name.clone(),
+                                                    "agility".to_string(),
+                                                ),
+                                            );
+                                        }
+                                        if rng.gen_ratio(
+                                            dwarf.actual_occupation().requires_stats().endurance as u32,
+                                            ONE_DAY as u32 * 10,
+                                        ) && dwarf.stats.endurance < 10 {
+                                            dwarf.stats.endurance += 1;
+                                            player.log.add(
+                                                self.time,
+                                                LogMsg::DwarfUpgrade(
+                                                    dwarf.name.clone(),
+                                                    "endurance".to_string(),
+                                                ),
+                                            );
+                                        }
+                                        if rng.gen_ratio(
+                                            dwarf.actual_occupation().requires_stats().strength as u32,
+                                            ONE_DAY as u32 * 10,
+                                        ) && dwarf.stats.strength < 10 {
+                                            dwarf.stats.strength += 1;
+                                            player.log.add(
+                                                self.time,
+                                                LogMsg::DwarfUpgrade(
+                                                    dwarf.name.clone(),
+                                                    "strength".to_string(),
+                                                ),
+                                            );
+                                        }
+                                        if rng.gen_ratio(
+                                            dwarf.actual_occupation().requires_stats().intelligence as u32,
+                                            ONE_DAY as u32 * 10,
+                                        ) && dwarf.stats.intelligence < 10 {
+                                            dwarf.stats.intelligence += 1;
+                                            player.log.add(
+                                                self.time,
+                                                LogMsg::DwarfUpgrade(
+                                                    dwarf.name.clone(),
+                                                    "intelligence".to_string(),
+                                                ),
+                                            );
+                                        }
+                                        if rng.gen_ratio(
+                                            dwarf.actual_occupation().requires_stats().perception as u32,
+                                            ONE_DAY as u32 * 10,
+                                        ) && dwarf.stats.perception < 10 {
+                                            dwarf.stats.perception += 1;
+                                            player.log.add(
+                                                self.time,
+                                                LogMsg::DwarfUpgrade(
+                                                    dwarf.name.clone(),
+                                                    "perception".to_string(),
+                                                ),
+                                            );
+                                        }
+
+
                                         for _ in 0..=dwarf.effectiveness(dwarf.actual_occupation())
                                         {
                                             for item in enum_iterator::all::<Item>() {
@@ -936,6 +1003,11 @@ impl engine_shared::State for State {
                             self.quests.retain(|_, quest| !quest.done());
 
                             // Add quests.
+                            /*let active_not_new_players = self
+                                .players
+                                .iter()
+                                .filter(|(_, player)| player.is_active(self.time) && !player.is_new(self.time))
+                                .count();*/
                             let active_players = self
                                 .players
                                 .iter()
@@ -1174,6 +1246,7 @@ pub enum LogMsg {
     OpenedLootCrate(Bundle<Item>),
     MoneyForKing(Money),
     NotEnoughSpaceForDwarf,
+    DwarfUpgrade(String, String),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
@@ -1189,6 +1262,8 @@ pub struct Player {
     pub reward_time: Time,
     #[serde(default = "TutorialStep::first")]
     pub tutorial_step: Option<TutorialStep>,
+    #[serde(default)]
+    pub start_time: Time,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
@@ -1223,6 +1298,7 @@ impl Player {
             prestige_quest_completed: false,
             reward_time: time,
             tutorial_step: TutorialStep::first(),
+            start_time: time,
         };
 
         if cfg!(debug_assertions) {
@@ -1246,9 +1322,13 @@ impl Player {
         (time - self.last_online) / SPEED < ONE_DAY && !self.dwarfs.is_empty()
     }
 
+    pub fn is_new(&self, time: Time) -> bool {
+        (time - self.start_time) / SPEED < ONE_DAY
+    }
+
     pub fn new_dwarf(&mut self, rng: &mut impl Rng, next_dwarf_id: &mut DwarfId, time: Time) {
         if self.dwarfs.len() < self.base.max_dwarfs() {
-            let dwarf = Dwarf::new(rng, self.base.prestige);
+            let dwarf = Dwarf::new(rng, 1);
             self.log.add(time, LogMsg::NewDwarf(dwarf.name.clone()));
             self.dwarfs.insert(*next_dwarf_id, dwarf);
             *next_dwarf_id += 1;
@@ -1611,11 +1691,11 @@ impl Occupation {
             Occupation::Logging => 1,
             Occupation::Hunting => 1,
             Occupation::Gathering => 1,
-            Occupation::Fishing => 5,
-            Occupation::Exploring => 10,
-            Occupation::Fighting => 15,
-            Occupation::Farming => 20,
-            Occupation::Rockhounding => 30,
+            Occupation::Fishing => 10,
+            Occupation::Exploring => 20,
+            Occupation::Fighting => 30,
+            Occupation::Farming => 40,
+            Occupation::Rockhounding => 50,
         }
     }
 

@@ -1349,7 +1349,7 @@ fn quest(
                             match quest.quest_type {
                                 QuestType::KillTheDragon => p!["A dragon was found high up in the mountains in the forbidden lands. Send your best warriors to defeat it."],
                                 QuestType::ArenaFight => p!["The King of the dwarfs has invited the exilants to compete in an arena fight against monsters and creatures from the forbidden lands. The toughest warrior will be rewarded with a gift from the king personally."],
-                                QuestType::ExploreNewLands => p!["Send dwarfs to explore new lands and find a place for a new settlement. The new settlement will be a better version of your previous settlement that allows a larger maximal population. Additionally, the new settlement will attract more and better dwarfs."],
+                                QuestType::ExploreNewLands => p!["Send dwarfs to explore new lands and find a place for a new settlement. The new settlement will be a better version of your previous settlement that allows a larger maximal population."],
                                 QuestType::FeastForAGuest => p!["Your village is visted by an ominous guest that tells you disturbing stories about the elves. Although the stories seem unbelievable, he still seems like wise man. Go hunting and organize a feast for the guest, and he may stay."],
                                 QuestType::FreeTheVillage => p!["The elven village was raided by the orks in an attempt to capture the elven magician. Free the elven village and fight the orks to earn a reward!"],
                                 QuestType::ADwarfGotLost => p!["Search for a dwarf that got lost. It is unclear why so many dwarfs have disappeared in recent times, but that is a mistery that you may uncover later. If you find the lost dwarf first, he may stay in your settlement!"],
@@ -1365,7 +1365,7 @@ fn quest(
                                 QuestType::FarmersContest => p!["Participate in the farmers contest. The best farmer gets a reward."],
                                 QuestType::CrystalsForTheElves => p!["The Elves need special crystals to cast their magic. Although they don't want to tell you what they will use the crystals for, you accept the offer. Bring them some and they will reward you."],
                                 QuestType::ElvenVictory => p!["The elves are winning the war against the orks. They need wood to build large fenced areas where the surviving orks will be captured."],
-                                QuestType::ADarkSecret => p!["While exploring the elven regions, you find a dark secret. The elves are not what they seem to be. They have used their his magic on the dwarfs to turn them into orks. It seems like the orks were never the barbaric enemies that they seemed like, they are just unfortunate dwarfen souls like you and me. A devious plan by the elves to divide and weaken the dwarfen kingdom!"],
+                                QuestType::ADarkSecret => p!["While exploring the elven regions, you find a dark secret. The elves are not what they seem to be. They have used their magic on the dwarfs to turn them into orks. It seems like the orks were never the barbaric enemies that they seemed like, they are just unfortunate dwarfen souls like you and me. A devious plan by the elves to divide and weaken the dwarfen kingdom!"],
                                 QuestType::TheMassacre => p!["The elves have unleased their dark magic in a final attempt to eliminate all orks. Realizing that you have helped in this terrible act by providing the elves with the crystals needed for their dark magic, you attempt to fight the elven magicians to stop the massacre."],
                                 QuestType::TheElvenWar => p!["All of the dwarfen settlements have realized their mistake and have united to fight the elves. The united dwarfen armies have to fight the elven magicians in order to restore peace in the forbidden lands. Send the best fighters that you have, or the forbidden lands will be lost forever to the elven dark magic."],
                             },
@@ -1549,7 +1549,7 @@ fn base(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node
                 tr![th!["Level"], td![format!("{}", player.base.curr_level)]],
                 tr![th![
                     "Settlement Type",
-                    tip("There are ten different types of settlements that get gradually better: Outpost, Dwelling, Hamlet, Village, Small Town, Large Town, Small City, Large City, Metropolis, Megalopolis. To move on to a better settlement type, you need to complete a special quest. Better settlements attract more and better dwarfs.")],
+                    tip("There are ten different types of settlements that get gradually better: Outpost, Dwelling, Hamlet, Village, Small Town, Large Town, Small City, Large City, Metropolis, Megalopolis. To move on to a better settlement type, you need to complete a special quest.")],
                     td![format!("{}", player.base.village_type())]
                 ],
                 tr![th!["Population", tip("Upgrade your settlement to increase the maximum population. You can get new dwarfs from certain quests or at random.")], td![format!("{}/{}", player.dwarfs.len(), player.base.max_dwarfs())]],
@@ -1645,7 +1645,7 @@ fn base(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node
                 div![C!["image-aside"],
                     img![attrs! {At::Src => Image::HireDwarf.as_at_value()}],
                     div![
-                        p!["Hire a dwarf to work for you in exchange for money. There are three types of dwarfs that are open for hire. Standard dwarfs have at least two, advanced dwarfs at least three, and expert dwarfs at least four stars for all of their inherent stats."],
+                        p!["Hire a dwarf to work for you in exchange for money."],
                         enum_iterator::all::<HireDwarfType>()
                         .map(|dwarf_type| {
                             button![
@@ -2065,7 +2065,6 @@ fn inventory(
                                     Vec::new()
                                 },
 
-
                                 if item.money_value() > 0 {
                                     vec![
                                         h4!["Sell Item"],
@@ -2079,7 +2078,7 @@ fn inventory(
                                         } else {
                                             div![C!["button-row"],
                                                 button![
-                                                    if is_premium && player
+                                                    if player
                                                         .inventory
                                                         .items
                                                         .check_remove(&Bundle::new().add(item, 1))
@@ -2092,14 +2091,9 @@ fn inventory(
                                                         ClientEvent::Sell(item, 1)
                                                     )),
                                                     format!("1x"),
-                                                    if !is_premium {
-                                                        tip("This functionality requires a premium account.")
-                                                    } else {
-                                                        Node::Empty
-                                                    }
                                                 ],
                                                 button![
-                                                    if is_premium && player
+                                                    if player
                                                         .inventory
                                                         .items
                                                         .check_remove(&Bundle::new().add(item, 10))
@@ -2112,14 +2106,9 @@ fn inventory(
                                                         ClientEvent::Sell(item, 10)
                                                     )),
                                                     format!("10x"),
-                                                    if !is_premium {
-                                                        tip("This functionality requires a premium account.")
-                                                    } else {
-                                                        Node::Empty
-                                                    }
                                                 ],
                                                 button![
-                                                    if is_premium && player
+                                                    if player
                                                         .inventory
                                                         .items
                                                         .check_remove(&Bundle::new().add(item, 100))
@@ -2132,11 +2121,6 @@ fn inventory(
                                                         ClientEvent::Sell(item, 100)
                                                     )),
                                                     format!("100x"),
-                                                    if !is_premium {
-                                                        tip("This functionality requires a premium account.")
-                                                    } else {
-                                                        Node::Empty
-                                                    }
                                                 ],
                                                 button![
                                                     if is_premium {
@@ -2249,6 +2233,12 @@ fn history(
                             C!["message"],
                             span![C!["time"], format!("{} ago: ", fmt_time(state.time - time))],
                             match msg {
+                                LogMsg::DwarfUpgrade(name, stat) => {
+                                    span![format!(
+                                        "Your dwarf {} has inproved his {} stat while working.",
+                                        name, stat
+                                    )]
+                                }
                                 LogMsg::NotEnoughSpaceForDwarf => {
                                     span![format!(
                                         "You got a dwarf but don't have enough space for him."
