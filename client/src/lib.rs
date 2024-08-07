@@ -269,6 +269,11 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
         }
         Msg::ChangePage(page) => {
             model.page = page;
+            
+            web_sys::window()
+                .unwrap()
+                .scroll_to_with_x_and_y(0.0, 0.0);
+
         }
         Msg::ChangeMessage(message) => {
             model.message = message;
