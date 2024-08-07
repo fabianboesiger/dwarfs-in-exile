@@ -459,6 +459,7 @@ impl engine_shared::State for State {
 
                             if dwarf.participates_in_quest.is_none()
                                 && player.base.curr_level >= occupation.unlocked_at_level()
+                                && dwarf.is_adult()
                             {
                                 dwarf.change_occupation(occupation);
                             }
@@ -522,29 +523,33 @@ impl engine_shared::State for State {
                             if let Some(dwarf_id) = dwarf_id {
                                 let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
 
-                                if let Some((_, old_quest_id, old_dwarf_idx)) =
-                                    dwarf.participates_in_quest
-                                {
-                                    let old_quest = self.quests.get_mut(&old_quest_id)?;
-                                    let old_contestant =
-                                        old_quest.contestants.entry(user_id).or_default();
-                                    old_contestant.dwarfs.swap_remove(&old_dwarf_idx);
-                                }
+                                if dwarf.is_adult() {
 
-                                let quest = self.quests.get_mut(&quest_id)?;
-                                let contestant = quest.contestants.entry(user_id).or_default();
-
-                                dwarf.participates_in_quest =
-                                    Some((quest.quest_type, quest_id, dwarf_idx));
-
-                                if dwarf_idx < quest.quest_type.max_dwarfs() {
-                                    let old_dwarf_id =
-                                        contestant.dwarfs.insert(dwarf_idx, dwarf_id);
-                                    if let Some(old_dwarf_id) = old_dwarf_id {
-                                        let dwarf = player.dwarfs.get_mut(&old_dwarf_id)?;
-                                        dwarf.participates_in_quest = None;
+                                    if let Some((_, old_quest_id, old_dwarf_idx)) =
+                                        dwarf.participates_in_quest
+                                    {
+                                        let old_quest = self.quests.get_mut(&old_quest_id)?;
+                                        let old_contestant =
+                                            old_quest.contestants.entry(user_id).or_default();
+                                        old_contestant.dwarfs.swap_remove(&old_dwarf_idx);
                                     }
-                                }
+
+                                    let quest = self.quests.get_mut(&quest_id)?;
+                                    let contestant = quest.contestants.entry(user_id).or_default();
+
+                                    dwarf.participates_in_quest =
+                                        Some((quest.quest_type, quest_id, dwarf_idx));
+
+                                    if dwarf_idx < quest.quest_type.max_dwarfs() {
+                                        let old_dwarf_id =
+                                            contestant.dwarfs.insert(dwarf_idx, dwarf_id);
+                                        if let Some(old_dwarf_id) = old_dwarf_id {
+                                            let dwarf = player.dwarfs.get_mut(&old_dwarf_id)?;
+                                            dwarf.participates_in_quest = None;
+                                        }
+                                    }
+
+                                }                  
                             } else {
                                 let quest = self.quests.get_mut(&quest_id)?;
                                 let contestant = quest.contestants.entry(user_id).or_default();

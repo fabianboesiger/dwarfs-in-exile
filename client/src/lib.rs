@@ -135,12 +135,14 @@ impl Default for DwarfsFilter {
 
 pub struct QuestsFilter {
     participating: bool,
+    none_participating: bool,
 }
 
 impl Default for QuestsFilter {
     fn default() -> Self {
         Self {
             participating: false,
+            none_participating: false,
         }
     }
 }
@@ -235,6 +237,7 @@ pub enum Msg {
     DwarfsFilterSort(DwarfsSort),
     QuestsFilterReset,
     QuestsFilterParticipating,
+    QuestsFilterNoneParticipating,
     GoToItem(Item),
     ToggleTutorial,
 }
@@ -321,6 +324,15 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
         }
         Msg::QuestsFilterParticipating => {
             model.quests_filter.participating = !model.quests_filter.participating;
+            if model.quests_filter.participating {
+                model.quests_filter.none_participating = false;
+            }
+        }
+        Msg::QuestsFilterNoneParticipating => {
+            model.quests_filter.none_participating = !model.quests_filter.none_participating;
+            if model.quests_filter.none_participating {
+                model.quests_filter.participating = false;
+            }
         }
         Msg::ToggleTutorial => {
             model.show_tutorial = !model.show_tutorial;
@@ -861,6 +873,11 @@ fn dwarfs(
                                 }
                                 DwarfsMode::Select(DwarfsSelect::Quest(quest_id, dwarf_idx)) => {
                                     div![button![
+                                        if !dwarf.is_adult() {
+                                            attrs! { At::Disabled => "true" }
+                                        } else {
+                                            attrs! {}
+                                        },
                                         ev(Ev::Click, move |_| Msg::AssignToQuest(
                                             quest_id,
                                             dwarf_idx,
@@ -1185,6 +1202,7 @@ fn dwarf(
                                             button![
                                                 if occupation == dwarf.occupation
                                                     || dwarf.participates_in_quest.is_some()
+                                                    || !dwarf.is_adult()
                                                 {
                                                     attrs! {At::Disabled => "true"}
                                                 } else {
@@ -1280,6 +1298,14 @@ fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                     ],
                     label![attrs! {At::For => "participating"}, "Participating"]
                 ],
+                div![
+                    input![
+                        id!["none-participating"],
+                        attrs! {At::Type => "checkbox", At::Checked => model.quests_filter.none_participating.as_at_value()},
+                        ev(Ev::Click, |_| Msg::QuestsFilterNoneParticipating),
+                    ],
+                    label![attrs! {At::For => "none-participating"}, "No Participants"]
+                ],
             ],
             div![
                 button![
@@ -1292,11 +1318,15 @@ fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
         table![
             C!["quests", "list"],
             quests.iter().filter(|(_, quest)| {
-                if model.quests_filter.participating {
+                (if model.quests_filter.participating {
                     quest.contestants.contains_key(user_id)
                 } else {
                     true
-                }
+                }) && (if model.quests_filter.none_participating {
+                    quest.contestants.is_empty()
+                } else {
+                    true
+                })
             }).map(|(quest_id, quest)| {
                 tr![
                     C!["list-item-row"],
