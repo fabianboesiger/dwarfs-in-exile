@@ -30,6 +30,7 @@ pub const MAX_HEALTH: Health = ONE_DAY * 3;
 pub const LOOT_CRATE_COST: Money = 1000;
 pub const FREE_LOOT_CRATE: u64 = ONE_DAY;
 pub const WINNER_NUM_PREMIUM_DAYS: i64 = 30;
+pub const FEMALE_PROBABILITY: f64 = 0.1;
 
 pub type Money = u64;
 pub type Food = u64;
@@ -38,6 +39,11 @@ pub type Health = u64;
 pub type Time = u64;
 
 pub type QuestId = u64;
+
+pub enum Building {
+    Barracks,
+    Storage,
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq, Sequence, Copy)]
 pub enum WorldEvent {
@@ -53,13 +59,6 @@ impl WorldEvent {
             (WorldEvent::Drought, Occupation::Farming | Occupation::Gathering | Occupation::Hunting) => 3,
             (WorldEvent::Flood, Occupation::Farming | Occupation::Gathering | Occupation::Fishing) => 3,
             (WorldEvent::Earthquake, Occupation::Mining | Occupation::Logging | Occupation::Rockhounding) => 3,
-             _ => 1
-        }
-    }
-
-    fn health_cost_multiplier(&self) -> u64 {
-        match self {
-            WorldEvent::Plague => 3,
              _ => 1
         }
     }
@@ -267,13 +266,6 @@ pub enum HireDwarfType {
 }
 
 impl HireDwarfType {
-    pub fn min_stars(&self) -> u64 {
-        match self {
-            HireDwarfType::Standard => 1,
-
-        }
-    }
-
     pub fn cost(&self) -> u64 {
         match self {
             HireDwarfType::Standard => 10000,
@@ -404,6 +396,7 @@ impl engine_shared::State for State {
                                                     rng,
                                                     &mut self.next_dwarf_id,
                                                     self.time,
+                                                    false,
                                                 );
                                             }
                                         }
@@ -417,12 +410,7 @@ impl engine_shared::State for State {
                                 && player.dwarfs.len() < player.base.max_dwarfs()
                             {
                                 player.money -= dwarf_type.cost();
-                                let dwarf = Dwarf::new(rng, dwarf_type.min_stars() * 2);
-                                player
-                                    .log
-                                    .add(self.time, LogMsg::NewDwarf(dwarf.name.clone()));
-                                player.dwarfs.insert(self.next_dwarf_id, dwarf);
-                                self.next_dwarf_id += 1;
+                                player.new_dwarf(rng, &mut self.next_dwarf_id, self.time, false);
                             }
                         }
                         ClientEvent::ToggleAutoCraft(item) => {
@@ -613,18 +601,51 @@ impl engine_shared::State for State {
                                 // Chance for a new dwarf!
                                 if rng.gen_ratio(
                                     1,
-                                    ONE_DAY as u32 /* / 20 * (21 - player.base.prestige) as u32 */,
+                                    ONE_DAY as u32,
                                 ) {
-                                    player.new_dwarf(rng, &mut self.next_dwarf_id, self.time);
+                                    player.new_dwarf(rng, &mut self.next_dwarf_id, self.time, false);
                                 }
 
+                                let male_idle_dwarfs = player
+                                    .dwarfs
+                                    .values()
+                                    .filter(|dwarf| 
+                                        dwarf.occupation == Occupation::Idling
+                                            && dwarf.is_adult()
+                                            && !dwarf.is_female)
+                                    .count();
+                            
+                                let female_idle_dwarfs = player
+                                    .dwarfs
+                                    .values()
+                                    .filter(|dwarf| 
+                                        dwarf.occupation == Occupation::Idling
+                                            && dwarf.is_adult()
+                                            && dwarf.is_female)
+                                    .count(); 
+                            
+                                // Chance for a new baby dwarf!
+                                if rng.gen_ratio(
+                                    male_idle_dwarfs.min(female_idle_dwarfs) as u32,
+                                    ONE_DAY as u32 / 2,
+                                ) {
+                                    player.new_dwarf(rng, &mut self.next_dwarf_id, self.time, true);
+                                }
+
+
                                 // Let the dwarfs eat!
+                                let health_cost_multiplier = match self.event {
+                                    Some(WorldEvent::Plague) => {
+                                        (1 + player.dwarfs.len() as u64 / 20).min(5)
+                                    },
+                                    _ => 1
+                                };
                                 let mut sorted_by_health =
                                     player.dwarfs.values_mut().collect::<Vec<_>>();
                                 sorted_by_health.sort_by_key(|dwarf| dwarf.health);
                                 for dwarf in sorted_by_health {
                                     dwarf.decr_health(
-                                        dwarf.actual_occupation().health_cost_per_second() * self.event.as_ref().map(|f| f.health_cost_multiplier()).unwrap_or(1),
+                                        dwarf.actual_occupation().health_cost_per_second() * health_cost_multiplier
                                     );
                                     if dwarf.actual_occupation() == Occupation::Idling {
                                         if player.base.food > 0 {
@@ -648,10 +669,14 @@ impl engine_shared::State for State {
                                             dwarf.auto_idle = true;
                                         }
                                     }
-                                    if dwarf.dead() {
-                                        player
-                                            .log
-                                            .add(self.time, LogMsg::DwarfDied(dwarf.name.clone()));
+
+                                    if !dwarf.dead() {
+                                        dwarf.age_seconds += 365 * 12;
+                                        if dwarf.age_years() > 100 {
+                                            if rng.gen_ratio(1, ONE_DAY as u32) {
+                                                dwarf.health = 0;
+                                            }
+                                        }
                                     }
                                 }
 
@@ -727,26 +752,28 @@ impl engine_shared::State for State {
                                             );
                                         }
 
-
-                                        for _ in 0..=dwarf.effectiveness(dwarf.actual_occupation())
-                                        {
-                                            for item in enum_iterator::all::<Item>() {
-                                                if let Some(ItemProbability {
-                                                    expected_ticks_per_drop,
-                                                }) =
-                                                    item.item_probability(dwarf.actual_occupation())
-                                                {
-                                                    if rng.gen_ratio(
-                                                        1,
-                                                        expected_ticks_per_drop as u32 * self.event.as_ref().map(|f| f.occupation_divider(dwarf.actual_occupation())).unwrap_or(1),
-                                                    ) {
-                                                        added_items = added_items.add(item, 1);
-                                                    }
+                                        for item in enum_iterator::all::<Item>() {
+                                            if let Some(ItemProbability {
+                                                expected_ticks_per_drop,
+                                            }) =
+                                                item.item_probability(dwarf.actual_occupation())
+                                            {
+                                                if rng.gen_ratio(
+                                                    1 + dwarf.effectiveness(dwarf.actual_occupation()) as u32,
+                                                    expected_ticks_per_drop as u32 * self.event.as_ref().map(|f| f.occupation_divider(dwarf.actual_occupation())).unwrap_or(1),
+                                                ) {
+                                                    added_items = added_items.add(item, 1);
                                                 }
                                             }
                                         }
+                                        
 
                                         dwarf.occupation_duration += 1;
+
+                                    } else {
+                                        player
+                                            .log
+                                            .add(self.time, LogMsg::DwarfDied(dwarf.name.clone()));
                                     }
                                 }
                                 player.add_items(added_items, self.time, is_premium);
@@ -987,6 +1014,7 @@ impl engine_shared::State for State {
                                                             rng,
                                                             &mut self.next_dwarf_id,
                                                             self.time,
+                                                            false
                                                         );
                                                     }
                                                 }
@@ -1021,6 +1049,7 @@ impl engine_shared::State for State {
                                                             rng,
                                                             &mut self.next_dwarf_id,
                                                             self.time,
+                                                            false
                                                         );
                                                     }
                                                 }
@@ -1054,11 +1083,6 @@ impl engine_shared::State for State {
                             self.quests.retain(|_, quest| !quest.done());
 
                             // Add quests.
-                            /*let active_not_new_players = self
-                                .players
-                                .iter()
-                                .filter(|(_, player)| player.is_active(self.time) && !player.is_new(self.time))
-                                .count();*/
                             let active_players = self
                                 .players
                                 .iter()
@@ -1066,7 +1090,7 @@ impl engine_shared::State for State {
                                 .count();
 
                             let num_quests = if cfg!(debug_assertions) {
-                                30
+                                20
                             } else {
                                 (active_players / 5).max(3).min(30)
                             };
@@ -1358,7 +1382,7 @@ impl Player {
             player.money = 100000;
             player.base.prestige = 8;
             for _ in 0..4 {
-                player.new_dwarf(rng, next_dwarf_id, time);
+                player.new_dwarf(rng, next_dwarf_id, time, false);
             }
         }
 
@@ -1377,9 +1401,13 @@ impl Player {
         (time - self.start_time) / SPEED < ONE_DAY
     }
 
-    pub fn new_dwarf(&mut self, rng: &mut impl Rng, next_dwarf_id: &mut DwarfId, time: Time) {
+    pub fn new_dwarf(&mut self, rng: &mut impl Rng, next_dwarf_id: &mut DwarfId, time: Time, baby: bool) {
         if self.dwarfs.len() < self.base.max_dwarfs() {
-            let dwarf = Dwarf::new(rng, 1);
+            let dwarf = if baby {
+                Dwarf::new_baby(rng)
+            } else {
+                Dwarf::new_adult(rng)
+            };
             self.log.add(time, LogMsg::NewDwarf(dwarf.name.clone()));
             self.dwarfs.insert(*next_dwarf_id, dwarf);
             *next_dwarf_id += 1;
@@ -1527,13 +1555,13 @@ pub struct Stats {
 }
 
 impl Stats {
-    pub fn random(rng: &mut impl Rng, prestige: u64) -> Self {
+    pub fn random(rng: &mut impl Rng) -> Self {
         Stats {
-            strength: rng.gen_range(prestige as i8..=10),
-            endurance: rng.gen_range(prestige as i8..=10),
-            agility: rng.gen_range(prestige as i8..=10),
-            intelligence: rng.gen_range(prestige as i8..=10),
-            perception: rng.gen_range(prestige as i8..=10),
+            strength: rng.gen_range(1..=10),
+            endurance: rng.gen_range(1..=10),
+            agility: rng.gen_range(1..=10),
+            intelligence: rng.gen_range(1..=10),
+            perception: rng.gen_range(1..=10),
         }
     }
 
@@ -1572,9 +1600,19 @@ pub struct Dwarf {
     pub stats: Stats,
     pub equipment: CustomMap<ItemType, Option<Item>>,
     pub health: Health,
+    pub is_female: bool,
+    pub age_seconds: u64,
 }
 
 impl Dwarf {
+    pub fn age_years(&self) -> u64 {
+        self.age_seconds / (365 * 24 * 60 * 60)
+    }
+
+    pub fn is_adult(&self) -> bool {
+        self.age_years() >= 18
+    }
+
     fn name(rng: &mut impl Rng) -> String {
         let vowels = ['a', 'e', 'i', 'o', 'u'];
         let consonants = [
@@ -1624,7 +1662,7 @@ impl Dwarf {
         name
     }
 
-    fn new(rng: &mut impl Rng, prestige: u64) -> Self {
+    fn new_adult(rng: &mut impl Rng) -> Self {
         let name = Dwarf::name(rng);
 
         Dwarf {
@@ -1632,13 +1670,35 @@ impl Dwarf {
             occupation: Occupation::Idling,
             auto_idle: false,
             occupation_duration: 0,
-            stats: Stats::random(rng, prestige),
+            stats: Stats::random(rng),
             equipment: enum_iterator::all()
                 .filter(ItemType::equippable)
                 .map(|item_type| (item_type, None))
                 .collect(),
             health: MAX_HEALTH,
             participates_in_quest: None,
+            is_female: rng.gen_bool(FEMALE_PROBABILITY),
+            age_seconds: rng.gen_range(18..=80) * 365 * 24 * 60 * 60,
+        }
+    }
+
+    fn new_baby(rng: &mut impl Rng) -> Self {
+        let name = Dwarf::name(rng);
+
+        Dwarf {
+            name,
+            occupation: Occupation::Idling,
+            auto_idle: false,
+            occupation_duration: 0,
+            stats: Stats::random(rng),
+            equipment: enum_iterator::all()
+                .filter(ItemType::equippable)
+                .map(|item_type| (item_type, None))
+                .collect(),
+            health: MAX_HEALTH,
+            participates_in_quest: None,
+            is_female: rng.gen_bool(FEMALE_PROBABILITY),
+            age_seconds: 0,
         }
     }
 
@@ -1842,7 +1902,8 @@ impl Base {
                     .add(Item::Wood, 50 * multiplier(1))
                     .add(Item::Stone, 50 * multiplier(1))
                     .add(Item::Nail, 10 * multiplier(3))
-                    .add(Item::Fabric, 10 * multiplier(5)),
+                    .add(Item::Fabric, 10 * multiplier(5))
+                    .add(Item::Gold, 10 * multiplier(7)),
             )
         } else {
             None

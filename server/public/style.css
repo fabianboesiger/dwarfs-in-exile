@@ -742,3 +742,19 @@ figure {
 figure > figcaption {
     padding: 8px;
 }
+
+details > div {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 8px;
+    margin-bottom: 2px;
+}
+
+details > summary {
+    margin-bottom: 0;
+    cursor: pointer;
+}
+
+summary > * {
+    display: inline;
+    margin: 0;
+}

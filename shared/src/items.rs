@@ -130,6 +130,8 @@ pub enum Item {
     RhinoHornPants,
     DynamiteCrossbow,
     Dolphin,
+    BoneHelmet,
+    BoneNecklace,
 }
 
 impl Craftable for Item {
@@ -267,6 +269,19 @@ impl Craftable for Item {
                     .add(Item::Chain, 5),
             )),
 
+            Item::BoneNecklace => Some((
+                42,
+                Bundle::new()
+                    .add(Item::String, 5)
+                    .add(Item::Bone, 5)
+            )),
+            Item::BoneHelmet => Some((
+                44,
+                Bundle::new()
+                    .add(Item::Helmet, 1)
+                    .add(Item::Bone, 5)
+            )),
+
             Item::Gold => Some((26, Bundle::new().add(Item::GoldOre, 1).add(Item::Coal, 1))),
             Item::GoldenRing => Some((28, Bundle::new().add(Item::Gold, 3))),
             Item::RingOfIntelligence => Some((
@@ -298,13 +313,14 @@ impl Craftable for Item {
             Item::CrystalNecklace => Some((
                 60,
                 Bundle::new()
-                    .add(Item::String, 1)
+                    .add(Item::String, 5)
                     .add(Item::Fluorite, 1)
                     .add(Item::Agate, 1)
                     .add(Item::Sodalite, 1)
                     .add(Item::Ruby, 1)
                     .add(Item::Selenite, 1),
             )),
+
 
             Item::DiamondAxe => Some((62, Bundle::new().add(Item::Axe, 1).add(Item::Diamond, 3))),
             Item::DiamondPickaxe => Some((
@@ -314,15 +330,6 @@ impl Craftable for Item {
             Item::DiamondSword => {
                 Some((66, Bundle::new().add(Item::Sword, 1).add(Item::Diamond, 3)))
             }
-
-            Item::TigerFangDagger => Some((
-                40,
-                Bundle::new().add(Item::TigerFang, 1).add(Item::Dagger, 1),
-            )),
-            Item::RhinoHornHelmet => Some((
-                42,
-                Bundle::new().add(Item::RhinoHorn, 1).add(Item::Helmet, 1),
-            )),
             Item::Longsword => Some((44, Bundle::new().add(Item::Wood, 1).add(Item::Iron, 10))),
             Item::Dragon => Some((
                 48,
@@ -333,6 +340,14 @@ impl Craftable for Item {
                 Bundle::new()
                     .add(Item::RhinoHorn, 1)
                     .add(Item::LeatherArmor, 1),
+            )),
+            Item::TigerFangDagger => Some((
+                72,
+                Bundle::new().add(Item::TigerFang, 1).add(Item::Dagger, 1),
+            )),
+            Item::RhinoHornHelmet => Some((
+                74,
+                Bundle::new().add(Item::RhinoHorn, 1).add(Item::Helmet, 1),
             )),
             _ => None,
         }
@@ -398,7 +413,9 @@ impl Item {
             | Item::BearClawBoots
             | Item::GoldenRing
             | Item::RhinoHornPants
-            | Item::CrystalNecklace => Some(ItemType::Clothing),
+            | Item::CrystalNecklace 
+            | Item::BoneHelmet
+            | Item::BoneNecklace => Some(ItemType::Clothing),
 
             Item::Bow
             | Item::PoisonedBow
@@ -555,9 +572,22 @@ impl Item {
                 intelligence: 6,
                 perception: 6,
             },
+            Item::BoneNecklace => Stats {
+                strength: 2,
+                endurance: 2,
+                agility: 2,
+                intelligence: 2,
+                perception: 2,
+            },
             Item::RhinoHornPants => Stats {
                 strength: 8,
                 endurance: 8,
+                intelligence: -4,
+                ..Default::default()
+            },
+            Item::RhinoHornHelmet => Stats {
+                strength: 2,
+                endurance: 2,
                 intelligence: -4,
                 ..Default::default()
             },
@@ -621,12 +651,13 @@ impl Item {
             (Item::Backpack, Occupation::Gathering) => 7,
             (Item::Bag, Occupation::Gathering) => 5,
             (
-                Item::Helmet | Item::RhinoHornHelmet,
+                Item::Helmet,
                 Occupation::Mining | Occupation::Logging | Occupation::Rockhounding,
             ) => 4,
             (Item::Helmet, Occupation::Fighting) => 6,
             (Item::Headlamp, Occupation::Mining | Occupation::Rockhounding) => 8,
-            (Item::RhinoHornHelmet, Occupation::Fighting) => 8,
+            (Item::RhinoHornHelmet, Occupation::Fighting) => 9,
+            (Item::BoneHelmet, Occupation::Fighting) => 8,
             (Item::Horse, Occupation::Fighting | Occupation::Exploring) => 4,
             (Item::Horse, Occupation::Farming | Occupation::Logging) => 7,
             (Item::Map, Occupation::Exploring) => 8,

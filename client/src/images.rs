@@ -1,13 +1,14 @@
 use std::convert::TryInto;
 
 use rand_chacha::{
-    rand_core::{RngCore, SeedableRng},
+    rand_core::SeedableRng,
     ChaCha8Rng,
 };
 use seed::virtual_dom::{AsAtValue, AtValue};
 use sha2::{Digest, Sha256};
-use shared::{Item, Occupation, QuestType, VillageType, WorldEvent};
+use shared::{Dwarf, Item, Occupation, QuestType, VillageType, WorldEvent, FEMALE_PROBABILITY};
 use strum::Display;
+use rand::Rng;
 
 #[derive(Display)]
 #[strum(serialize_all = "kebab-case")]
@@ -15,6 +16,9 @@ pub enum Image {
     #[allow(unused)]
     Placeholder,
     Dwarf(u64),
+    FemaleDwarf(u64),
+    ChildDwarf(u64),
+    ChildFemaleDwarf(u64),
     Blueberry,
     ChainMail,
     Coal,
@@ -161,6 +165,8 @@ pub enum Image {
     Flood,
     Earthquake,
     Plague,
+    BoneNecklace,
+    BoneHelmet,
 }
 
 impl AsAtValue for Image {
@@ -168,20 +174,64 @@ impl AsAtValue for Image {
         match self {
             Image::Placeholder => AtValue::Some(format!("/images/placeholder.png")),
             Image::Dwarf(id) => AtValue::Some(format!("/images/dwarf-{}.jpg", id)),
+            Image::FemaleDwarf(id) => AtValue::Some(format!("/images/dwarf-female-{}.jpg", id)),
+            Image::ChildDwarf(id) => AtValue::Some(format!("/images/dwarf-child-{}.jpg", id)),
+            Image::ChildFemaleDwarf(id) => AtValue::Some(format!("/images/dwarf-female-child-{}.jpg", id)),
             _ => AtValue::Some(format!("/images/{self}.jpg")),
         }
     }
 }
 
 impl Image {
-    pub fn dwarf_from_name(name: &str) -> Image {
+    pub fn from_dwarf(dwarf: &Dwarf) -> Image {
+        let mut rng = Self::rng_from_str(&dwarf.name);
+        if dwarf.is_adult() {
+            if dwarf.is_female {
+                Image::female_dwarf_from_name(&mut rng)
+            } else {
+                Image::dwarf_from_name(&mut rng)
+            }
+        } else {
+            if dwarf.is_female {
+                Image::child_female_dwarf_from_name(&mut rng)
+            } else {
+                Image::child_dwarf_from_name(&mut rng)
+            }
+        }
+    }
+
+    pub fn from_dwarf_str(s: &str) -> Image {
+        let mut rng = Self::rng_from_str(s);
+        if rng.gen_bool(FEMALE_PROBABILITY) {
+            Self::female_dwarf_from_name(&mut rng)
+        } else {
+            Self::dwarf_from_name(&mut rng)
+        }
+    }
+
+    fn rng_from_str(name: &str) -> ChaCha8Rng {
         let mut hasher = Sha256::new();
         hasher.update(name.as_bytes());
         let slice = &hasher.finalize()[..];
         assert_eq!(slice.len(), 32, "slice length wasn't {}", slice.len());
         let bytes: [u8; 32] = slice.try_into().unwrap();
-        let mut rng = ChaCha8Rng::from_seed(bytes);
-        Image::Dwarf(rng.next_u64() % 26)
+        ChaCha8Rng::from_seed(bytes)
+    }
+
+    fn dwarf_from_name(rng: &mut impl Rng) -> Image {    
+        Image::Dwarf(rng.next_u64() % 30)
+    }
+
+    fn female_dwarf_from_name(rng: &mut impl Rng) -> Image {
+        Image::FemaleDwarf(rng.next_u64() % 6)
+    }
+
+    fn child_dwarf_from_name(rng: &mut impl Rng) -> Image {    
+        Image::ChildDwarf(rng.next_u64() % 12)
+    }
+
+    fn child_female_dwarf_from_name(rng: &mut impl Rng) -> Image {
+        Image::ChildFemaleDwarf(rng.next_u64() % 4)
     }
 }
 
@@ -287,6 +337,8 @@ impl From<Item> for Image {
             Item::RhinoHornPants => Image::RhinoHornPants,
             Item::DynamiteCrossbow => Image::DynamiteCrossbow,
             Item::Dolphin => Image::Dolphin,
+            Item::BoneNecklace => Image::BoneNecklace,
+            Item::BoneHelmet => Image::BoneHelmet,
         }
     }
 }

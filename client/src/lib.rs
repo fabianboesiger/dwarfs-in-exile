@@ -794,13 +794,19 @@ fn dwarfs(
                         C!["list-item-row"],
                         td![img![
                             C!["list-item-image"],
-                            attrs! {At::Src => Image::dwarf_from_name(&dwarf.name).as_at_value()}
+                            attrs! {At::Src => Image::from_dwarf(&dwarf).as_at_value()}
                         ]],
                         td![
                             C!["list-item-content"],
                             h3![C!["title"], &dwarf.name],
                             p![
                                 C!["subtitle"],
+                                format!("{}, {} Years old.", if dwarf.is_female {
+                                    "Female"
+                                } else {
+                                    "Male"
+                                }, dwarf.age_years()),
+                                br![],
                                 if let Some((quest_type, _, _)) = dwarf.participates_in_quest {
                                     div![
                                         if dwarf.auto_idle {
@@ -919,21 +925,56 @@ fn dwarf(
                 C!["dwarf", format!("dwarf-{}", dwarf_id)],
                 h2![C!["title"], &dwarf.name],
                 div![C!["image-aside"],
-                    img![attrs! {At::Src => Image::dwarf_from_name(&dwarf.name).as_at_value()}],
+                    img![attrs! {At::Src => Image::from_dwarf(&dwarf).as_at_value()}],
                     div![
                         p![C!["subtitle"],
-                        if let Some((quest_type, _, _)) = dwarf.participates_in_quest {
-                            format!(
-                                "Participating in quest {} since {}.",
-                                quest_type,
-                                fmt_time(dwarf.occupation_duration)
-                            )
+                        format!("{}, {} Years old.", if dwarf.is_female {
+                            "Female"
                         } else {
-                            format!(
-                                "{} since {}.",
-                                dwarf.occupation,
-                                fmt_time(dwarf.occupation_duration)
-                            )
+                            "Male"
+                        }, dwarf.age_years()),
+                        br![],
+                        if let Some((quest_type, _, _)) = dwarf.participates_in_quest {
+                            div![
+                                if dwarf.auto_idle {
+                                    format!(
+                                        "Auto-idling, resuming quest {} shortly.",
+                                        quest_type,
+                                    )
+                                } else {
+                                    format!(
+                                        "Participating in quest {}.",
+                                        quest_type,
+                                    )
+                                },
+                                br![],
+                                if dwarf.occupation != Occupation::Idling {
+                                    stars(dwarf.effectiveness(quest_type.occupation()) as i8, true)
+                                } else {
+                                    Node::Empty
+                                }
+                            ]
+                        } else {
+                            div![
+                                if dwarf.auto_idle {
+                                    format!(
+                                        "Auto-idling, resuming occupation {} shortly.",
+                                        dwarf.occupation,
+                                    )
+                                } else {
+                                    format!(
+                                        "{} since {}.",
+                                        dwarf.occupation,
+                                        fmt_time(dwarf.occupation_duration)
+                                    )
+                                },
+                                br![],
+                                if dwarf.occupation != Occupation::Idling {
+                                    stars(dwarf.effectiveness(dwarf.occupation) as i8, true)
+                                } else {
+                                    Node::Empty
+                                }
+                            ]
                         }],
                         health_bar(dwarf.health, MAX_HEALTH),
                         p![
@@ -1411,7 +1452,7 @@ fn quest(
                         tr![
                             C!["list-item-row"],
                             if let Some(dwarf) = dwarf {
-                                td![img![C!["list-item-image"], attrs! {At::Src => Image::dwarf_from_name(&dwarf.name).as_at_value()}]]
+                                td![img![C!["list-item-image"], attrs! {At::Src => Image::from_dwarf(&dwarf).as_at_value()}]]
                             } else {
                                 td![div![C!["list-item-image-placeholder"]]]
                             },
@@ -1553,7 +1594,7 @@ fn base(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node
                                 WorldEvent::Drought => p!["There is a drought happening. The drought makes it harder to farm, gather and hunt. Make sure that your dwarfs don't starve!"],
                                 WorldEvent::Flood => p!["A flood has occurred. The flood makes it harder to farm, gather and fish. Make sure that your dwarfs don't starve!"],
                                 WorldEvent::Earthquake => p!["An earthquake has occurred. The earthquake makes it harder to mine, rockhound and log. Be aware of your resource production!"],
-                                WorldEvent::Plague => p!["A plague is happening. The plague makes lets your dwarfs lose health muck faster. Make sure that your dwarfs don't die!"],
+                                WorldEvent::Plague => p!["A plague is happening. During a plague, the health of your dwarfs decreases much faster. Settlements with more dwarfs are affected more than settlements with fewer dwarfs. Make sure that your dwarfs don't die!"],
                             }
                         ]
                     ]
@@ -1588,7 +1629,7 @@ fn base(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node
                                     img![attrs! {At::Src => match unlock {
                                         Unlock::Item(item) => Image::from(*item).as_at_value(),
                                         Unlock::Occupation(occupation) => Image::from(*occupation).as_at_value(),
-                                        Unlock::MaxPopulation(level) => Image::dwarf_from_name(&format!("{}", level)).as_at_value(),
+                                        Unlock::MaxPopulation(level) => Image::from_dwarf_str(&format!("{}", level)).as_at_value(),
                                     }}],
                                     p![strong![match unlock {
                                         Unlock::Item(item) => format!("{}", item),
