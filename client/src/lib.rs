@@ -432,6 +432,27 @@ fn popup(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                                         "Male"
                                     }, dwarf.age_years()),
                                 ],
+                                p![
+                                    h4!["Stats"],
+                                    table![tbody![
+                                        tr![th![], th!["Inherent", tip("Each dwarf has some inherent stats that he was born with and that cannot be changed.")]],
+                                        tr![th!["Strength"],
+                                            td![stars(dwarf.stats.strength, true)],
+                                        ],
+                                        tr![th!["Endurance"],
+                                            td![stars(dwarf.stats.endurance, true)],
+                                        ],
+                                        tr![th!["Agility"],
+                                            td![stars(dwarf.stats.agility, true)],
+                                        ],
+                                        tr![th!["Intelligence"],
+                                            td![stars(dwarf.stats.intelligence, true)],
+                                        ],
+                                        tr![th!["Perception"],
+                                            td![stars(dwarf.stats.perception, true)],
+                                        ],
+                                    ]]
+                                ],
                                 button![
                                     ev(Ev::Click, move |_| Msg::send_event(ClientEvent::ConfirmPopup)),
                                     "Confirm"
@@ -1856,7 +1877,7 @@ fn base(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node
                                     attrs! {At::Disabled => "true"}
                                 },
                                 ev(Ev::Click, move |_| Msg::send_event(ClientEvent::HireDwarf(dwarf_type))),
-                                format!("Hire {} Dwarf ({} coins)", dwarf_type, dwarf_type.cost()),
+                                format!("Hire Dwarf ({} coins)", dwarf_type.cost()),
                             ]
                         })
                     ],
