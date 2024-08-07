@@ -97,10 +97,12 @@ impl engine_server::BackendStore<shared::State> for GameStore {
     }
 
     async fn load_user_data(&self) -> Result<CustomMap<UserId, UserData>, Self::Error> {
-        let users: Vec<(i64, String, i64)> = sqlx::query_as(
+        let users: Vec<(i64, String, i64, i64, i64)> = sqlx::query_as(
             r#"
-                        SELECT user_id, username, premium
+                        SELECT user_id, username, premium, admin, COUNT(winner)
                         FROM users
+                        LEFT JOIN games ON winner = user_id
+                        GROUP BY user_id, username, premium, admin
                     "#,
         )
         .fetch_all(&self.db)
@@ -109,12 +111,14 @@ impl engine_server::BackendStore<shared::State> for GameStore {
 
         let users = users
             .into_iter()
-            .map(|(id, username, premium)| {
+            .map(|(id, username, premium, admin, games_won)| {
                 (
                     id.into(),
                     UserData {
                         username,
                         premium: premium as u64,
+                        admin: admin != 0,
+                        games_won,
                     },
                 )
             })

@@ -249,7 +249,7 @@ th, td {
     padding-right: 4px;
     border-bottom: 1px solid var(--ui-background-default);
     border-top: 1px solid var(--ui-background-default);
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.3);
 }
 
 nav {
@@ -316,7 +316,7 @@ input[type=checkbox] {
     width: 100%;
     height: 16px;
     position: relative;
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.3);
 }
 
 .health-bar-curr {
@@ -340,7 +340,7 @@ input[type=checkbox] {
     width: 100%;
     height: 16px;
     position: relative;
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.3);
 }
 
 .score-bar-curr {
@@ -496,7 +496,7 @@ input[type=checkbox] {
 .list td .list-item-image-placeholder {
     width: 128px;
     height: 128px;
-    background: rgba(0, 0, 0, 0.2);
+    background: rgba(0, 0, 0, 0.3);
     flex-grow: 0;
 }
 
@@ -540,23 +540,23 @@ h4, .title {
 }
 
 .item-common {
-    background: rgba(255, 255, 255, 0.2);    
+    background: rgba(255, 255, 255, 0.3);    
 }
 .item-uncommon {
-    background: rgba(0, 175, 9, 0.2);    
+    background: rgba(0, 175, 9, 0.3);    
 }
 .item-rare {
-    background: rgba(4, 101, 211, 0.2);    
+    background: rgba(4, 101, 211, 0.3);    
 }
 .item-epic {
-    background: rgba(192, 0, 199, 0.2);    
+    background: rgba(192, 0, 199, 0.3);    
 }
 .item-legendary {
-    background: rgba(194, 110, 0, 0.2);    
+    background: rgba(194, 110, 0, 0.3);    
 }
 
 .list-item-row.selected {
-    background: rgba(0, 0, 0, 0.2);
+    background: rgba(0, 0, 0, 0.3);
 }
 
 .short-info + .short-info::before {
@@ -615,7 +615,7 @@ ul {
 }
 
 .important {
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.3);
     padding: 16px;
     margin-top: 1em;
     margin-bottom: 1em;
@@ -685,7 +685,7 @@ ul {
 
 .panel-wrapper {
     position: fixed;
-    z-index: 10000;
+    z-index: 20000;
     top: 0;
     left: 0;
     width: 100vw;
@@ -736,7 +736,7 @@ ul {
 
 figure {
     margin: 0;
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.3);
 }
 
 figure > figcaption {
@@ -744,7 +744,7 @@ figure > figcaption {
 }
 
 details > div {
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.3);
     padding: 8px;
     margin-bottom: 2px;
 }
@@ -757,4 +757,18 @@ details > summary {
 summary > * {
     display: inline;
     margin: 0;
+}
+
+.nametag {
+    margin-left: 2px;
+    margin-right: 2px;
+    padding-left: 4px;
+    padding-right: 4px;
+    border-radius: 8px;
+    background: black;
+    color: white;
+}
+
+td.current-user {
+    background: rgba(255, 255, 255, 0.6);
 }

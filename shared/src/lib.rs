@@ -39,9 +39,10 @@ pub type Time = u64;
 
 pub type QuestId = u64;
 
-pub enum Building {
-    Barracks,
-    Storage,
+#[derive(Serialize, Deserialize, Debug, Clone, Hash)]
+pub enum Popup {
+    NewDwarf(Dwarf),
+    NewItems(Bundle<Item>),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq, Sequence, Copy)]
@@ -120,58 +121,6 @@ impl TutorialRequirement {
 }
 
 impl TutorialStep {
-    /*pub fn complete(&self, player: &Player) -> bool {
-        match self {
-            TutorialStep::Welcome => { true }
-            TutorialStep::Mining => {
-                player
-                    .inventory
-                    .items
-                    .get(&Item::Stone)
-                    .copied()
-                    .unwrap_or(0)
-                    >= 10
-            }
-            TutorialStep::Logging => {
-                player
-                    .inventory
-                    .items
-                    .get(&Item::Wood)
-                    .copied()
-                    .unwrap_or(0)
-                    >= 10
-            }
-            TutorialStep::SettlementExpansion2 => player.base.curr_level >= 2,
-            TutorialStep::Hunting => {
-                player
-                    .inventory
-                    .items
-                    .get(&Item::RawMeat)
-                    .copied()
-                    .unwrap_or(0)
-                    >= 10
-            }
-            TutorialStep::FoodPreparation => player.base.food > 0,
-            TutorialStep::Idling => player
-                .dwarfs
-                .values()
-                .any(|dwarf| dwarf.actual_occupation() == Occupation::Idling),
-            TutorialStep::Quests => player.dwarfs.values().any(|dwarf| {
-                dwarf
-                    .participates_in_quest
-                    .map(|(quest_type, _, _)| {
-                        matches!(
-                            quest_type.reward_mode(),
-                            RewardMode::NewDwarf(_) | RewardMode::NewDwarfByChance(_)
-                        )
-                    })
-                    .unwrap_or(false)
-            }),
-            TutorialStep::SettlementExpansion5 => player.base.curr_level >= 5,
-            TutorialStep::Presitge => player.base.prestige > 1,
-        }
-    }*/
-
     pub fn requires(&self) -> TutorialRequirement {
         match self {
             TutorialStep::Welcome => TutorialRequirement::Nothing,
@@ -239,17 +188,11 @@ impl From<i64> for UserId {
 pub struct UserData {
     pub username: String,
     pub premium: u64,
+    pub games_won: i64,
+    pub admin: bool,
 }
 
 impl engine_shared::UserData for UserData {}
-
-/*
-impl From<String> for UserData {
-    fn from(username: String) -> Self {
-        UserData { username }
-    }
-}
-*/
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Sequence, Display, PartialEq, Eq)]
 #[strum(serialize_all = "title_case")]
@@ -365,6 +308,9 @@ impl engine_shared::State for State {
 
                     match event {
                         ClientEvent::Init => {}
+                        ClientEvent::ConfirmPopup => {
+                            player.popups.pop_front();
+                        }
                         ClientEvent::NextTutorialStep => {
                             if let Some(step) = player.tutorial_step {
                                 if step.requires().complete(player) {
@@ -1298,6 +1244,7 @@ pub struct Player {
     pub tutorial_step: Option<TutorialStep>,
     #[serde(default)]
     pub start_time: Time,
+    pub popups: VecDeque<Popup>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
@@ -1332,6 +1279,7 @@ impl Player {
             reward_time: time,
             tutorial_step: TutorialStep::first(),
             start_time: time,
+            popups: VecDeque::new(),
         };
 
         if cfg!(debug_assertions) {
@@ -1349,6 +1297,10 @@ impl Player {
         }
 
         player
+    }
+
+    pub fn add_popup(&mut self, popup: Popup) {
+        self.popups.push_back(popup);
     }
 
     pub fn is_online(&self, time: Time) -> bool {
@@ -1371,6 +1323,7 @@ impl Player {
                 Dwarf::new_adult(rng)
             };
             self.log.add(time, LogMsg::NewDwarf(dwarf.name.clone()));
+            self.add_popup(Popup::NewDwarf(dwarf.clone()));
             self.dwarfs.insert(*next_dwarf_id, dwarf);
             *next_dwarf_id += 1;
         } else {
@@ -1387,6 +1340,7 @@ impl Player {
         let item = *possible_items.choose(rng).unwrap();
         let bundle = Bundle::new().add(item, (10000 / item.item_rarity_num()).max(1).min(100));
         self.log.add(time, LogMsg::OpenedLootCrate(bundle.clone()));
+        self.add_popup(Popup::NewItems(bundle.clone()));
         self.add_items(bundle, time, true);
     }
 
@@ -1934,6 +1888,7 @@ pub enum ClientEvent {
     ToggleAutoIdle,
     HireDwarf(HireDwarfType),
     NextTutorialStep,
+    ConfirmPopup,
 }
 
 impl engine_shared::ClientEvent for ClientEvent {

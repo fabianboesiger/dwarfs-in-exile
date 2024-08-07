@@ -6,7 +6,7 @@ use images::Image;
 use itertools::Itertools;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, QuestId, QuestType, RewardMode, Stats, Time, TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, FREE_LOOT_CRATE, LOOT_CRATE_COST, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS
+    Bundle, ClientEvent, Craftable, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, Stats, Time, TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, FREE_LOOT_CRATE, LOOT_CRATE_COST, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS
 };
 use std::str::FromStr;
 use web_sys::js_sys::Date;
@@ -269,7 +269,7 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
         }
         Msg::ChangePage(page) => {
             model.page = page;
-            
+
             web_sys::window()
                 .unwrap()
                 .scroll_to_with_x_and_y(0.0, 0.0);
@@ -386,13 +386,14 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
             div![id!["background"]],
             header![h1![a![attrs! { At::Href => "/" }, "Dwarfs in Exile"]]],
             nav(model),
+            popup(model, state, user_id),
             tutorial(model, state, user_id),
             main![match model.page {
                 Page::Dwarfs(mode) => dwarfs(model, state, user_id, mode),
                 Page::Dwarf(dwarf_id) => dwarf(model, state, user_id, dwarf_id),
                 Page::Base => base(model, state, user_id),
                 Page::Inventory(mode) => inventory(model, state, user_id, mode),
-                Page::Ranking => ranking(state, client_state),
+                Page::Ranking => ranking(model, state, client_state, user_id),
                 Page::Quests => quests(model, state, user_id),
                 Page::Quest(quest_id) => quest(model, state, user_id, quest_id),
             }],
@@ -409,10 +410,107 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
     }
 }
 
+fn popup(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
+    if let Some(player) = state.players.get(user_id) {
+        if let Some(popup) = player.popups.front() {
+            div![
+                C!["panel-wrapper"],
+                
+                match popup {
+                    Popup::NewDwarf(dwarf) => {
+                        div![
+                            id!["tutorial-panel"],
+                            C!["panel"],
+                            img![C!["panel-image"], attrs! { At::Src => Image::from_dwarf(dwarf).as_at_value() } ],
+                            div![C!["panel-content"],
+                                h3!["A New Dwarf has Arrived"],
+                                h4![C!["title"], &dwarf.name],
+                                p![C!["subtitle"],
+                                    format!("{}, {} Years old.", if dwarf.is_female {
+                                        "Female"
+                                    } else {
+                                        "Male"
+                                    }, dwarf.age_years()),
+                                ],
+                                button![
+                                    ev(Ev::Click, move |_| Msg::send_event(ClientEvent::ConfirmPopup)),
+                                    "Confirm"
+                                ],
+                            ]
+                        ]
+                    },
+                    Popup::NewItems(bundle) => {
+                        let (item, qty) = bundle.iter().next().unwrap();
+
+                        div![
+                            id!["tutorial-panel"],
+                            C!["panel"],
+                            img![C!["panel-image"], attrs! { At::Src => Image::from(*item).as_at_value() } ],
+                            div![C!["panel-content"],
+                                h3![format!("You Received {} {}", qty, item)],
+
+                                p![
+                                    if !item.provides_stats().is_zero() {
+                                        div![
+                                            h4!["Provides"],
+                                            stats(&item.provides_stats()),
+                                        ]
+                                    } else {
+                                        Node::Empty
+                                    },
+                                    if enum_iterator::all::<Occupation>()
+                                        .filter(|occupation| {
+                                            let usefulness = item.usefulness_for(*occupation);
+                                            usefulness > 0
+                                        })
+                                        .count()
+                                        > 0
+                                    {
+                                        div![
+                                            h4!["Utility"],
+                                            itertools::intersperse(enum_iterator::all::<Occupation>().filter_map(
+                                                |occupation| {
+                                                    let usefulness =
+                                                        item.usefulness_for(occupation) as i8;
+                                                    if usefulness > 0 {
+                                                        Some(span![
+                                                            format!("{} ", occupation),
+                                                            stars(usefulness, true)
+                                                        ])
+                                                    } else {
+                                                        None
+                                                    }
+                                                }
+                                            ), br![])
+                                        ]
+                                    } else {
+                                        Node::Empty
+                                    },
+                                ],
+                                
+
+                                button![
+                                    ev(Ev::Click, move |_| Msg::send_event(ClientEvent::ConfirmPopup)),
+                                    "Confirm"
+                                ],
+                            ]
+                        ]
+                    }
+                }
+                
+            ] 
+        } else {
+            Node::Empty
+        }
+    } else {
+        Node::Empty
+    }
+}
+
 fn tutorial(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
         if let Some(step) = player.tutorial_step {
-            if model.show_tutorial {
+            if model.show_tutorial && player.popups.is_empty() {
                 div![
                     C!["panel-wrapper"],
                     div![
@@ -521,7 +619,7 @@ fn tutorial(model: &Model, state: &shared::State, user_id: &shared::UserId) -> N
     }
 }
 
-fn ranking(state: &shared::State, client_state: &ClientState<shared::State>) -> Node<Msg> {
+fn ranking(model: &Model, state: &shared::State, client_state: &ClientState<shared::State>, current_user_id: &shared::UserId) -> Node<Msg> {
     let mut players: Vec<_> = state
         .players
         .iter()
@@ -547,10 +645,19 @@ fn ranking(state: &shared::State, client_state: &ClientState<shared::State>) -> 
                 th!["Level"],
             ],
             players.iter().enumerate().map(|(i, (user_id, player))| {
+                let (is_premium, is_dev, is_winner) = model
+                    .state
+                    .get_user_data(user_id)
+                    .map(|user_data| (user_data.premium > 0, user_data.admin, user_data.games_won > 0))
+                    .unwrap_or((false, false, false));
+
                 let rank = i + 1;
+                let current_user = *current_user_id == **user_id;
+
                 tr![
-                    td![rank],
+                    td![C![if current_user { "current-user" } else { "" }], rank],
                     td![
+                        C![if current_user { "current-user" } else { "" }],
                         format!(
                             "{} ",
                             client_state
@@ -558,6 +665,30 @@ fn ranking(state: &shared::State, client_state: &ClientState<shared::State>) -> 
                                 .map(|data| data.username.clone())
                                 .unwrap_or_default()
                         ),
+                        if is_dev {
+                            span![
+                                C!["nametag"],
+                                "Developer"
+                            ]
+                        } else {
+                            Node::Empty
+                        },
+                        if is_premium {
+                            span![
+                                C!["nametag"],
+                                "Premium"
+                            ]
+                        } else {
+                            Node::Empty
+                        },
+                        if is_winner {
+                            span![
+                                C!["nametag"],
+                                "Winner"
+                            ]
+                        } else {
+                            Node::Empty
+                        },
                         span![
                             C![
                                 "symbols",
@@ -570,7 +701,7 @@ fn ranking(state: &shared::State, client_state: &ClientState<shared::State>) -> 
                             "●"
                         ]
                     ],
-                    td![player.base.curr_level]
+                    td![C![if current_user { "current-user" } else { "" }], player.base.curr_level]
                 ]
             })
         ]
