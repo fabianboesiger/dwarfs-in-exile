@@ -141,14 +141,14 @@ impl TutorialStep {
     pub fn reward(&self) -> TutorialReward {
         match self {
             TutorialStep::Welcome => TutorialReward::Dwarfs(1),
-            TutorialStep::Mining => TutorialReward::Items(Bundle::new().add(Item::Stone, 50)),
-            TutorialStep::Logging => TutorialReward::Items(Bundle::new().add(Item::Wood, 50)),
+            TutorialStep::Mining => TutorialReward::Items(Bundle::new().add(Item::Stone, 100)),
+            TutorialStep::Logging => TutorialReward::Items(Bundle::new().add(Item::Wood, 100)),
             TutorialStep::SettlementExpansion2 => TutorialReward::Dwarfs(1),
-            TutorialStep::Hunting => TutorialReward::Items(Bundle::new().add(Item::Coal, 50)),
+            TutorialStep::Hunting => TutorialReward::Items(Bundle::new().add(Item::Coal, 100)),
             TutorialStep::FoodPreparation => {
-                TutorialReward::Items(Bundle::new().add(Item::CookedMeat, 50))
+                TutorialReward::Items(Bundle::new().add(Item::CookedMeat, 100))
             }
-            TutorialStep::Idling => TutorialReward::Items(Bundle::new().add(Item::Hemp, 50)),
+            TutorialStep::Idling => TutorialReward::Items(Bundle::new().add(Item::Hemp, 100)),
             TutorialStep::SettlementExpansion3 => TutorialReward::Money(1000),
             TutorialStep::Quests => TutorialReward::Money(1000),
             TutorialStep::SettlementExpansion5 => TutorialReward::Dwarfs(1),
@@ -1805,8 +1805,8 @@ impl Base {
 
             Some(
                 Bundle::new()
-                    .add(Item::Wood, 50 * multiplier(0))
-                    .add(Item::Stone, 50 * multiplier(20))
+                    .add(Item::Wood, 100 * multiplier(0))
+                    .add(Item::Stone, 100 * multiplier(20))
                     .add(Item::Nail, 10 * multiplier(40))
                     .add(Item::Fabric, 10 * multiplier(60))
                     .add(Item::Gold, 10 * multiplier(80)),
