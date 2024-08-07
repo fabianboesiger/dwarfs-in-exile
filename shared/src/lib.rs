@@ -13,9 +13,7 @@ use rand::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{HashSet, VecDeque},
-    hash::Hash,
-    ops::Deref,
+    collections::{HashSet, VecDeque}, hash::Hash, ops::Deref
 };
 use strum::Display;
 
@@ -31,6 +29,7 @@ pub const LOOT_CRATE_COST: Money = 1000;
 pub const FREE_LOOT_CRATE: u64 = ONE_DAY;
 pub const WINNER_NUM_PREMIUM_DAYS: i64 = 30;
 pub const FEMALE_PROBABILITY: f64 = 0.1;
+pub const MAX_LEVEL: u64 = 100;
 
 pub type Money = u64;
 pub type Food = u64;
@@ -87,7 +86,6 @@ pub enum TutorialStep {
     SettlementExpansion3,
     Quests,
     SettlementExpansion5,
-    Presitge,
 }
 
 pub enum TutorialReward {
@@ -98,7 +96,6 @@ pub enum TutorialReward {
 
 pub enum TutorialRequirement {
     Nothing,
-    PrestigeLevel(u64),
     Items(Bundle<Item>),
     BaseLevel(u64),
     Food(Food),
@@ -110,7 +107,6 @@ impl TutorialRequirement {
     pub fn complete(&self, player: &Player) -> bool {
         match self {
             TutorialRequirement::Nothing => true,
-            TutorialRequirement::PrestigeLevel(prestige) => player.base.prestige >= *prestige,
             TutorialRequirement::Items(bundle) => player.inventory.items.check_remove(bundle),
             TutorialRequirement::BaseLevel(level) => player.base.curr_level >= *level,
             TutorialRequirement::Food(food) => player.base.food >= *food,
@@ -190,7 +186,6 @@ impl TutorialStep {
             TutorialStep::SettlementExpansion3 => TutorialRequirement::BaseLevel(3),
             TutorialStep::Quests => TutorialRequirement::NumberOfDwarfs(3),
             TutorialStep::SettlementExpansion5 => TutorialRequirement::BaseLevel(5),
-            TutorialStep::Presitge => TutorialRequirement::PrestigeLevel(2),
         }
     }
 
@@ -208,7 +203,6 @@ impl TutorialStep {
             TutorialStep::SettlementExpansion3 => TutorialReward::Money(1000),
             TutorialStep::Quests => TutorialReward::Money(1000),
             TutorialStep::SettlementExpansion5 => TutorialReward::Dwarfs(1),
-            TutorialStep::Presitge => TutorialReward::Money(1000),
         }
     }
 }
@@ -226,7 +220,6 @@ impl std::fmt::Display for TutorialStep {
             TutorialStep::SettlementExpansion3 => write!(f, "Expand Your Settlement"),
             TutorialStep::Quests => write!(f, "Make new Friends"),
             TutorialStep::SettlementExpansion5 => write!(f, "Expand Your Settlement"),
-            TutorialStep::Presitge => write!(f, "Bigger and Better"),
         }
     }
 }
@@ -322,14 +315,6 @@ impl State {
                 }
             }
         }
-    }
-
-    pub fn prestige(&mut self, user_id: &UserId) {
-        let player = self.players.get_mut(user_id).unwrap();
-        player.base.prestige += 1;
-        player.base.food = 0;
-        player.inventory.items = Bundle::new();
-        player.prestige_quest_completed = false;
     }
 }
 
@@ -568,11 +553,6 @@ impl engine_shared::State for State {
                         ClientEvent::Sell(item, qty) => {
                             Self::sell(player, item, qty);
                         }
-                        ClientEvent::Prestige => {
-                            if player.can_prestige() && player.prestige_quest_completed {
-                                self.prestige(&user_id);
-                            }
-                        }
                     }
                 }
                 Event::ServerEvent(event) => {
@@ -602,6 +582,9 @@ impl engine_shared::State for State {
                                     .get(user_id)
                                     .map(|user_data| user_data.premium > 0)
                                     .unwrap_or(false);
+
+                                // Build the base.
+                                player.base.build();
 
                                 // Chance for a new dwarf!
                                 if rng.gen_ratio(
@@ -975,34 +958,6 @@ impl engine_shared::State for State {
                                                 }
                                             }
                                         }
-                                        RewardMode::Prestige => {
-                                            if let Some(user_id) = quest.chance_by_score(rng) {
-                                                if let Some(player) = self.players.get_mut(&user_id)
-                                                {
-                                                    player.prestige_quest_completed = true;
-                                                    player.log.add(
-                                                        self.time,
-                                                        LogMsg::QuestCompletedPrestige(
-                                                            quest.quest_type,
-                                                            true,
-                                                        ),
-                                                    );
-                                                }
-                                                for contestant_id in quest.contestants.keys() {
-                                                    if *contestant_id != user_id {
-                                                        let player =
-                                                            self.players.get_mut(contestant_id)?;
-                                                        player.log.add(
-                                                            self.time,
-                                                            LogMsg::QuestCompletedPrestige(
-                                                                quest.quest_type,
-                                                                false,
-                                                            ),
-                                                        );
-                                                    }
-                                                }
-                                            }
-                                        }
                                         RewardMode::NewDwarfByChance(num_dwarfs) => {
                                             if let Some(user_id) = quest.chance_by_score(rng) {
                                                 if let Some(player) = self.players.get_mut(&user_id)
@@ -1100,15 +1055,15 @@ impl engine_shared::State for State {
                                 (active_players / 5).max(3).min(30)
                             };
 
-                            let max_prestige = self
+                            let max_level = self
                                 .players
                                 .iter()
-                                .map(|(_, player)| player.base.prestige)
+                                .map(|(_, player)| player.base.curr_level)
                                 .max()
                                 .unwrap_or(1);
 
                             let available_quests = enum_iterator::all::<QuestType>()
-                                .filter(|quest_type| quest_type.is_available(max_prestige))
+                                .filter(|quest_type| quest_type.is_available(max_level))
                                 .collect::<HashSet<_>>();
 
                             while self.quests.len() < num_quests {
@@ -1338,7 +1293,6 @@ pub struct Player {
     pub money: Money,
     pub last_online: Time,
     pub auto_functions: AutoFunctions,
-    pub prestige_quest_completed: bool,
     pub reward_time: Time,
     #[serde(default = "TutorialStep::first")]
     pub tutorial_step: Option<TutorialStep>,
@@ -1375,20 +1329,23 @@ impl Player {
             money: 0,
             last_online: time,
             auto_functions: AutoFunctions::default(),
-            prestige_quest_completed: false,
             reward_time: time,
             tutorial_step: TutorialStep::first(),
             start_time: time,
         };
 
         if cfg!(debug_assertions) {
-            player.prestige_quest_completed = true;
-            player.base.curr_level = 10;
+            player.base.curr_level = 15;
             player.money = 100000;
-            player.base.prestige = 8;
             for _ in 0..4 {
                 player.new_dwarf(rng, next_dwarf_id, time, false);
             }
+            player.inventory.add(Bundle::new()
+                .add(Item::Wood, 10000)
+                .add(Item::Iron, 10000)
+                .add(Item::Stone, 10000)
+                .add(Item::Coal, 10000)
+                , time)
         }
 
         player
@@ -1431,10 +1388,6 @@ impl Player {
         let bundle = Bundle::new().add(item, (10000 / item.item_rarity_num()).max(1).min(100));
         self.log.add(time, LogMsg::OpenedLootCrate(bundle.clone()));
         self.add_items(bundle, time, true);
-    }
-
-    pub fn can_prestige(&self) -> bool {
-        self.base.prestige < 10 && self.base.curr_level == self.base.max_level()
     }
 
     pub fn add_items(&mut self, bundle: Bundle<Item>, time: Time, is_premium: bool) {
@@ -1871,22 +1824,18 @@ impl Occupation {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 pub struct Base {
-    pub prestige: u64,
     pub curr_level: u64,
+    pub build_time: Time,
     pub food: Food,
 }
 
 impl Base {
     pub fn new() -> Base {
         Base {
-            prestige: 1,
             curr_level: 1,
+            build_time: 0,
             food: 0,
         }
-    }
-
-    pub fn max_level(&self) -> u64 {
-        self.prestige * 10
     }
 
     pub fn max_dwarfs(&self) -> usize {
@@ -1894,45 +1843,56 @@ impl Base {
     }
 
     pub fn upgrade_cost(&self) -> Option<Bundle<Item>> {
-        if self.curr_level < self.max_level() {
-            let multiplier = |unlocked_at_prestige: u64| {
-                let prev_prestige = unlocked_at_prestige - 1;
-                let starting_level = (prev_prestige * 10).saturating_sub(1);
-                self.curr_level.saturating_sub(starting_level)
-                    * self.prestige.saturating_sub(prev_prestige)
+        if self.curr_level < MAX_LEVEL {
+            let multiplier = |unlocked_after_level: u64| {
+                self.curr_level.saturating_sub(unlocked_after_level)
+                    * (self.curr_level.saturating_sub(unlocked_after_level) / 10 + 1)
             };
 
             Some(
                 Bundle::new()
-                    .add(Item::Wood, 50 * multiplier(1))
-                    .add(Item::Stone, 50 * multiplier(1))
-                    .add(Item::Nail, 10 * multiplier(3))
-                    .add(Item::Fabric, 10 * multiplier(5))
-                    .add(Item::Gold, 10 * multiplier(7)),
+                    .add(Item::Wood, 50 * multiplier(0))
+                    .add(Item::Stone, 50 * multiplier(20))
+                    .add(Item::Nail, 10 * multiplier(40))
+                    .add(Item::Fabric, 10 * multiplier(60))
+                    .add(Item::Gold, 10 * multiplier(80)),
             )
         } else {
             None
         }
     }
 
+    pub fn build_time_ticks(&self) -> u64 {
+        self.curr_level * (self.curr_level / 10 + 1) * 60
+    }
+
+    pub fn build(&mut self) {
+        if self.build_time > 0 {
+            self.build_time -= 1;
+            if self.build_time == 0 {
+                self.curr_level += 1;
+            }
+        }
+    }
+
     pub fn upgrade(&mut self) {
-        self.curr_level += 1;
-        assert!(self.curr_level <= self.max_level());
+        if self.curr_level < MAX_LEVEL && self.build_time == 0 {
+            self.build_time = self.build_time_ticks();
+        }
     }
 
     pub fn village_type(&self) -> VillageType {
-        match self.prestige {
-            1 => VillageType::Outpost,
-            2 => VillageType::Dwelling,
-            3 => VillageType::Hamlet,
-            4 => VillageType::Village,
-            5 => VillageType::SmallTown,
-            6 => VillageType::LargeTown,
-            7 => VillageType::SmallCity,
-            8 => VillageType::LargeCity,
-            9 => VillageType::Metropolis,
-            10 => VillageType::Megalopolis,
-            _ => panic!(),
+        match self.curr_level / 10 {
+            0 => VillageType::Outpost,
+            1 => VillageType::Dwelling,
+            2 => VillageType::Hamlet,
+            3 => VillageType::Village,
+            4 => VillageType::SmallTown,
+            5 => VillageType::LargeTown,
+            6 => VillageType::SmallCity,
+            7 => VillageType::LargeCity,
+            8 => VillageType::Metropolis,
+            _ => VillageType::Megalopolis,
         }
     }
 }
@@ -1967,7 +1927,6 @@ pub enum ClientEvent {
     AssignToQuest(QuestId, usize, Option<DwarfId>),
     AddToFoodStorage(Item, u64),
     Sell(Item, u64),
-    Prestige,
     Restart,
     ToggleAutoCraft(Item),
     ToggleAutoStore(Item),
@@ -2092,7 +2051,6 @@ pub enum RewardMode {
     SplitFairly(Money),
     BestGetsItems(Bundle<Item>),
     ItemsByChance(Bundle<Item>),
-    Prestige,
     NewDwarf(usize),
     NewDwarfByChance(usize),
     BecomeKing,
@@ -2108,7 +2066,6 @@ pub struct Contestant {
 pub enum QuestType {
     KillTheDragon,
     ArenaFight,
-    ExploreNewLands,
     FreeTheVillage,
     FeastForAGuest,
     ADwarfGotLost,
@@ -2134,7 +2091,6 @@ impl std::fmt::Display for QuestType {
         match self {
             QuestType::ArenaFight => write!(f, "Arena Fight"),
             QuestType::KillTheDragon => write!(f, "Kill the Dragon"),
-            QuestType::ExploreNewLands => write!(f, "Explore New Lands"),
             QuestType::FreeTheVillage => write!(f, "Free the Elven Village"),
             QuestType::FeastForAGuest => write!(f, "A Feast for a Guest"),
             QuestType::ADwarfGotLost => write!(f, "A Dwarf got Lost"),
@@ -2164,7 +2120,6 @@ impl QuestType {
                 RewardMode::BestGetsItems(Bundle::new().add(Item::DragonsEgg, 1))
             }
             Self::ArenaFight => RewardMode::BestGetsAll(2000),
-            Self::ExploreNewLands => RewardMode::Prestige,
             Self::FreeTheVillage => RewardMode::SplitFairly(2000),
             Self::FeastForAGuest => RewardMode::NewDwarf(1),
             Self::ADwarfGotLost => RewardMode::NewDwarfByChance(1),
@@ -2203,7 +2158,6 @@ impl QuestType {
         match self {
             Self::KillTheDragon => ONE_HOUR * 2,
             Self::ArenaFight => ONE_HOUR * 4,
-            Self::ExploreNewLands => ONE_HOUR * 8,
             Self::FreeTheVillage => ONE_HOUR * 2,
             Self::FeastForAGuest => ONE_HOUR * 4,
             Self::ADwarfGotLost => ONE_HOUR * 2,
@@ -2229,7 +2183,6 @@ impl QuestType {
         match self {
             Self::KillTheDragon => Occupation::Fighting,
             Self::ArenaFight => Occupation::Fighting,
-            Self::ExploreNewLands => Occupation::Exploring,
             Self::FreeTheVillage => Occupation::Fighting,
             Self::FeastForAGuest => Occupation::Hunting,
             Self::ADwarfGotLost => Occupation::Exploring,
@@ -2255,7 +2208,6 @@ impl QuestType {
         match self {
             Self::KillTheDragon => 3,
             Self::ArenaFight => 1,
-            Self::ExploreNewLands => 1,
             Self::FreeTheVillage => 3,
             Self::FeastForAGuest => 1,
             Self::ADwarfGotLost => 1,
@@ -2277,19 +2229,19 @@ impl QuestType {
         }
     }
 
-    pub fn is_available(self, max_prestige: u64) -> bool {
+    pub fn is_available(self, level: u64) -> bool {
         match self {
-            Self::FreeTheVillage => (1..=3).contains(&max_prestige),
-            Self::FeastForAGuest => (1..=3).contains(&max_prestige),
-            Self::ADwarfInDanger => (1..=3).contains(&max_prestige),
-            Self::AttackTheOrks => (1..=6).contains(&max_prestige),
-            Self::FreeTheDwarf => (3..=6).contains(&max_prestige),
-            Self::ADwarfGotLost => (1..=6).contains(&max_prestige),
-            Self::CrystalsForTheElves => (3..=6).contains(&max_prestige),
-            Self::ElvenVictory => (5..=6).contains(&max_prestige),
-            Self::ADarkSecret => (7..=8).contains(&max_prestige),
-            Self::TheMassacre => (7..=8).contains(&max_prestige),
-            Self::TheElvenWar => (9..=10).contains(&max_prestige),
+            Self::FreeTheVillage => (1..40).contains(&level),
+            Self::FeastForAGuest => (1..40).contains(&level),
+            Self::ADwarfInDanger => (1..40).contains(&level),
+            Self::AttackTheOrks => (1..60).contains(&level),
+            Self::FreeTheDwarf => (20..60).contains(&level),
+            Self::ADwarfGotLost => (10..70).contains(&level),
+            Self::CrystalsForTheElves => (30..60).contains(&level),
+            Self::ElvenVictory => (50..60).contains(&level),
+            Self::ADarkSecret => (70..80).contains(&level),
+            Self::TheMassacre => (70..80).contains(&level),
+            Self::TheElvenWar => (90..=100).contains(&level),
             _ => true,
         }
     }

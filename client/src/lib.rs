@@ -6,7 +6,7 @@ use images::Image;
 use itertools::Itertools;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, QuestId, QuestType, RewardMode, Stats, Time, TutorialRequirement, TutorialReward, TutorialStep, VillageType, WorldEvent, FREE_LOOT_CRATE, LOOT_CRATE_COST, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS
+    Bundle, ClientEvent, Craftable, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, QuestId, QuestType, RewardMode, Stats, Time, TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, FREE_LOOT_CRATE, LOOT_CRATE_COST, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS
 };
 use std::str::FromStr;
 use web_sys::js_sys::Date;
@@ -454,17 +454,10 @@ fn tutorial(model: &Model, state: &shared::State, user_id: &shared::UserId) -> N
                                 TutorialStep::SettlementExpansion5 => div![
                                     p!["Further expand your settlement to make space for more dwarfs."],
                                 ],
-                                TutorialStep::Presitge => div![
-                                    p!["Your current settlement can't expand any further. You need to start a new settlement to upgrade it even further."],
-                                    p!["Be aware that during this process, you will lose all your items as well as your food."]
-                                ]
                             },
                             h4!["Requirements"],
                             match step.requires() {
                                 TutorialRequirement::Nothing => p!["No requirements."],
-                                TutorialRequirement::PrestigeLevel(prestige) => p![
-                                    format!("Expand your settlement to a {}.", enum_iterator::all::<VillageType>().skip(prestige as usize).next().unwrap())
-                                ],
                                 TutorialRequirement::Items(items) => div![
                                     p!["The following items need to be in your inventory:"],
                                     bundle(&items, player, true)
@@ -1417,7 +1410,6 @@ fn quest(
                             match quest.quest_type {
                                 QuestType::KillTheDragon => p!["A dragon was found high up in the mountains in the forbidden lands. Send your best warriors to defeat it."],
                                 QuestType::ArenaFight => p!["The King of the dwarfs has invited the exilants to compete in an arena fight against monsters and creatures from the forbidden lands. The toughest warrior will be rewarded with a gift from the king personally."],
-                                QuestType::ExploreNewLands => p!["Send dwarfs to explore new lands and find a place for a new settlement. The new settlement will be a better version of your previous settlement that allows a larger maximal population."],
                                 QuestType::FeastForAGuest => p!["Your village is visted by an ominous guest that tells you disturbing stories about the elves. Although the stories seem unbelievable, he still seems like wise man. Go hunting and organize a feast for the guest, and he may stay."],
                                 QuestType::FreeTheVillage => p!["The elven village was raided by the orks in an attempt to capture the elven magician. Free the elven village and fight the orks to earn a reward!"],
                                 QuestType::ADwarfGotLost => p!["Search for a dwarf that got lost. It is unclear why so many dwarfs have disappeared in recent times, but that is a mistery that you may uncover later. If you find the lost dwarf first, he may stay in your settlement!"],
@@ -1442,14 +1434,6 @@ fn quest(
                         match quest.quest_type.reward_mode() {
                             RewardMode::BestGetsAll(money) => div![p![format!("The best player gets {money} coins, the rest gets nothing.")]],
                             RewardMode::SplitFairly(money) => div![p![format!("A total of {money} coins are split fairly between the players.")]],
-                            RewardMode::Prestige => div![
-                                p![format!("The participating players will have the chance to start over with a better settlement. For this quest to be successful, your settlement needs to be fully upgraded.")],
-                                if player.can_prestige() {
-                                    p![format!("Your settlement is fully upgraded!")]
-                                } else {
-                                    p![format!("Your settelemnt is not fully upgraded!")]
-                                }
-                            ],
                             RewardMode::BecomeKing => div![
                                 p![format!("The best player will become the king and get one tenth of all money that is earned during his reign.")],
                             ],
@@ -1636,11 +1620,6 @@ fn base(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node
             h2!["Your Settlement"],
             table![
                 tr![th!["Level"], td![format!("{}", player.base.curr_level)]],
-                tr![th![
-                    "Settlement Type",
-                    tip("There are ten different types of settlements that get gradually better: Outpost, Dwelling, Hamlet, Village, Small Town, Large Town, Small City, Large City, Metropolis, Megalopolis. To move on to a better settlement type, you need to complete a special quest.")],
-                    td![format!("{}", player.base.village_type())]
-                ],
                 tr![th!["Population", tip("Upgrade your settlement to increase the maximum population. You can get new dwarfs from certain quests or at random.")], td![format!("{}/{}", player.dwarfs.len(), player.base.max_dwarfs())]],
                 tr![th!["Money", tip("Earn money by doing quests. With money, you can buy loot crates.")], td![format!("{} coins", player.money)]],
                 tr![th!["Food", tip("Your settlement can store food for your dwarfs to consume. One quantity of food restores 0.1% of a dwarfs health. Let your dwarfs idle so that they have time to consume food and restore their health or enable auto-idling for all dwarfs.")], td![format!("{} food", player.base.food)]],
@@ -1671,36 +1650,33 @@ fn base(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node
                         ],
                         h4!["Requires"],
                         bundle(&requires, player, true),
-                        button![
-                            if player.inventory.items.check_remove(&requires) {
-                                attrs! {}
-                            } else {
-                                attrs! {At::Disabled => "true"}
-                            },
-                            ev(Ev::Click, move |_| Msg::send_event(ClientEvent::UpgradeBase)),
-                            "Upgrade",
-                        ]
+                        if player.base.build_time > 0 {
+                            button![
+                                attrs! {At::Disabled => "true"},
+                                ev(Ev::Click, move |_| Msg::send_event(ClientEvent::UpgradeBase)),
+                                format!("Upgrading ({} remaining)", fmt_time(player.base.build_time))
+                            ]
+                        } else {
+                            button![
+                                if player.inventory.items.check_remove(&requires) {
+                                    attrs! {}
+                                } else {
+                                    attrs! {At::Disabled => "true"}
+                                },
+                                ev(Ev::Click, move |_| Msg::send_event(ClientEvent::UpgradeBase)),
+                                "Upgrade",
+                            ]
+                        }
+                        
                     ]
                 } else {
-                    div![
-                        p!["Move to a new, better settlement. The settlement will become bigger and attract better dwarfs. But be warned, you will loose all your items in this process."],
-                        p![format!("You need to complete the quest {} in order to start a new settlement.", QuestType::ExploreNewLands)],
-                        button![
-                            if player.can_prestige() && player.prestige_quest_completed  {
-                                attrs! {}
-                            } else {
-                                attrs! {At::Disabled => "true"}
-                            },
-                            ev(Ev::Click, move |_| Msg::send_event(ClientEvent::Prestige)),
-                            "Start a new Settlement",
-                        ]
-                    ]
+                    Node::Empty
                 },
                 
             ],
             div![
                 h3!["Open Loot Crate"],
-                div![C!["image-aside"],
+                div![C!["image-aside", "small"],
                     img![attrs! {At::Src => Image::LootCrate.as_at_value()}],
                     div![
                         p![format!("A loot crate contains a random item. You can earn loot crates by completing quests. You can also get a loot crate every {} for free.", fmt_time(FREE_LOOT_CRATE))],
@@ -1731,7 +1707,7 @@ fn base(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node
             ],
             div![
                 h3!["Hire Dwarf"],
-                div![C!["image-aside"],
+                div![C!["image-aside", "small"],
                     img![attrs! {At::Src => Image::HireDwarf.as_at_value()}],
                     div![
                         p!["Hire a dwarf to work for you in exchange for money."],
