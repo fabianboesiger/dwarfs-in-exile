@@ -13,7 +13,9 @@ use rand::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{HashSet, VecDeque}, hash::Hash, ops::Deref
+    collections::{HashSet, VecDeque},
+    hash::Hash,
+    ops::Deref,
 };
 use strum::Display;
 
@@ -56,10 +58,19 @@ pub enum WorldEvent {
 impl WorldEvent {
     fn occupation_divider(&self, occupation: Occupation) -> u32 {
         match (self, occupation) {
-            (WorldEvent::Drought, Occupation::Farming | Occupation::Gathering | Occupation::Hunting) => 3,
-            (WorldEvent::Flood, Occupation::Farming | Occupation::Gathering | Occupation::Fishing) => 3,
-            (WorldEvent::Earthquake, Occupation::Mining | Occupation::Logging | Occupation::Rockhounding) => 3,
-             _ => 1
+            (
+                WorldEvent::Drought,
+                Occupation::Farming | Occupation::Gathering | Occupation::Hunting,
+            ) => 3,
+            (
+                WorldEvent::Flood,
+                Occupation::Farming | Occupation::Gathering | Occupation::Fishing,
+            ) => 3,
+            (
+                WorldEvent::Earthquake,
+                Occupation::Mining | Occupation::Logging | Occupation::Rockhounding,
+            ) => 3,
+            _ => 1,
         }
     }
 }
@@ -198,7 +209,6 @@ impl engine_shared::UserData for UserData {}
 #[strum(serialize_all = "title_case")]
 pub enum HireDwarfType {
     Standard,
-
 }
 
 impl HireDwarfType {
@@ -455,7 +465,6 @@ impl engine_shared::State for State {
                                 let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
 
                                 if dwarf.is_adult() {
-
                                     if let Some((_, old_quest_id, old_dwarf_idx)) =
                                         dwarf.participates_in_quest
                                     {
@@ -479,8 +488,7 @@ impl engine_shared::State for State {
                                             dwarf.participates_in_quest = None;
                                         }
                                     }
-
-                                }                  
+                                }
                             } else {
                                 let quest = self.quests.get_mut(&quest_id)?;
                                 let contestant = quest.contestants.entry(user_id).or_default();
@@ -507,21 +515,14 @@ impl engine_shared::State for State {
                             self.time += 1;
 
                             if self.event.is_some() {
-                                if rng.gen_ratio(
-                                    1,
-                                    ONE_DAY as u32,
-                                ) {
+                                if rng.gen_ratio(1, ONE_DAY as u32) {
                                     self.event = None;
                                 }
                             } else {
-                                if rng.gen_ratio(
-                                    1,
-                                    ONE_DAY as u32,
-                                ) {
+                                if rng.gen_ratio(1, ONE_DAY as u32) {
                                     self.event = Some(enum_iterator::all().choose(rng).unwrap());
                                 }
                             }
-
 
                             for (user_id, player) in self.players.iter_mut() {
                                 let is_premium = user_data
@@ -533,31 +534,35 @@ impl engine_shared::State for State {
                                 player.base.build();
 
                                 // Chance for a new dwarf!
-                                if rng.gen_ratio(
-                                    1,
-                                    ONE_DAY as u32,
-                                ) {
-                                    player.new_dwarf(rng, &mut self.next_dwarf_id, self.time, false);
+                                if rng.gen_ratio(1, ONE_DAY as u32) {
+                                    player.new_dwarf(
+                                        rng,
+                                        &mut self.next_dwarf_id,
+                                        self.time,
+                                        false,
+                                    );
                                 }
 
                                 let male_idle_dwarfs = player
                                     .dwarfs
                                     .values()
-                                    .filter(|dwarf| 
+                                    .filter(|dwarf| {
                                         dwarf.occupation == Occupation::Idling
                                             && dwarf.is_adult()
-                                            && !dwarf.is_female)
+                                            && !dwarf.is_female
+                                    })
                                     .count();
-                            
+
                                 let female_idle_dwarfs = player
                                     .dwarfs
                                     .values()
-                                    .filter(|dwarf| 
+                                    .filter(|dwarf| {
                                         dwarf.occupation == Occupation::Idling
                                             && dwarf.is_adult()
-                                            && dwarf.is_female)
-                                    .count(); 
-                            
+                                            && dwarf.is_female
+                                    })
+                                    .count();
+
                                 // Chance for a new baby dwarf!
                                 if rng.gen_ratio(
                                     male_idle_dwarfs.min(female_idle_dwarfs) as u32,
@@ -566,20 +571,20 @@ impl engine_shared::State for State {
                                     player.new_dwarf(rng, &mut self.next_dwarf_id, self.time, true);
                                 }
 
-
                                 // Let the dwarfs eat!
                                 let health_cost_multiplier = match self.event {
                                     Some(WorldEvent::Plague) => {
                                         (1 + player.dwarfs.len() as u64 / 20).min(5)
-                                    },
-                                    _ => 1
+                                    }
+                                    _ => 1,
                                 };
                                 let mut sorted_by_health =
                                     player.dwarfs.values_mut().collect::<Vec<_>>();
                                 sorted_by_health.sort_by_key(|dwarf| dwarf.health);
                                 for dwarf in sorted_by_health {
                                     dwarf.decr_health(
-                                        dwarf.actual_occupation().health_cost_per_second() * health_cost_multiplier
+                                        dwarf.actual_occupation().health_cost_per_second()
+                                            * health_cost_multiplier,
                                     );
                                     if dwarf.actual_occupation() == Occupation::Idling {
                                         if player.base.food > 0 {
@@ -618,12 +623,13 @@ impl engine_shared::State for State {
                                 let mut added_items = Bundle::new();
                                 for (_, dwarf) in player.dwarfs.iter_mut() {
                                     if !dwarf.dead() {
-                                        
                                         // Improve stats while working.
                                         if rng.gen_ratio(
-                                            dwarf.actual_occupation().requires_stats().agility as u32,
+                                            dwarf.actual_occupation().requires_stats().agility
+                                                as u32,
                                             ONE_DAY as u32 * 10,
-                                        ) && dwarf.stats.agility < 10 {
+                                        ) && dwarf.stats.agility < 10
+                                        {
                                             dwarf.stats.agility += 1;
                                             player.log.add(
                                                 self.time,
@@ -634,9 +640,11 @@ impl engine_shared::State for State {
                                             );
                                         }
                                         if rng.gen_ratio(
-                                            dwarf.actual_occupation().requires_stats().endurance as u32,
+                                            dwarf.actual_occupation().requires_stats().endurance
+                                                as u32,
                                             ONE_DAY as u32 * 10,
-                                        ) && dwarf.stats.endurance < 10 {
+                                        ) && dwarf.stats.endurance < 10
+                                        {
                                             dwarf.stats.endurance += 1;
                                             player.log.add(
                                                 self.time,
@@ -647,9 +655,11 @@ impl engine_shared::State for State {
                                             );
                                         }
                                         if rng.gen_ratio(
-                                            dwarf.actual_occupation().requires_stats().strength as u32,
+                                            dwarf.actual_occupation().requires_stats().strength
+                                                as u32,
                                             ONE_DAY as u32 * 10,
-                                        ) && dwarf.stats.strength < 10 {
+                                        ) && dwarf.stats.strength < 10
+                                        {
                                             dwarf.stats.strength += 1;
                                             player.log.add(
                                                 self.time,
@@ -660,9 +670,11 @@ impl engine_shared::State for State {
                                             );
                                         }
                                         if rng.gen_ratio(
-                                            dwarf.actual_occupation().requires_stats().intelligence as u32,
+                                            dwarf.actual_occupation().requires_stats().intelligence
+                                                as u32,
                                             ONE_DAY as u32 * 10,
-                                        ) && dwarf.stats.intelligence < 10 {
+                                        ) && dwarf.stats.intelligence < 10
+                                        {
                                             dwarf.stats.intelligence += 1;
                                             player.log.add(
                                                 self.time,
@@ -673,9 +685,11 @@ impl engine_shared::State for State {
                                             );
                                         }
                                         if rng.gen_ratio(
-                                            dwarf.actual_occupation().requires_stats().perception as u32,
+                                            dwarf.actual_occupation().requires_stats().perception
+                                                as u32,
                                             ONE_DAY as u32 * 10,
-                                        ) && dwarf.stats.perception < 10 {
+                                        ) && dwarf.stats.perception < 10
+                                        {
                                             dwarf.stats.perception += 1;
                                             player.log.add(
                                                 self.time,
@@ -689,21 +703,29 @@ impl engine_shared::State for State {
                                         for item in enum_iterator::all::<Item>() {
                                             if let Some(ItemProbability {
                                                 expected_ticks_per_drop,
-                                            }) =
-                                                item.item_probability(dwarf.actual_occupation())
+                                            }) = item.item_probability(dwarf.actual_occupation())
                                             {
                                                 if rng.gen_ratio(
-                                                    1 + dwarf.effectiveness(dwarf.actual_occupation()) as u32,
-                                                    expected_ticks_per_drop as u32 * self.event.as_ref().map(|f| f.occupation_divider(dwarf.actual_occupation())).unwrap_or(1),
+                                                    1 + dwarf
+                                                        .effectiveness(dwarf.actual_occupation())
+                                                        as u32,
+                                                    expected_ticks_per_drop as u32
+                                                        * self
+                                                            .event
+                                                            .as_ref()
+                                                            .map(|f| {
+                                                                f.occupation_divider(
+                                                                    dwarf.actual_occupation(),
+                                                                )
+                                                            })
+                                                            .unwrap_or(1),
                                                 ) {
                                                     added_items = added_items.add(item, 1);
                                                 }
                                             }
                                         }
-                                        
 
                                         dwarf.occupation_duration += 1;
-
                                     } else {
                                         player
                                             .log
@@ -920,7 +942,7 @@ impl engine_shared::State for State {
                                                             rng,
                                                             &mut self.next_dwarf_id,
                                                             self.time,
-                                                            false
+                                                            false,
                                                         );
                                                     }
                                                 }
@@ -955,7 +977,7 @@ impl engine_shared::State for State {
                                                             rng,
                                                             &mut self.next_dwarf_id,
                                                             self.time,
-                                                            false
+                                                            false,
                                                         );
                                                     }
                                                 }
@@ -1288,12 +1310,14 @@ impl Player {
             for _ in 0..4 {
                 player.new_dwarf(rng, next_dwarf_id, time, false);
             }
-            player.inventory.add(Bundle::new()
-                .add(Item::Wood, 10000)
-                .add(Item::Iron, 10000)
-                .add(Item::Stone, 10000)
-                .add(Item::Coal, 10000)
-                , time)
+            player.inventory.add(
+                Bundle::new()
+                    .add(Item::Wood, 10000)
+                    .add(Item::Iron, 10000)
+                    .add(Item::Stone, 10000)
+                    .add(Item::Coal, 10000),
+                time,
+            )
         }
 
         player
@@ -1315,7 +1339,13 @@ impl Player {
         (time - self.start_time) / SPEED < ONE_DAY
     }
 
-    pub fn new_dwarf(&mut self, rng: &mut impl Rng, next_dwarf_id: &mut DwarfId, time: Time, baby: bool) {
+    pub fn new_dwarf(
+        &mut self,
+        rng: &mut impl Rng,
+        next_dwarf_id: &mut DwarfId,
+        time: Time,
+        baby: bool,
+    ) {
         if self.dwarfs.len() < self.base.max_dwarfs() {
             let dwarf = if baby {
                 Dwarf::new_baby(rng)

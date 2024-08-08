@@ -6,7 +6,10 @@ use images::Image;
 use itertools::Itertools;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, Stats, Time, TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, FREE_LOOT_CRATE, LOOT_CRATE_COST, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS
+    Bundle, ClientEvent, Craftable, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType,
+    LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, Stats, Time,
+    TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, FREE_LOOT_CRATE,
+    LOOT_CRATE_COST, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS,
 };
 use std::str::FromStr;
 use web_sys::js_sys::Date;
@@ -270,10 +273,7 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
         Msg::ChangePage(page) => {
             model.page = page;
 
-            web_sys::window()
-                .unwrap()
-                .scroll_to_with_x_and_y(0.0, 0.0);
-
+            web_sys::window().unwrap().scroll_to_with_x_and_y(0.0, 0.0);
         }
         Msg::ChangeMessage(message) => {
             model.message = message;
@@ -415,7 +415,6 @@ fn popup(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
         if let Some(popup) = player.popups.front() {
             div![
                 C!["panel-wrapper"],
-                
                 match popup {
                     Popup::NewDwarf(dwarf) => {
                         div![
@@ -459,23 +458,23 @@ fn popup(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                                 ],
                             ]
                         ]
-                    },
+                    }
                     Popup::NewItems(bundle) => {
                         let (item, qty) = bundle.iter().next().unwrap();
 
                         div![
                             id!["tutorial-panel"],
                             C!["panel"],
-                            img![C!["panel-image"], attrs! { At::Src => Image::from(*item).as_at_value() } ],
-                            div![C!["panel-content"],
+                            img![
+                                C!["panel-image"],
+                                attrs! { At::Src => Image::from(*item).as_at_value() }
+                            ],
+                            div![
+                                C!["panel-content"],
                                 h3![format!("You Received {} {}", qty, item)],
-
                                 p![
                                     if !item.provides_stats().is_zero() {
-                                        div![
-                                            h4!["Provides"],
-                                            stats(&item.provides_stats()),
-                                        ]
+                                        div![h4!["Provides"], stats(&item.provides_stats()),]
                                     } else {
                                         Node::Empty
                                     },
@@ -489,37 +488,39 @@ fn popup(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                                     {
                                         div![
                                             h4!["Utility"],
-                                            itertools::intersperse(enum_iterator::all::<Occupation>().filter_map(
-                                                |occupation| {
-                                                    let usefulness =
-                                                        item.usefulness_for(occupation) as i8;
-                                                    if usefulness > 0 {
-                                                        Some(span![
-                                                            format!("{} ", occupation),
-                                                            stars(usefulness, true)
-                                                        ])
-                                                    } else {
-                                                        None
+                                            itertools::intersperse(
+                                                enum_iterator::all::<Occupation>().filter_map(
+                                                    |occupation| {
+                                                        let usefulness =
+                                                            item.usefulness_for(occupation) as i8;
+                                                        if usefulness > 0 {
+                                                            Some(span![
+                                                                format!("{} ", occupation),
+                                                                stars(usefulness, true)
+                                                            ])
+                                                        } else {
+                                                            None
+                                                        }
                                                     }
-                                                }
-                                            ), br![])
+                                                ),
+                                                br![]
+                                            )
                                         ]
                                     } else {
                                         Node::Empty
                                     },
                                 ],
-                                
-
                                 button![
-                                    ev(Ev::Click, move |_| Msg::send_event(ClientEvent::ConfirmPopup)),
+                                    ev(Ev::Click, move |_| Msg::send_event(
+                                        ClientEvent::ConfirmPopup
+                                    )),
                                     "Confirm"
                                 ],
                             ]
                         ]
                     }
                 }
-                
-            ] 
+            ]
         } else {
             Node::Empty
         }
@@ -617,7 +618,7 @@ fn tutorial(model: &Model, state: &shared::State, user_id: &shared::UserId) -> N
                                 "Close"
                             ],
                         ]
-                        
+
                     ]
                 ]
             } else {
@@ -640,7 +641,12 @@ fn tutorial(model: &Model, state: &shared::State, user_id: &shared::UserId) -> N
     }
 }
 
-fn ranking(model: &Model, state: &shared::State, client_state: &ClientState<shared::State>, current_user_id: &shared::UserId) -> Node<Msg> {
+fn ranking(
+    model: &Model,
+    state: &shared::State,
+    client_state: &ClientState<shared::State>,
+    current_user_id: &shared::UserId,
+) -> Node<Msg> {
     let mut players: Vec<_> = state
         .players
         .iter()
@@ -680,7 +686,7 @@ fn ranking(model: &Model, state: &shared::State, client_state: &ClientState<shar
                     td![
                         C![if current_user { "current-user" } else { "" }],
                         format!(
-                            "{} ",
+                            "{}",
                             client_state
                                 .get_user_data(&user_id)
                                 .map(|data| data.username.clone())
@@ -905,7 +911,7 @@ fn dwarfs(
                 div![
                     C!["filter"],
                     div![
-                        div![C!["button-row"],                            
+                        div![C!["button-row"],
                             /*enum_iterator::all::<Occupation>()
                                 .filter(|occupation| player.base.curr_level >= occupation.unlocked_at_level())
                                 .map(|occupation| {
@@ -1277,7 +1283,7 @@ fn dwarf(
                             ]
                         })
                     ]
-                    /* 
+                    /*
                     table![
                         tr![th![], th!["Equipped"], th![format!("Effectiveness for {}", dwarf.occupation), tip("This shows how effective the current tool is for the current job of this dwarf, considering the dwarfs stats.")], th![]],
                         enum_iterator::all::<ItemType>().map(|item_type| {
@@ -1384,7 +1390,7 @@ fn dwarf(
                                         }]
                                     ]
                                 ]
-                                /* 
+                                /*
                                 button![
                                     if occupation == dwarf.occupation
                                         || dwarf.participates_in_quest.is_some()
@@ -1406,7 +1412,7 @@ fn dwarf(
                                     ],
                                     br![],
                                     stars(dwarf.effectiveness(occupation) as i8, true),
-                                    
+
                                 ]
                                 */
                             })
@@ -1640,7 +1646,7 @@ fn quest(
                                     ]
                                 },
                                 /*span![
-                                    C!["subtitle"], 
+                                    C!["subtitle"],
                                 ],*/
                                 button![
                                     ev(Ev::Click, move |_| Msg::ChangePage(Page::Dwarfs(DwarfsMode::Select(DwarfsSelect::Quest(quest_id, dwarf_idx))))),
@@ -1824,12 +1830,12 @@ fn base(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node
                                 "Upgrade",
                             ]
                         }
-                        
+
                     ]
                 } else {
                     Node::Empty
                 },
-                
+
             ],
             div![
                 h3!["Open Loot Crate"],
@@ -2200,7 +2206,7 @@ fn inventory(
                                         } else {
                                             p!["Unlocked at level ", level]
                                         }
-                                        
+
 
                                     ]
                                 } else {

@@ -1,14 +1,11 @@
 use std::convert::TryInto;
 
-use rand_chacha::{
-    rand_core::SeedableRng,
-    ChaCha8Rng,
-};
+use rand::Rng;
+use rand_chacha::{rand_core::SeedableRng, ChaCha8Rng};
 use seed::virtual_dom::{AsAtValue, AtValue};
 use sha2::{Digest, Sha256};
 use shared::{Dwarf, Item, Occupation, QuestType, VillageType, WorldEvent, FEMALE_PROBABILITY};
 use strum::Display;
-use rand::Rng;
 
 #[derive(Display)]
 #[strum(serialize_all = "kebab-case")]
@@ -175,7 +172,9 @@ impl AsAtValue for Image {
             Image::Dwarf(id) => AtValue::Some(format!("/images/dwarf-{}.jpg", id)),
             Image::FemaleDwarf(id) => AtValue::Some(format!("/images/dwarf-female-{}.jpg", id)),
             Image::ChildDwarf(id) => AtValue::Some(format!("/images/dwarf-child-{}.jpg", id)),
-            Image::ChildFemaleDwarf(id) => AtValue::Some(format!("/images/dwarf-female-child-{}.jpg", id)),
+            Image::ChildFemaleDwarf(id) => {
+                AtValue::Some(format!("/images/dwarf-female-child-{}.jpg", id))
+            }
             _ => AtValue::Some(format!("/images/{self}.jpg")),
         }
     }
@@ -217,7 +216,7 @@ impl Image {
         ChaCha8Rng::from_seed(bytes)
     }
 
-    fn dwarf_from_name(rng: &mut impl Rng) -> Image {    
+    fn dwarf_from_name(rng: &mut impl Rng) -> Image {
         Image::Dwarf(rng.next_u64() % 30)
     }
 
@@ -225,7 +224,7 @@ impl Image {
         Image::FemaleDwarf(rng.next_u64() % 6)
     }
 
-    fn child_dwarf_from_name(rng: &mut impl Rng) -> Image {    
+    fn child_dwarf_from_name(rng: &mut impl Rng) -> Image {
         Image::ChildDwarf(rng.next_u64() % 12)
     }
 
