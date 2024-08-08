@@ -534,7 +534,7 @@ impl engine_shared::State for State {
                                 player.base.build();
 
                                 // Chance for a new dwarf!
-                                if rng.gen_ratio(1, ONE_DAY as u32) {
+                                if rng.gen_ratio(1, ONE_DAY as u32 * 2) {
                                     player.new_dwarf(
                                         rng,
                                         &mut self.next_dwarf_id,

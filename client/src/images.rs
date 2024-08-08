@@ -163,6 +163,7 @@ pub enum Image {
     Plague,
     BoneNecklace,
     BoneHelmet,
+    King,
 }
 
 impl AsAtValue for Image {

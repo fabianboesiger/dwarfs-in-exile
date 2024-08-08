@@ -420,40 +420,49 @@ fn popup(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                         div![
                             id!["tutorial-panel"],
                             C!["panel"],
-                            img![C!["panel-image"], attrs! { At::Src => Image::from_dwarf(dwarf).as_at_value() } ],
-                            div![C!["panel-content"],
+                            img![
+                                C!["panel-image"],
+                                attrs! { At::Src => Image::from_dwarf(dwarf).as_at_value() }
+                            ],
+                            div![
+                                C!["panel-content"],
                                 h3!["A New Dwarf has Arrived"],
                                 h4![C!["title"], &dwarf.name],
-                                p![C!["subtitle"],
-                                    format!("{}, {} Years old.", if dwarf.is_female {
-                                        "Female"
-                                    } else {
-                                        "Male"
-                                    }, dwarf.age_years()),
+                                p![
+                                    C!["subtitle"],
+                                    format!(
+                                        "{}, {} Years old.",
+                                        if dwarf.is_female { "Female" } else { "Male" },
+                                        dwarf.age_years()
+                                    ),
                                 ],
                                 p![
                                     h4!["Stats"],
                                     table![tbody![
-                                        tr![th![], th!["Inherent", tip("Each dwarf has some inherent stats that he was born with and that cannot be changed.")]],
-                                        tr![th!["Strength"],
+                                        tr![th![], th!["Inherent"]],
+                                        tr![
+                                            th!["Strength"],
                                             td![stars(dwarf.stats.strength, true)],
                                         ],
-                                        tr![th!["Endurance"],
+                                        tr![
+                                            th!["Endurance"],
                                             td![stars(dwarf.stats.endurance, true)],
                                         ],
-                                        tr![th!["Agility"],
-                                            td![stars(dwarf.stats.agility, true)],
-                                        ],
-                                        tr![th!["Intelligence"],
+                                        tr![th!["Agility"], td![stars(dwarf.stats.agility, true)],],
+                                        tr![
+                                            th!["Intelligence"],
                                             td![stars(dwarf.stats.intelligence, true)],
                                         ],
-                                        tr![th!["Perception"],
+                                        tr![
+                                            th!["Perception"],
                                             td![stars(dwarf.stats.perception, true)],
                                         ],
                                     ]]
                                 ],
                                 button![
-                                    ev(Ev::Click, move |_| Msg::send_event(ClientEvent::ConfirmPopup)),
+                                    ev(Ev::Click, move |_| Msg::send_event(
+                                        ClientEvent::ConfirmPopup
+                                    )),
                                     "Confirm"
                                 ],
                             ]
@@ -658,13 +667,25 @@ fn ranking(
 
     div![
         C!["content"],
+
+        div![
+            C!["important"],
+            strong!["The Dwarfen King"],
+            div![C!["image-aside", "small"],
+                img![attrs! {At::Src => Image::King.as_at_value()}],
+                div![
+                    if let Some(king) = state.king {
+                        p![format!("All hail our King {}!", client_state.get_user_data(&king).map(|data| data.username.clone()).unwrap_or_default())]
+                    } else {
+                        p!["At the moment, there is no King in this world. Be the first to become the new King!"]
+                    },
+                ]
+            ],
+        ],
+
         h2!["Ranking"],
         p![format!("To win this game, you need to meet two conditions. First, expand your settlement until you reach level 100. Second, become the king of this world. If both conditions are met, the game will be over and you will be the winner. As a reward, you get gifted a free premium account for {} days.", WINNER_NUM_PREMIUM_DAYS)],
-        if let Some(king) = state.king {
-            p![format!("All hail our King {}!", client_state.get_user_data(&king).map(|data| data.username.clone()).unwrap_or_default()), tip("The king gets one tenth of all money that was earned. Make sure you become the king as soon as the quest becomes available.")]
-        } else {
-            p!["At the moment, there is no King in this world. Be the first to become the new King!"]
-        },
+
         table![
             tr![
                 th!["Rank"],
@@ -1171,7 +1192,7 @@ fn dwarf(
                         div![
                             h3!["Stats"],
                             table![tbody![
-                                tr![th![], th!["Inherent", tip("Each dwarf has some inherent stats that he was born with and that cannot be changed.")], th!["Effective", tip("The effective stats include the effects of the dwarfs equipment.")]],
+                                tr![th![], th!["Inherent"], th!["Effective"]],
                                 tr![th!["Strength"],
                                     td![stars(dwarf.stats.strength, true)],
                                     td![stars(dwarf.effective_stats().strength, true)],
@@ -1283,43 +1304,6 @@ fn dwarf(
                             ]
                         })
                     ]
-                    /*
-                    table![
-                        tr![th![], th!["Equipped"], th![format!("Effectiveness for {}", dwarf.occupation), tip("This shows how effective the current tool is for the current job of this dwarf, considering the dwarfs stats.")], th![]],
-                        enum_iterator::all::<ItemType>().map(|item_type| {
-                        let equipment = dwarf.equipment.get(&item_type).unwrap();
-                        tr![
-                            th![label![format!("{item_type}")]],
-                            td![equipment
-                                .map(|item| format!("{}", item))
-                                .unwrap_or(String::from("None")),],
-                            td![equipment
-                                .map(|item| stars(dwarf.equipment_usefulness(dwarf.occupation, item) as i8, true))
-                                .unwrap_or(Node::Empty),
-                            ],
-                            td![
-                                button![
-                                    ev(Ev::Click, move |_| Msg::ChangePage(Page::Inventory(
-                                        InventoryMode::Select(InventorySelect::Equipment(
-                                            dwarf_id, item_type
-                                        ))
-                                    ))),
-                                    "Change"
-                                ],
-                                if equipment.is_some() {
-                                    button![
-                                        ev(Ev::Click, move |_| Msg::ChangeEquipment(
-                                            dwarf_id, item_type, None
-                                        )),
-                                        "Unequip"
-                                    ]
-                                } else {
-                                    Node::Empty
-                                }
-                            ],
-                        ]
-                    })]
-                    */
                 ],
                 div![
                     C!["occupation"],
@@ -1344,15 +1328,9 @@ fn dwarf(
                                     td![C!["list-item-content", "grow"],
                                         h3![C!["title"],
                                             format!("{}", occupation),
-                                            /*if all_items.len() == 0 {
-                                                tip(format!("From this occupation, you can get no items. This occupation requires {}.", stats_simple(&occupation.requires_stats())))
-                                            } else {
-                                                tip(format!("From this occupation, you can get the items {}. This occupation requires {}.", all_items.into_iter().join(", "), stats_simple(&occupation.requires_stats())))
-                                            },*/
                                         ],
                                         p![
-                                            stars(dwarf.effectiveness(occupation) as i8, true),
-                                            tip("The stars indicate the effectivenes of this dwarf in this occupation.")
+                                            stars(dwarf.effectiveness(occupation) as i8, true)
                                         ],
                                         p![
                                             button![
@@ -1390,31 +1368,6 @@ fn dwarf(
                                         }]
                                     ]
                                 ]
-                                /*
-                                button![
-                                    if occupation == dwarf.occupation
-                                        || dwarf.participates_in_quest.is_some()
-                                    {
-                                        attrs! {At::Disabled => "true"}
-                                    } else {
-                                        attrs! {}
-                                    },
-                                    ev(Ev::Click, move |_| Msg::send_event(
-                                        ClientEvent::ChangeOccupation(dwarf_id, occupation)
-                                    )),
-                                    h3![
-                                        format!("{}", occupation),
-                                        if all_items.len() == 0 {
-                                            tip("From this occupation, you can get nothing.")
-                                        } else {
-                                            tip(format!("From this occupation, you can get the items {}.", all_items.into_iter().join(", ")))
-                                        },
-                                    ],
-                                    br![],
-                                    stars(dwarf.effectiveness(occupation) as i8, true),
-
-                                ]
-                                */
                             })
                         ]
                     }
@@ -1762,7 +1715,7 @@ fn base(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node
             if let Some(event) = state.event {
                 div![
                     C!["important"],
-                    strong![format!("Event: {}", event)],
+                    strong![format!("Current Event: {}", event)],
                     div![
                         C!["image-aside", "small"],
                         img![attrs! {At::Src => Image::from(event).as_at_value()}],
@@ -1783,9 +1736,9 @@ fn base(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node
             h2!["Your Settlement"],
             table![
                 tr![th!["Level"], td![format!("{}", player.base.curr_level)]],
-                tr![th!["Population", tip("Upgrade your settlement to increase the maximum population. You can get new dwarfs from certain quests or at random.")], td![format!("{}/{}", player.dwarfs.len(), player.base.max_dwarfs())]],
-                tr![th!["Money", tip("Earn money by doing quests. With money, you can buy loot crates.")], td![format!("{} coins", player.money)]],
-                tr![th!["Food", tip("Your settlement can store food for your dwarfs to consume. One quantity of food restores 0.1% of a dwarfs health. Let your dwarfs idle so that they have time to consume food and restore their health or enable auto-idling for all dwarfs.")], td![format!("{} food", player.base.food)]],
+                tr![th!["Population"], td![format!("{}/{}", player.dwarfs.len(), player.base.max_dwarfs())]],
+                tr![th!["Money"], td![format!("{} coins", player.money)]],
+                tr![th!["Food"], td![format!("{} food", player.base.food)]],
             ],
             h3!["Upgrade Settlement"],
             div![C!["image-aside"],
