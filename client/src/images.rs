@@ -164,6 +164,7 @@ pub enum Image {
     BoneNecklace,
     BoneHelmet,
     King,
+    Manager,
 }
 
 impl AsAtValue for Image {

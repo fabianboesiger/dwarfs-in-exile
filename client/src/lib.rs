@@ -24,6 +24,7 @@ const WS_PROTOCOL: &str = "wss";
 #[cfg(debug_assertions)]
 const WS_PROTOCOL: &str = "ws";
 
+const REQUIRES_PREMIUM: &str = "This feature requires a premium account.";
 // ------ ------
 //     Model
 // ------ ------
@@ -480,7 +481,29 @@ fn popup(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                             ],
                             div![
                                 C!["panel-content"],
-                                h3![format!("You Received {} {}", qty, item)],
+                                h3![C!["title"], format!("You Received {} {}", qty, item)],
+                                p![
+                                    C!["subtitle"],
+                                    if let Some(item_type) = item.item_type() {
+                                        span![C!["short-info"], format!("{item_type}")]
+                                    } else {
+                                        span![C!["short-info"], "Item"]
+                                    },
+                                    span![C!["short-info"], format!("{}", item.item_rarity())],
+                                    if let Some(nutrition) = item.nutritional_value() {
+                                        span![C!["short-info"], format!("{} Food", nutrition)]
+                                    } else {
+                                        Node::Empty
+                                    },
+                                    if item.money_value() > 0 {
+                                        span![
+                                            C!["short-info"],
+                                            format!("{} Coins", item.money_value())
+                                        ]
+                                    } else {
+                                        Node::Empty
+                                    },
+                                ],
                                 p![
                                     if !item.provides_stats().is_zero() {
                                         div![h4!["Provides"], stats(&item.provides_stats()),]
@@ -1183,7 +1206,7 @@ fn dwarf(
                                 )),
                                 if player.auto_functions.auto_idle && is_premium { "Disable Auto Idling for all Dwarfs" } else { "Enable Auto Idling for all Dwarfs" },
                                 if !is_premium {
-                                    tip("This functionality requires a premium account.")
+                                    tip(REQUIRES_PREMIUM)
                                 } else {
                                     Node::Empty
                                 }
@@ -1308,69 +1331,74 @@ fn dwarf(
                 div![
                     C!["occupation"],
                     h3!["Work"],
-                    if let Some((quest_type, quest_idx, dwarf_idx)) = dwarf.participates_in_quest {
-                        div![
-                            div![button![
-                                ev(Ev::Click, move |_| Msg::AssignToQuest(
-                                    quest_idx,
-                                    dwarf_idx,
-                                    None
-                                )),
-                                format!("Remove from Quest {}", quest_type)
-                            ]]
-                        ]
-                    } else {
-                        table![C!["list"],
-                            enum_iterator::all::<Occupation>().filter(|occupation| player.base.curr_level >= occupation.unlocked_at_level()).map(|occupation| {
-                                let all_items = enum_iterator::all::<Item>().filter_map(|item| item.item_probability(occupation).map(|_| item)).collect::<Vec<_>>();
-                                tr![C!["list-item-row", if occupation == dwarf.occupation { "selected" } else { "" }],
-                                    td![img![C!["list-item-image"], attrs! { At::Src => Image::from(occupation).as_at_value() } ]],
-                                    td![C!["list-item-content", "grow"],
-                                        h3![C!["title"],
-                                            format!("{}", occupation),
-                                        ],
-                                        p![
-                                            stars(dwarf.effectiveness(occupation) as i8, true)
-                                        ],
-                                        p![
-                                            button![
-                                                if occupation == dwarf.occupation
-                                                    || dwarf.participates_in_quest.is_some()
-                                                    || !dwarf.is_adult()
-                                                {
-                                                    attrs! {At::Disabled => "true"}
-                                                } else {
-                                                    attrs! {}
-                                                },
-                                                ev(Ev::Click, move |_| Msg::send_event(
-                                                    ClientEvent::ChangeOccupation(dwarf_id, occupation)
-                                                )),
-                                                "Select"
+                    if dwarf.is_adult() {
+                        if let Some((quest_type, quest_idx, dwarf_idx)) = dwarf.participates_in_quest {
+                            div![
+                                div![button![
+                                    ev(Ev::Click, move |_| Msg::AssignToQuest(
+                                        quest_idx,
+                                        dwarf_idx,
+                                        None
+                                    )),
+                                    format!("Remove from Quest {}", quest_type)
+                                ]]
+                            ]
+                        } else {
+                            table![C!["list"],
+                                enum_iterator::all::<Occupation>().filter(|occupation| player.base.curr_level >= occupation.unlocked_at_level()).map(|occupation| {
+                                    let all_items = enum_iterator::all::<Item>().filter_map(|item| item.item_probability(occupation).map(|_| item)).collect::<Vec<_>>();
+                                    tr![C!["list-item-row", if occupation == dwarf.occupation { "selected" } else { "" }],
+                                        td![img![C!["list-item-image"], attrs! { At::Src => Image::from(occupation).as_at_value() } ]],
+                                        td![C!["list-item-content", "grow"],
+                                            h3![C!["title"],
+                                                format!("{}", occupation),
                                             ],
-                                        ]
-                                        /*if !occupation.requires_stats().is_zero() {
                                             p![
-                                                h4!["Requires"],
-                                                stats(&occupation.requires_stats()),
+                                                stars(dwarf.effectiveness(occupation) as i8, true)
+                                            ],
+                                            p![
+                                                button![
+                                                    if occupation == dwarf.occupation
+                                                        || dwarf.participates_in_quest.is_some()
+                                                        || !dwarf.is_adult()
+                                                    {
+                                                        attrs! {At::Disabled => "true"}
+                                                    } else {
+                                                        attrs! {}
+                                                    },
+                                                    ev(Ev::Click, move |_| Msg::send_event(
+                                                        ClientEvent::ChangeOccupation(dwarf_id, occupation)
+                                                    )),
+                                                    "Select"
+                                                ],
                                             ]
-                                        } else {
-                                            Node::Empty
-                                        },*/
-                                    ],
-                                    td![C!["list-item-content", "shrink"],
-                                        h4![C!["title"], "Requires"],
-                                        p![C!["subtitle"],stats_simple(&occupation.requires_stats())],
-                                        h4![C!["title"], "Provides"],
-                                        p![C!["subtitle"], if all_items.len() == 0 {
-                                            "None".to_owned()
-                                        } else {
-                                            all_items.into_iter().join(", ")
-                                        }]
+                                            /*if !occupation.requires_stats().is_zero() {
+                                                p![
+                                                    h4!["Requires"],
+                                                    stats(&occupation.requires_stats()),
+                                                ]
+                                            } else {
+                                                Node::Empty
+                                            },*/
+                                        ],
+                                        td![C!["list-item-content", "shrink"],
+                                            h4![C!["title"], "Requires"],
+                                            p![C!["subtitle"],stats_simple(&occupation.requires_stats())],
+                                            h4![C!["title"], "Provides"],
+                                            p![C!["subtitle"], if all_items.len() == 0 {
+                                                "None".to_owned()
+                                            } else {
+                                                all_items.into_iter().join(", ")
+                                            }]
+                                        ]
                                     ]
-                                ]
-                            })
-                        ]
+                                })
+                            ]
+                        }
+                    } else {
+                        p!["This dwarf is too young to work."]
                     }
+
                 ]
             ]
         } else {
@@ -1700,8 +1728,20 @@ impl Unlock {
     }
 }
 
-fn base(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
+fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
+        let is_premium = model
+            .state
+            .get_user_data(user_id)
+            .map(|user_data| user_data.premium > 0)
+            .unwrap_or(false);
+
+        let premium_hours = model
+            .state
+            .get_user_data(user_id)
+            .map(|user_data| user_data.premium)
+            .unwrap_or(0);
+
         let mut unlocks = (1..100)
             .map(Unlock::MaxPopulation)
             .chain(enum_iterator::all::<Occupation>().map(Unlock::Occupation))
@@ -1712,6 +1752,35 @@ fn base(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node
         unlocks.retain(|item| item.unlocked_at_level() > player.base.curr_level);
 
         div![C!["content"],
+            if premium_hours <= 24 {
+                div![
+                    C!["important"],
+                    if premium_hours == 0 {
+                        strong![format!("Premium Account Expired")]
+                    } else {
+                        strong![format!("Premium Account Expires Soon")]
+                    },
+                    div![
+                        C!["image-aside", "small"],
+                        img![attrs! {At::Src => "/premium.jpg"}],
+                        div![
+                            if premium_hours == 0 {
+                                p![format!("Your premium account has expired. If you want to upgrade to a premium account, you can purchase it in the store.")]
+                            } else {
+                                p![format!("Your premium account will expire in {premium_hours} hours. If you want to keep your premium account, you can extend it by purchasing more premium time in the store.")]
+                            },
+                            a![
+                                C!["button"],
+                                attrs! { At::Href => format!("/store") },
+                                "Visit Store"
+                            ]
+                        ]
+                    ]
+                ]
+            } else {
+                Node::Empty
+            },
+
             if let Some(event) = state.event {
                 div![
                     C!["important"],
@@ -1740,6 +1809,7 @@ fn base(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node
                 tr![th!["Money"], td![format!("{} coins", player.money)]],
                 tr![th!["Food"], td![format!("{} food", player.base.food)]],
             ],
+
             h3!["Upgrade Settlement"],
             div![C!["image-aside"],
                 img![attrs! {At::Src => Image::from(player.base.village_type()).as_at_value()}],
@@ -1788,8 +1858,8 @@ fn base(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node
                 } else {
                     Node::Empty
                 },
-
             ],
+
             div![
                 h3!["Open Loot Crate"],
                 div![C!["image-aside", "small"],
@@ -1841,7 +1911,69 @@ fn base(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node
                         })
                     ],
                 ]
-            ]
+            ],
+            div![
+                h3!["Dwarfen Manager"],
+                div![C!["image-aside", "small"],
+                    img![attrs! {At::Src => Image::Manager.as_at_value()}],
+                    div![
+                        p!["The dwarfen manager can optimally assign dwarfs to carry out the occupations that are best suited for them. Furthermore, the manager can also assign the optimal equipment to each dwarf to further increase their effectiveness in their occupation."],
+                        table![
+                            tr![
+                                th!["Occupation"],
+                                th!["Number of Dwarfs to Assign"],
+                            ],
+                            enum_iterator::all::<Occupation>()
+                                .filter(|occupation| player.base.curr_level >= occupation.unlocked_at_level())
+                                .map(|occupation| {
+                                    tr![
+                                        td![format!("{}", occupation)],
+                                        td![input![
+                                            attrs! {
+                                                At::Type => "number",
+                                                At::Min => "0",
+                                                At::Step => "1",
+                                                At::Value => format!("{}", player.manager.get(&occupation).copied().unwrap_or(0)),
+                                                At::Disabled => (matches!(occupation, Occupation::Idling) || !is_premium).as_at_value(),
+                                            },
+                                            input_ev(Ev::Input, move |str| {
+                                                Msg::send_event(ClientEvent::SetManagerOccupation(occupation, str.parse().unwrap_or(0)))
+                                            })
+                                        ]],
+                                    ]
+                                }),
+                        ],
+                        button![
+                            if is_premium {
+                                attrs! {}
+                            } else {
+                                attrs! {At::Disabled => "true"}
+                            },
+                            ev(Ev::Click, move |_| Msg::send_event(ClientEvent::OptimizeOccupations)),
+                            format!("Reassign Occupations"),
+                            if !is_premium {
+                                tip(REQUIRES_PREMIUM)
+                            } else {
+                                Node::Empty
+                            }
+                        ],
+                        button![
+                            if is_premium {
+                                attrs! {}
+                            } else {
+                                attrs! {At::Disabled => "true"}
+                            },
+                            ev(Ev::Click, move |_| Msg::send_event(ClientEvent::OptimizeEquipment)),
+                            format!("Reassign Equipment"),
+                            if !is_premium {
+                                tip(REQUIRES_PREMIUM)
+                            } else {
+                                Node::Empty
+                            }
+                        ],
+                    ]
+                ],
+            ],
         ]
     } else {
         Node::Empty
@@ -1869,7 +2001,8 @@ fn inventory(
         div![
             div![
                 C!["filter"],
-                div![C!["no-shrink"],
+                div![
+                    C!["no-shrink"],
                     div![
                         input![
                             id!["owned"],
@@ -1887,7 +2020,8 @@ fn inventory(
                         label![attrs! {At::For => "craftable"}, "Craftable"]
                     ]
                 ],
-                div![C!["no-shrink"],
+                div![
+                    C!["no-shrink"],
                     div![
                         input![
                             id!["food"],
@@ -1936,398 +2070,426 @@ fn inventory(
                 C!["items", "list"],
                 {
                     let mut sort = model.inventory_filter.sort;
-                    if let InventoryMode::Select(InventorySelect::Equipment(dwarf_id, _item_type)) = mode {
+                    if let InventoryMode::Select(InventorySelect::Equipment(dwarf_id, _item_type)) =
+                        mode
+                    {
                         let occupation = player.dwarfs.get(&dwarf_id).unwrap().actual_occupation();
                         sort = InventorySort::Usefulness(occupation);
                     }
                     match sort {
                         InventorySort::Rarity => items.sorted_by_rarity(),
-                        InventorySort::Usefulness(occupation) => items.sorted_by_usefulness(occupation),
+                        InventorySort::Usefulness(occupation) => {
+                            items.sorted_by_usefulness(occupation)
+                        }
                     }
                 }
-                    .into_iter()
-                    .filter(|(item, n)| {
-                        item.to_string()
-                            .to_lowercase()
-                            .contains(&model.inventory_filter.item_name.to_lowercase().trim())
-                            && ((if model.inventory_filter.owned {
-                                *n > 0
+                .into_iter()
+                .filter(|(item, n)| {
+                    item.to_string()
+                        .to_lowercase()
+                        .contains(&model.inventory_filter.item_name.to_lowercase().trim())
+                        && ((if model.inventory_filter.owned {
+                            *n > 0
+                        } else {
+                            false
+                        }) || (if model.inventory_filter.craftable {
+                            if let Some((level, requires)) = item.requires() {
+                                player.inventory.items.check_remove(&requires)
+                                    && player.base.curr_level >= level
                             } else {
                                 false
-                            }) || (if model.inventory_filter.craftable {
-                                if let Some((level, requires)) = item.requires() {
-                                    player.inventory.items.check_remove(&requires) && player.base.curr_level >= level
-                                } else {
-                                    false
-                                }
-                            } else {
-                                false
-                            }) || (!model.inventory_filter.owned
-                                && !model.inventory_filter.craftable))
-                            && ((if model.inventory_filter.food {
-                                item.item_type() == Some(ItemType::Food)
-                            } else {
-                                false
-                            }) || (if model.inventory_filter.tools {
-                                item.item_type() == Some(ItemType::Tool)
-                            } else {
-                                false
-                            }) || (if model.inventory_filter.clothing {
-                                item.item_type() == Some(ItemType::Clothing)
-                            } else {
-                                false
-                            }) || (if model.inventory_filter.pets {
-                                item.item_type() == Some(ItemType::Pet)
-                            } else {
-                                false
-                            }) || (!model.inventory_filter.food
-                                && !model.inventory_filter.tools
-                                && !model.inventory_filter.clothing
-                                && !model.inventory_filter.pets))
-                            && if let InventoryMode::Select(InventorySelect::Equipment(_, item_type)) =
-                                mode
-                            {
-                                item.item_type() == Some(item_type) && *n > 0
-                            } else {
-                                true
                             }
-                    })
-                    .map(|(item, n)| tr![
-                        C!["item"],
-                        C!["list-item-row"],
-                        match item.item_rarity() {
-                            ItemRarity::Common => C!["item-common"],
-                            ItemRarity::Uncommon => C!["item-uncommon"],
-                            ItemRarity::Rare => C!["item-rare"],
-                            ItemRarity::Epic => C!["item-epic"],
-                            ItemRarity::Legendary => C!["item-legendary"],
-                        },
-                        td![img![C!["list-item-image"], attrs! {At::Src => Image::from(item).as_at_value()}]],
-                        td![
-                            C!["list-item-content", "grow"],
-                            h3![C!["title"], format!("{} {item}", big_number(n))],
-                            p![
-                                C!["subtitle"], if let Some(item_type) = item.item_type() {
-                                    span![C!["short-info"], format!("{item_type}")]
-                                } else {
-                                    span![C!["short-info"], "Item"]
-                                },
-                                span![C!["short-info"], format!("{}", item.item_rarity())],
-                                if let Some(nutrition) = item.nutritional_value() {
-                                    span![C!["short-info"], format!("{} Food", nutrition)]
-                                } else {
-                                    Node::Empty
-                                },
-                                if item.money_value() > 0 {
-                                    span![C!["short-info"], format!("{} Coins", item.money_value())]
-                                } else {
-                                    Node::Empty
-                                },
-                                if cfg!(debug_assertions) {
-                                    vec![
-                                        span![C!["short-info"], format!("Rarity: {}", item.item_rarity_num())],
-                                        span![C!["short-info"], format!("Loot Crate QTY: {}", (10000 / item.item_rarity_num()).max(1).min(100))],
-                                    ]
-                                } else {
-                                    Vec::new()
-                                },
-                            ],
-
-                            // Show stats
-                            if !item.provides_stats().is_zero() {
-                                div![
-                                    h4!["Provides"],
-                                    stats(&item.provides_stats()),
-                                ]
+                        } else {
+                            false
+                        }) || (!model.inventory_filter.owned
+                            && !model.inventory_filter.craftable))
+                        && ((if model.inventory_filter.food {
+                            item.item_type() == Some(ItemType::Food)
+                        } else {
+                            false
+                        }) || (if model.inventory_filter.tools {
+                            item.item_type() == Some(ItemType::Tool)
+                        } else {
+                            false
+                        }) || (if model.inventory_filter.clothing {
+                            item.item_type() == Some(ItemType::Clothing)
+                        } else {
+                            false
+                        }) || (if model.inventory_filter.pets {
+                            item.item_type() == Some(ItemType::Pet)
+                        } else {
+                            false
+                        }) || (!model.inventory_filter.food
+                            && !model.inventory_filter.tools
+                            && !model.inventory_filter.clothing
+                            && !model.inventory_filter.pets))
+                        && if let InventoryMode::Select(InventorySelect::Equipment(_, item_type)) =
+                            mode
+                        {
+                            item.item_type() == Some(item_type) && *n > 0
+                        } else {
+                            true
+                        }
+                })
+                .map(|(item, n)| tr![
+                    C!["item"],
+                    C!["list-item-row"],
+                    match item.item_rarity() {
+                        ItemRarity::Common => C!["item-common"],
+                        ItemRarity::Uncommon => C!["item-uncommon"],
+                        ItemRarity::Rare => C!["item-rare"],
+                        ItemRarity::Epic => C!["item-epic"],
+                        ItemRarity::Legendary => C!["item-legendary"],
+                    },
+                    td![img![
+                        C!["list-item-image"],
+                        attrs! {At::Src => Image::from(item).as_at_value()}
+                    ]],
+                    td![
+                        C!["list-item-content", "grow"],
+                        h3![C!["title"], format!("{} {item}", big_number(n))],
+                        p![
+                            C!["subtitle"],
+                            if let Some(item_type) = item.item_type() {
+                                span![C!["short-info"], format!("{item_type}")]
+                            } else {
+                                span![C!["short-info"], "Item"]
+                            },
+                            span![C!["short-info"], format!("{}", item.item_rarity())],
+                            if let Some(nutrition) = item.nutritional_value() {
+                                span![C!["short-info"], format!("{} Food", nutrition)]
                             } else {
                                 Node::Empty
                             },
-                            if enum_iterator::all::<Occupation>()
-                                .filter(|occupation| {
-                                    let usefulness = item.usefulness_for(*occupation);
-                                    usefulness > 0
-                                })
-                                .count()
-                                > 0
-                            {
-                                div![
-                                    h4!["Utility"],
-                                    itertools::intersperse(enum_iterator::all::<Occupation>().filter_map(
-                                        |occupation| {
-                                            let usefulness =
-                                                item.usefulness_for(occupation) as i8;
-                                            if usefulness > 0 {
-                                                Some(span![
-                                                    format!("{} ", occupation),
-                                                    stars(usefulness, true)
-                                                ])
-                                            } else {
-                                                None
-                                            }
-                                        }
-                                    ), br![])
-                                ]
+                            if item.money_value() > 0 {
+                                span![C!["short-info"], format!("{} Coins", item.money_value())]
                             } else {
                                 Node::Empty
                             },
-
+                            if cfg!(debug_assertions) {
+                                vec![
+                                    span![
+                                        C!["short-info"],
+                                        format!("Rarity: {}", item.item_rarity_num())
+                                    ],
+                                    span![
+                                        C!["short-info"],
+                                        format!(
+                                            "Loot Crate QTY: {}",
+                                            (10000 / item.item_rarity_num()).max(1).min(100)
+                                        )
+                                    ],
+                                ]
+                            } else {
+                                Vec::new()
+                            },
                         ],
-
-                        if let InventoryMode::Select(InventorySelect::Equipment(
-                            dwarf_id,
-                            item_type,
-                        )) = mode {
-                            td![
-                                C!["list-item-content", "shrink"],
-                                button![
-                                    ev(Ev::Click, move |_| Msg::ChangeEquipment(
-                                        dwarf_id,
-                                        item_type,
-                                        Some(item)
-                                    )),
-                                    "Equip"
-                                ]
+                        // Show stats
+                        if !item.provides_stats().is_zero() {
+                            div![h4!["Provides"], stats(&item.provides_stats()),]
+                        } else {
+                            Node::Empty
+                        },
+                        if enum_iterator::all::<Occupation>()
+                            .filter(|occupation| {
+                                let usefulness = item.usefulness_for(*occupation);
+                                usefulness > 0
+                            })
+                            .count()
+                            > 0
+                        {
+                            div![
+                                h4!["Utility"],
+                                itertools::intersperse(
+                                    enum_iterator::all::<Occupation>().filter_map(|occupation| {
+                                        let usefulness = item.usefulness_for(occupation) as i8;
+                                        if usefulness > 0 {
+                                            Some(span![
+                                                format!("{} ", occupation),
+                                                stars(usefulness, true)
+                                            ])
+                                        } else {
+                                            None
+                                        }
+                                    }),
+                                    br![]
+                                )
                             ]
                         } else {
-                            td![
-                                C!["list-item-content", "shrink"],
-                                if let Some((level, requires)) = item.requires() {
-                                    vec![
-                                        h4!["Crafting"],
-                                        bundle(&requires, player, true),
-                                        if player.base.curr_level >= level {
-                                            if player.auto_functions.auto_craft.contains(&item) && is_premium {
+                            Node::Empty
+                        },
+                    ],
+                    if let InventoryMode::Select(InventorySelect::Equipment(dwarf_id, item_type)) =
+                        mode
+                    {
+                        td![
+                            C!["list-item-content", "shrink"],
+                            button![
+                                ev(Ev::Click, move |_| Msg::ChangeEquipment(
+                                    dwarf_id,
+                                    item_type,
+                                    Some(item)
+                                )),
+                                "Equip"
+                            ]
+                        ]
+                    } else {
+                        td![
+                            C!["list-item-content", "shrink"],
+                            if let Some((level, requires)) = item.requires() {
+                                vec![
+                                    h4!["Crafting"],
+                                    bundle(&requires, player, true),
+                                    if player.base.curr_level >= level {
+                                        if player.auto_functions.auto_craft.contains(&item)
+                                            && is_premium
+                                        {
+                                            button![
+                                                ev(Ev::Click, move |_| Msg::send_event(
+                                                    ClientEvent::ToggleAutoCraft(item)
+                                                )),
+                                                "Disable Auto",
+                                            ]
+                                        } else {
+                                            div![
+                                                C!["button-row"],
                                                 button![
+                                                    if player
+                                                        .inventory
+                                                        .items
+                                                        .check_remove(&requires)
+                                                    {
+                                                        attrs! {}
+                                                    } else {
+                                                        attrs! {At::Disabled => "true"}
+                                                    },
+                                                    ev(Ev::Click, move |_| Msg::send_event(
+                                                        ClientEvent::Craft(item, 1)
+                                                    )),
+                                                    "1x",
+                                                ],
+                                                button![
+                                                    if player
+                                                        .inventory
+                                                        .items
+                                                        .check_remove(&requires.clone().mul(10))
+                                                    {
+                                                        attrs! {}
+                                                    } else {
+                                                        attrs! {At::Disabled => "true"}
+                                                    },
+                                                    ev(Ev::Click, move |_| Msg::send_event(
+                                                        ClientEvent::Craft(item, 10)
+                                                    )),
+                                                    "10x",
+                                                ],
+                                                button![
+                                                    if player
+                                                        .inventory
+                                                        .items
+                                                        .check_remove(&requires.clone().mul(100))
+                                                    {
+                                                        attrs! {}
+                                                    } else {
+                                                        attrs! {At::Disabled => "true"}
+                                                    },
+                                                    ev(Ev::Click, move |_| Msg::send_event(
+                                                        ClientEvent::Craft(item, 100)
+                                                    )),
+                                                    "100x",
+                                                ],
+                                                button![
+                                                    if is_premium {
+                                                        attrs! {}
+                                                    } else {
+                                                        attrs! {At::Disabled => "true"}
+                                                    },
                                                     ev(Ev::Click, move |_| Msg::send_event(
                                                         ClientEvent::ToggleAutoCraft(item)
                                                     )),
-                                                    "Disable Auto",
+                                                    "Auto",
+                                                    if !is_premium {
+                                                        tip(REQUIRES_PREMIUM)
+                                                    } else {
+                                                        Node::Empty
+                                                    }
                                                 ]
-                                            } else {
-                                                div![C!["button-row"],
-                                                    button![
-                                                        if player.inventory.items.check_remove(&requires) {
-                                                            attrs! {}
-                                                        } else {
-                                                            attrs! {At::Disabled => "true"}
-                                                        },
-                                                        ev(Ev::Click, move |_| Msg::send_event(
-                                                            ClientEvent::Craft(item, 1)
-                                                        )),
-                                                        "1x",
-                                                    ],
-                                                    button![
-                                                        if player.inventory.items.check_remove(&requires.clone().mul(10)) {
-                                                            attrs! {}
-                                                        } else {
-                                                            attrs! {At::Disabled => "true"}
-                                                        },
-                                                        ev(Ev::Click, move |_| Msg::send_event(
-                                                            ClientEvent::Craft(item, 10)
-                                                        )),
-                                                        "10x",
-                                                    ],
-                                                    button![
-                                                        if player.inventory.items.check_remove(&requires.clone().mul(100)) {
-                                                            attrs! {}
-                                                        } else {
-                                                            attrs! {At::Disabled => "true"}
-                                                        },
-                                                        ev(Ev::Click, move |_| Msg::send_event(
-                                                            ClientEvent::Craft(item, 100)
-                                                        )),
-                                                        "100x",
-                                                    ],
-                                                    button![
-                                                        if is_premium {
-                                                            attrs! {}
-                                                        } else {
-                                                            attrs! {At::Disabled => "true"}
-                                                        },
-                                                        ev(Ev::Click, move |_| Msg::send_event(
-                                                            ClientEvent::ToggleAutoCraft(item)
-                                                        )),
-                                                        "Auto",
-                                                        if !is_premium {
-                                                            tip("This functionality requires a premium account.")
-                                                        } else {
-                                                            Node::Empty
-                                                        }
-                                                    ]
-                                                ]
-                                            }
-                                        } else {
-                                            p!["Unlocked at level ", level]
+                                            ]
                                         }
-
-
-                                    ]
-                                } else {
-                                    Vec::new()
-                                },
-
-                                if let Some(_) = item.nutritional_value() {
-                                    vec![
-                                        h4!["Food Storage"],
-                                        if player.auto_functions.auto_store.contains(&item) && is_premium {
+                                    } else {
+                                        p!["Unlocked at level ", level]
+                                    },
+                                ]
+                            } else {
+                                Vec::new()
+                            },
+                            if let Some(_) = item.nutritional_value() {
+                                vec![
+                                    h4!["Food Storage"],
+                                    if player.auto_functions.auto_store.contains(&item)
+                                        && is_premium
+                                    {
+                                        button![
+                                            ev(Ev::Click, move |_| Msg::send_event(
+                                                ClientEvent::ToggleAutoStore(item)
+                                            )),
+                                            "Disable Auto"
+                                        ]
+                                    } else {
+                                        div![
+                                            C!["button-row"],
                                             button![
+                                                if player
+                                                    .inventory
+                                                    .items
+                                                    .check_remove(&Bundle::new().add(item, 1))
+                                                {
+                                                    attrs! {}
+                                                } else {
+                                                    attrs! {At::Disabled => "true"}
+                                                },
+                                                ev(Ev::Click, move |_| Msg::send_event(
+                                                    ClientEvent::AddToFoodStorage(item, 1)
+                                                )),
+                                                format!("1x"),
+                                            ],
+                                            button![
+                                                if player
+                                                    .inventory
+                                                    .items
+                                                    .check_remove(&Bundle::new().add(item, 10))
+                                                {
+                                                    attrs! {}
+                                                } else {
+                                                    attrs! {At::Disabled => "true"}
+                                                },
+                                                ev(Ev::Click, move |_| Msg::send_event(
+                                                    ClientEvent::AddToFoodStorage(item, 10)
+                                                )),
+                                                format!("10x"),
+                                            ],
+                                            button![
+                                                if player
+                                                    .inventory
+                                                    .items
+                                                    .check_remove(&Bundle::new().add(item, 100))
+                                                {
+                                                    attrs! {}
+                                                } else {
+                                                    attrs! {At::Disabled => "true"}
+                                                },
+                                                ev(Ev::Click, move |_| Msg::send_event(
+                                                    ClientEvent::AddToFoodStorage(item, 100)
+                                                )),
+                                                format!("100x"),
+                                            ],
+                                            button![
+                                                if is_premium {
+                                                    attrs! {}
+                                                } else {
+                                                    attrs! {At::Disabled => "true"}
+                                                },
                                                 ev(Ev::Click, move |_| Msg::send_event(
                                                     ClientEvent::ToggleAutoStore(item)
                                                 )),
-                                                "Disable Auto"
+                                                "Auto",
+                                                if !is_premium {
+                                                    tip(REQUIRES_PREMIUM)
+                                                } else {
+                                                    Node::Empty
+                                                }
                                             ]
-                                        } else {
-                                            div![C!["button-row"],
-                                                button![
-                                                    if player
-                                                        .inventory
-                                                        .items
-                                                        .check_remove(&Bundle::new().add(item, 1))
-                                                    {
-                                                        attrs! {}
-                                                    } else {
-                                                        attrs! {At::Disabled => "true"}
-                                                    },
-                                                    ev(Ev::Click, move |_| Msg::send_event(
-                                                        ClientEvent::AddToFoodStorage(item, 1)
-                                                    )),
-                                                    format!("1x"),
-                                                ],
-                                                button![
-                                                    if player
-                                                        .inventory
-                                                        .items
-                                                        .check_remove(&Bundle::new().add(item, 10))
-                                                    {
-                                                        attrs! {}
-                                                    } else {
-                                                        attrs! {At::Disabled => "true"}
-                                                    },
-                                                    ev(Ev::Click, move |_| Msg::send_event(
-                                                        ClientEvent::AddToFoodStorage(item, 10)
-                                                    )),
-                                                    format!("10x"),
-                                                ],
-                                                button![
-                                                    if player
-                                                        .inventory
-                                                        .items
-                                                        .check_remove(&Bundle::new().add(item, 100))
-                                                    {
-                                                        attrs! {}
-                                                    } else {
-                                                        attrs! {At::Disabled => "true"}
-                                                    },
-                                                    ev(Ev::Click, move |_| Msg::send_event(
-                                                        ClientEvent::AddToFoodStorage(item, 100)
-                                                    )),
-                                                    format!("100x"),
-                                                ],
-                                                button![
-                                                    if is_premium {
-                                                        attrs! {}
-                                                    } else {
-                                                        attrs! {At::Disabled => "true"}
-                                                    },
-                                                    ev(Ev::Click, move |_| Msg::send_event(
-                                                        ClientEvent::ToggleAutoStore(item)
-                                                    )),
-                                                    "Auto",
-                                                    if !is_premium {
-                                                        tip("This functionality requires a premium account.")
-                                                    } else {
-                                                        Node::Empty
-                                                    }
-                                                ]
-                                            ]
-                                        }
-                                    ]
-                                } else {
-                                    Vec::new()
-                                },
-
-                                if item.money_value() > 0 {
-                                    vec![
-                                        h4!["Sell Item"],
-                                        if player.auto_functions.auto_store.contains(&item) && is_premium {
+                                        ]
+                                    },
+                                ]
+                            } else {
+                                Vec::new()
+                            },
+                            if item.money_value() > 0 {
+                                vec![
+                                    h4!["Sell Item"],
+                                    if player.auto_functions.auto_store.contains(&item)
+                                        && is_premium
+                                    {
+                                        button![
+                                            ev(Ev::Click, move |_| Msg::send_event(
+                                                ClientEvent::ToggleAutoSell(item)
+                                            )),
+                                            "Disable Auto"
+                                        ]
+                                    } else {
+                                        div![
+                                            C!["button-row"],
                                             button![
+                                                if player
+                                                    .inventory
+                                                    .items
+                                                    .check_remove(&Bundle::new().add(item, 1))
+                                                {
+                                                    attrs! {}
+                                                } else {
+                                                    attrs! {At::Disabled => "true"}
+                                                },
+                                                ev(Ev::Click, move |_| Msg::send_event(
+                                                    ClientEvent::Sell(item, 1)
+                                                )),
+                                                format!("1x"),
+                                            ],
+                                            button![
+                                                if player
+                                                    .inventory
+                                                    .items
+                                                    .check_remove(&Bundle::new().add(item, 10))
+                                                {
+                                                    attrs! {}
+                                                } else {
+                                                    attrs! {At::Disabled => "true"}
+                                                },
+                                                ev(Ev::Click, move |_| Msg::send_event(
+                                                    ClientEvent::Sell(item, 10)
+                                                )),
+                                                format!("10x"),
+                                            ],
+                                            button![
+                                                if player
+                                                    .inventory
+                                                    .items
+                                                    .check_remove(&Bundle::new().add(item, 100))
+                                                {
+                                                    attrs! {}
+                                                } else {
+                                                    attrs! {At::Disabled => "true"}
+                                                },
+                                                ev(Ev::Click, move |_| Msg::send_event(
+                                                    ClientEvent::Sell(item, 100)
+                                                )),
+                                                format!("100x"),
+                                            ],
+                                            button![
+                                                if is_premium {
+                                                    attrs! {}
+                                                } else {
+                                                    attrs! {At::Disabled => "true"}
+                                                },
                                                 ev(Ev::Click, move |_| Msg::send_event(
                                                     ClientEvent::ToggleAutoSell(item)
                                                 )),
-                                                "Disable Auto"
+                                                "Auto",
+                                                if !is_premium {
+                                                    tip(REQUIRES_PREMIUM)
+                                                } else {
+                                                    Node::Empty
+                                                }
                                             ]
-                                        } else {
-                                            div![C!["button-row"],
-                                                button![
-                                                    if player
-                                                        .inventory
-                                                        .items
-                                                        .check_remove(&Bundle::new().add(item, 1))
-                                                    {
-                                                        attrs! {}
-                                                    } else {
-                                                        attrs! {At::Disabled => "true"}
-                                                    },
-                                                    ev(Ev::Click, move |_| Msg::send_event(
-                                                        ClientEvent::Sell(item, 1)
-                                                    )),
-                                                    format!("1x"),
-                                                ],
-                                                button![
-                                                    if player
-                                                        .inventory
-                                                        .items
-                                                        .check_remove(&Bundle::new().add(item, 10))
-                                                    {
-                                                        attrs! {}
-                                                    } else {
-                                                        attrs! {At::Disabled => "true"}
-                                                    },
-                                                    ev(Ev::Click, move |_| Msg::send_event(
-                                                        ClientEvent::Sell(item, 10)
-                                                    )),
-                                                    format!("10x"),
-                                                ],
-                                                button![
-                                                    if player
-                                                        .inventory
-                                                        .items
-                                                        .check_remove(&Bundle::new().add(item, 100))
-                                                    {
-                                                        attrs! {}
-                                                    } else {
-                                                        attrs! {At::Disabled => "true"}
-                                                    },
-                                                    ev(Ev::Click, move |_| Msg::send_event(
-                                                        ClientEvent::Sell(item, 100)
-                                                    )),
-                                                    format!("100x"),
-                                                ],
-                                                button![
-                                                    if is_premium {
-                                                        attrs! {}
-                                                    } else {
-                                                        attrs! {At::Disabled => "true"}
-                                                    },
-                                                    ev(Ev::Click, move |_| Msg::send_event(
-                                                        ClientEvent::ToggleAutoSell(item)
-                                                    )),
-                                                    "Auto",
-                                                    if !is_premium {
-                                                        tip("This functionality requires a premium account.")
-                                                    } else {
-                                                        Node::Empty
-                                                    }
-                                                ]
-                                            ]
-                                        }
-                                    ]
-                                } else {
-                                    Vec::new()
-                                },
-                            ]
-                        }
-                    ]),
+                                        ]
+                                    },
+                                ]
+                            } else {
+                                Vec::new()
+                            },
+                        ]
+                    }
+                ]),
             ]
         ]
     } else {
@@ -2418,6 +2580,12 @@ fn history(
                                     span![format!(
                                         "Your dwarf {} has inproved his {} stat while working.",
                                         name, stat
+                                    )]
+                                }
+                                LogMsg::DwarfIsAdult(name) => {
+                                    span![format!(
+                                        "Your dwarf {} is now an adult.",
+                                        name
                                     )]
                                 }
                                 LogMsg::NotEnoughSpaceForDwarf => {

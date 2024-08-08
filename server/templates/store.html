@@ -1,32 +1,45 @@
-{% extends "base.html" %}
-{% block content %}
+{% extends "base.html" %} {% block content %}
 <main>
     <div class="content">
         <h2>Store</h2>
 
-        <p>Here you can buy a premium account for your account with the username {{ username }}. The premium account enables in-game features that make it easier to manage lots of dwarfs and items. These features include:</p>
-        
+        <p>
+            Here you can buy a premium account for your account with the
+            username {{ username }}. The premium account enables in-game
+            features that make it easier to manage lots of dwarfs and items.
+            These features include:
+        </p>
+
         <ul>
             <li>Automatic idling for dwarfs</li>
             <li>Automatic item crafting</li>
             <li>Automatic food management</li>
             <li>Automatic item selling</li>
+            <li>Dwarfen Manager</li>
         </ul>
 
-        <p>Please note that no refunds are granted for any of the products listed below. The premium account is automatically paused if there are no games running. We do not store any customer information.</p>
+        <p>
+            You can read more about these features on the
+            <a href="/wiki">Wiki page</a>.
+        </p>
+
+        <p>
+            Please note that no refunds are granted for any of the products
+            listed below. The premium account is automatically paused if there
+            are no games running. We do not store any customer information.
+        </p>
 
         <script async src="https://js.stripe.com/v3/buy-button.js"></script>
 
         <div class="store-items">
             {% for store_entry in store_entries %}
-                <stripe-buy-button
-                    buy-button-id="{{ store_entry.buy_button_id }}"
-                    publishable-key="{{ store_entry.publishable_key }}"
-                    client-reference-id="{{ user_id }}"
-                ></stripe-buy-button>
+            <stripe-buy-button
+                buy-button-id="{{ store_entry.buy_button_id }}"
+                publishable-key="{{ store_entry.publishable_key }}"
+                client-reference-id="{{ user_id }}"
+            ></stripe-buy-button>
             {% endfor %}
         </div>
-
     </div>
 </main>
 {% endblock %}
