@@ -21,9 +21,7 @@ use axum::{
 };
 use game::GameStore;
 use std::{
-    net::{SocketAddr, SocketAddrV4},
-    str::FromStr,
-    time::Duration,
+    net::{SocketAddr, SocketAddrV4}, str::FromStr, time::Duration
 };
 use tokio::{task, time};
 use tower_http::{
@@ -93,13 +91,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         loop {
             interval.tick().await;
 
-            let mut users = CustomMap::new();
+            let mut active_users = CustomMap::new();
+            let mut num_active_games = 0;
 
             game_state_clone
                 .read_games(|game| {
                     if engine_shared::State::has_winner(game).is_none() {
+                        num_active_games += 1;
+
                         for (user_id, player) in game.players.iter() {
-                            users
+                            active_users
                                 .entry(*user_id)
                                 .and_modify(|level| {
                                     if player.base.curr_level > *level {
@@ -112,7 +113,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 })
                 .await;
 
-            for (user_id, _level) in &users {
+            for (user_id, _level) in &active_users {
                 sqlx::query(
                     r#"
                             UPDATE users
@@ -127,6 +128,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap();
 
                 tracing::debug!("updated premium usage hours for all users");
+            }
+
+            if num_active_games == 0 {
+                //game_state_clone.create().await.unwrap();
             }
         }
     });
