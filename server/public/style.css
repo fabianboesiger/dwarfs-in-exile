@@ -306,11 +306,11 @@ nav {
 nav a.button {
     width: auto;
     margin: 0;
+    height: 32px;
+
 }
 
 nav a.button.active {
-    width: auto;
-    margin: 0;
     background: var(--ui-background-highlight);
 }
 

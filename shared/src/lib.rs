@@ -395,13 +395,9 @@ impl engine_shared::State for State {
                             let mut occupations_to_fill = player.manager.clone();
                             occupations_to_fill.swap_remove(&Occupation::Idling);
 
-                            let mut dwarfs_to_optimize = player
-                                .dwarfs
-                                .iter()
-                                .filter(|(_dwarf_id, dwarf)| dwarf.occupation != Occupation::Idling)
-                                .map(|(dwarf_id, _dwarf)| dwarf_id)
-                                .copied()
-                                .collect::<CustomSet<_>>();
+                            for dwarf in player.dwarfs.values_mut() {
+                                dwarf.occupation = Occupation::Idling;
+                            }
 
                             loop {
                                 occupations_to_fill.retain(|_, num| *num > 0);
@@ -414,7 +410,7 @@ impl engine_shared::State for State {
                                 let mut best_dwarf_occupation = None;
                                 let mut best_dwarf_id = None;
                                 for (dwarf_id, dwarf) in &player.dwarfs {
-                                    if dwarfs_to_optimize.contains(dwarf_id) {
+                                    if dwarf.occupation == Occupation::Idling {
                                         for (occupation, _num) in &occupations_to_fill {
                                             let effectiveness =
                                                 dwarf.stats.cross(occupation.requires_stats());
@@ -433,7 +429,6 @@ impl engine_shared::State for State {
                                     *occupations_to_fill
                                         .get_mut(&best_dwarf_occupation.unwrap())
                                         .unwrap() -= 1;
-                                    dwarfs_to_optimize.swap_remove(&best_dwarf_id);
                                 } else {
                                     break;
                                 }
@@ -1172,10 +1167,16 @@ impl engine_shared::State for State {
                                 .filter(|(_, player)| player.is_active(self.time))
                                 .count();
 
+                            let active_not_new_players = self
+                                .players
+                                .iter()
+                                .filter(|(_, player)| player.is_active(self.time) && !player.is_new(self.time))
+                                .count();
+
                             let num_quests = if cfg!(debug_assertions) {
-                                20
+                                30
                             } else {
-                                (active_players / 5).max(3).min(30)
+                                (active_players / 5).max(active_not_new_players / 3).max(3).min(30)
                             };
 
                             let max_level = self
