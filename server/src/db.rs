@@ -19,7 +19,9 @@ pub async fn setup() -> Result<SqlitePool, Box<dyn std::error::Error>> {
             username TEXT NOT NULL UNIQUE,
             password TEXT NOT NULL,
             premium INTEGER NOT NULL,
-            admin INTEGER NOT NULL DEFAULT 0
+            referrer INTEGER DEFAULT NULL,
+            admin INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY(referrer) REFERENCES users(user_id) ON DELETE SET NULL
         )
     "#,
     )

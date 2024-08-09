@@ -232,10 +232,16 @@ pub async fn handle_webhook(
                                 * 24;
 
                             sqlx::query(
-                                r#" 
+                                r#"
                                         UPDATE users
                                         SET premium = premium + $1
                                         WHERE user_id = $2
+                                        OR user_id = (
+                                            SELECT referrer
+                                            FROM users
+                                            WHERE user_id = $2
+                                            LIMIT 1
+                                        )
                                     "#,
                             )
                             .bind(hours)

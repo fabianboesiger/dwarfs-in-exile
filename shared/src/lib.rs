@@ -290,10 +290,6 @@ impl engine_shared::State for State {
         return winner;
     }
 
-    fn players(&self) -> CustomSet<Self::UserId> {
-        self.players.keys().copied().collect()
-    }
-
     fn update(
         &mut self,
         rng: &mut impl Rng,

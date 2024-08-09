@@ -812,3 +812,7 @@ td.current-user {
 a {
     color: black;
 }
+
+.invitation-link {
+    font-family: monospace;
+}

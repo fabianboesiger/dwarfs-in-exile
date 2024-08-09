@@ -8,6 +8,7 @@ mod index;
 mod store;
 mod wiki;
 
+use engine_shared::utils::custom_map::CustomMap;
 use error::*;
 
 use axum::{
@@ -92,9 +93,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         loop {
             interval.tick().await;
 
-            for user_id in game_state_clone.has_runing_games().await {
+            let mut users = CustomMap::new();
+
+            game_state_clone
+                .read_games(|game| {
+                    if engine_shared::State::has_winner(game).is_none() {
+                        for (user_id, player) in game.players.iter() {
+                            users
+                                .entry(*user_id)
+                                .and_modify(|level| {
+                                    if player.base.curr_level > *level {
+                                        *level = player.base.curr_level;
+                                    }
+                                })
+                                .or_insert(player.base.curr_level);
+                        }
+                    }
+                })
+                .await;
+
+            for (user_id, _level) in &users {
                 sqlx::query(
-                    r#" 
+                    r#"
                             UPDATE users
                             SET premium = premium - 1
                             WHERE premium > 0
