@@ -763,6 +763,7 @@ impl engine_shared::State for State {
                                             && player.auto_functions.auto_idle
                                             && dwarf.health <= MAX_HEALTH / 10
                                             && dwarf.occupation != Occupation::Idling
+                                            && player.base.food > 0
                                         {
                                             dwarf.auto_idle = true;
                                         }

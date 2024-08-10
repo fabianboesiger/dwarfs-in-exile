@@ -1,6 +1,8 @@
 {% extends "base.html" %} {% block content %}
 <main>
     <div class="content">
+
+        {% if let Some(user_id) = user_id %}
         <div class="important">
             <strong>Invite Players</strong>
             <div class="image-aside small">
@@ -44,7 +46,7 @@
                             button.addEventListener("click", function () {
                                 navigator.share({
                                     title: "Play Dwarfs in Exile!",
-                                    text: "Join {{ username }} in their adventures and play Dwarfs in Exile now for free!",
+                                    text: "Join {{ username.as_ref().unwrap() }} in their adventures and play Dwarfs in Exile now for free!",
                                     url: "https://dwarfs-in-exile.com/register?referrer={{user_id}}",
                                 });
                             });
@@ -53,12 +55,12 @@
                 </div>
             </div>
         </div>
+        {% endif %}
 
         <h2>Store</h2>
 
         <p>
-            Here you can buy a premium account for your account with the
-            username {{ username }}. The premium account enables in-game
+            Here you can buy a premium account for your account. The premium account enables in-game
             features that make it easier to manage lots of dwarfs and items.
             These features include:
         </p>
@@ -82,17 +84,27 @@
             are no games running. We do not store any customer information.
         </p>
 
-        <script async src="https://js.stripe.com/v3/buy-button.js"></script>
+        {% if let Some(user_id) = user_id %}
+            <p>You are logged in as {{ username.as_ref().unwrap() }}.</p>
 
-        <div class="store-items">
-            {% for store_entry in store_entries %}
-            <stripe-buy-button
-                buy-button-id="{{ store_entry.buy_button_id }}"
-                publishable-key="{{ store_entry.publishable_key }}"
-                client-reference-id="{{ user_id }}"
-            ></stripe-buy-button>
-            {% endfor %}
-        </div>
+            <script async src="https://js.stripe.com/v3/buy-button.js"></script>
+
+            <div class="store-items">
+                {% for store_entry in store_entries %}
+                <stripe-buy-button
+                    buy-button-id="{{ store_entry.buy_button_id }}"
+                    publishable-key="{{ store_entry.publishable_key }}"
+                    client-reference-id="{{ user_id }}"
+                ></stripe-buy-button>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p>
+                You need to be logged in to buy a premium account.
+            </p>
+            <a href="/login" class="button">Login</a> 
+        {% endif %}
+        
     </div>
 </main>
 {% endblock %}

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<main>
+    <div class="content">
+        <h2>Valhalla</h2>
+        <p>
+            This is the hall of our heroes. The top players of Dwarfs in Exile are listed here.
+        </p>
+        <table>
+            <tr>
+                <th>Global Rank</th>
+                <th>Username</th>
+                <th>Games Won</th>
+            </tr>
+            {% for (i, user) in users.iter().enumerate() %}
+            <tr>
+                <td>{{ i + 1 }}</td>
+                <td>{{ user.username }}</td>
+                <td>{{ user.games_won }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</main>
+{% endblock %}

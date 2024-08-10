@@ -267,42 +267,42 @@ pub async fn get_game_select(
     }
 }
 
-/*
 #[derive(Template, Default)]
-#[template(path = "game-select.html")]
-pub struct GameSelectTemplate {
-    current_worlds: Vec<GameId>,
+#[template(path = "valhalla.html")]
+pub struct ValhallaTemplate {
+    users: Vec<UserData>,
 }
 
-pub async fn get_game_select(
+pub async fn get_valhalla(
     Extension(pool): Extension<SqlitePool>,
-    session: Session,
 ) -> Result<Response, ServerError> {
-    session.get::<i64>(crate::USER_ID_KEY).await?.ok_or(ServerError::InvalidSession)?;
-
-    let result: Vec<(GameId, Option<String>)> = sqlx::query_as(
+    let users: Vec<(i64, String, i64, i64, i64)> = sqlx::query_as(
         r#"
-                SELECT id, username
-                FROM games
-                LEFT JOIN users
-                ON winner = user_id
-            "#,
+                    SELECT user_id, username, premium, admin, COUNT(winner)
+                    FROM users
+                    LEFT JOIN games ON winner = user_id
+                    GROUP BY user_id, username, premium, admin
+                "#,
     )
     .fetch_all(&pool)
-    .await?;
+    .await
+    .unwrap();
 
-    let (current_worlds, _closed_worlds): (Vec<(GameId, Option<String>)>, Vec<(GameId, Option<String>)>) = result.into_iter().partition(|(_, winner)| {
-        winner.is_none()
-    });
+    let mut users = users
+        .into_iter()
+        .map(|(_id, username, premium, admin, games_won)| {
+            UserData {
+                username,
+                premium: premium as u64,
+                admin: admin != 0,
+                games_won,
+            }
+        })
+        .filter(|user_data| user_data.games_won > 0)
+        .collect::<Vec<_>>();
 
-    let current_worlds: Vec<GameId> = current_worlds.into_iter().map(|(id, _)| id).collect();
-    //let closed_worlds: Vec<(GameId, String)> = closed_worlds.into_iter().map(|(id, winner)| (id, winner.unwrap())).collect();
+    users.sort_by_key(|user_data| (-user_data.games_won, -(user_data.premium as i64), user_data.username.clone()));
 
-    if current_worlds.len() == 1 {
-        Ok(Redirect::temporary(&format!("/game/{}", current_worlds[0])).into_response())
-    } else {
-        Ok(GameSelectTemplate { current_worlds }.into_response())
-    }
-
+    Ok(ValhallaTemplate { users }.into_response())
 }
-*/
+

@@ -76,8 +76,8 @@ static STORE_ENTRIES: &[StoreEntry] = &[
 #[derive(Template, Default)]
 #[template(path = "store.html")]
 pub struct StoreTemplate {
-    username: String,
-    user_id: i64,
+    user_id: Option<i64>,
+    username: Option<String>,
     store_entries: &'static [StoreEntry],
 }
 
@@ -85,30 +85,35 @@ pub async fn get_store(
     session: Session,
     Extension(pool): Extension<SqlitePool>,
 ) -> Result<Response, ServerError> {
-    let (username, user_id): (String, i64) = sqlx::query_as(
-        r#"
-            SELECT username, user_id
-            FROM users
-            WHERE user_id = $1
-        "#,
-    )
-    .bind(
-        session
-            .get::<i64>(crate::USER_ID_KEY)
-            .await?
-            .ok_or(ServerError::InvalidSession)?,
-    )
-    .fetch_optional(&pool)
-    .await?
-    .ok_or(ServerError::UserDeleted)?;
-
-    Ok(StoreTemplate {
-        username,
-        user_id,
-        store_entries: STORE_ENTRIES,
-        ..StoreTemplate::default()
+    if let Some(user_id) = session.get::<i64>(crate::USER_ID_KEY).await? {
+        let (username, user_id): (String, i64) = sqlx::query_as(
+            r#"
+                SELECT username, user_id
+                FROM users
+                WHERE user_id = $1
+            "#,
+        )
+        .bind(user_id)
+        .fetch_optional(&pool)
+        .await?
+        .ok_or(ServerError::UserDeleted)?;
+    
+        Ok(StoreTemplate {
+            username: Some(username),
+            user_id: Some(user_id),
+            store_entries: STORE_ENTRIES,
+            ..StoreTemplate::default()
+        }
+        .into_response())
+    } else {
+        Ok(StoreTemplate {
+            username : None,
+            user_id: None,
+            store_entries: STORE_ENTRIES,
+        }
+        .into_response())
     }
-    .into_response())
+    
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
