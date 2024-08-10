@@ -129,6 +129,9 @@ pub enum Item {
     DiamondSword,
     RhinoHornPants,
     DynamiteCrossbow,
+    Dolphin,
+    BoneHelmet,
+    BoneNecklace,
 }
 
 impl Craftable for Item {
@@ -152,10 +155,13 @@ impl Craftable for Item {
 
             Item::Poison => Some((10, Bundle::new().add(Item::PufferFish, 1))),
             Item::PoisonedBow => Some((11, Bundle::new().add(Item::Bow, 1).add(Item::Poison, 1))),
-            Item::PoisonedSpear => Some((12, Bundle::new().add(Item::Spear, 1).add(Item::Poison, 1))),
-            
+            Item::PoisonedSpear => {
+                Some((12, Bundle::new().add(Item::Spear, 1).add(Item::Poison, 1)))
+            }
+
             Item::String => Some((6, Bundle::new().add(Item::Hemp, 3))),
-            Item::FishingRod => Some((7,
+            Item::FishingRod => Some((
+                7,
                 Bundle::new()
                     .add(Item::Wood, 3)
                     .add(Item::String, 3)
@@ -165,8 +171,11 @@ impl Craftable for Item {
             Item::Fabric => Some((8, Bundle::new().add(Item::String, 3))),
             Item::Backpack => Some((9, Bundle::new().add(Item::String, 2).add(Item::Leather, 5))),
             Item::Bag => Some((10, Bundle::new().add(Item::String, 1).add(Item::Fabric, 2))),
-            Item::LeatherArmor => Some((10, Bundle::new().add(Item::Leather, 8).add(Item::String, 3))),
-            Item::Helmet => Some((7,
+            Item::LeatherArmor => {
+                Some((10, Bundle::new().add(Item::Leather, 8).add(Item::String, 3)))
+            }
+            Item::Helmet => Some((
+                7,
                 Bundle::new()
                     .add(Item::Iron, 3)
                     .add(Item::Leather, 1)
@@ -176,24 +185,31 @@ impl Craftable for Item {
             Item::Headlamp => Some((13, Bundle::new().add(Item::Helmet, 1).add(Item::Lantern, 1))),
             Item::Map => Some((13, Bundle::new().add(Item::Fabric, 5))),
             Item::FishingHat => Some((11, Bundle::new().add(Item::Fabric, 5))),
-            Item::FishingNet => Some((25, Bundle::new().add(Item::String, 20).add(Item::Iron, 2))),              
+            Item::FishingNet => Some((25, Bundle::new().add(Item::String, 20).add(Item::Iron, 2))),
             Item::Boots => Some((9, Bundle::new().add(Item::Leather, 5).add(Item::String, 2))),
-            Item::BearClawBoots => Some((15, Bundle::new().add(Item::BearClaw, 1).add(Item::Boots, 1))),
+            Item::BearClawBoots => {
+                Some((15, Bundle::new().add(Item::BearClaw, 1).add(Item::Boots, 1)))
+            }
             Item::Gloves => Some((10, Bundle::new().add(Item::Leather, 5).add(Item::String, 2))),
-            Item::BearClawGloves => Some((16, Bundle::new().add(Item::BearClaw, 1).add(Item::Gloves, 1))),
+            Item::BearClawGloves => Some((
+                16,
+                Bundle::new().add(Item::BearClaw, 1).add(Item::Gloves, 1),
+            )),
             Item::Overall => Some((17, Bundle::new().add(Item::Fabric, 5).add(Item::String, 5))),
 
             Item::BakedPotato => Some((18, Bundle::new().add(Item::Potato, 1).add(Item::Coal, 1))),
             Item::Flour => Some((21, Bundle::new().add(Item::Wheat, 3))),
             Item::Bread => Some((22, Bundle::new().add(Item::Flour, 3))),
-            Item::BlueberryCake => Some((23,
+            Item::BlueberryCake => Some((
+                23,
                 Bundle::new()
                     .add(Item::Blueberry, 5)
                     .add(Item::Flour, 3)
                     .add(Item::Egg, 2)
                     .add(Item::Milk, 1),
             )),
-            Item::ApplePie => Some((23,
+            Item::ApplePie => Some((
+                23,
                 Bundle::new()
                     .add(Item::Apple, 5)
                     .add(Item::Flour, 3)
@@ -202,44 +218,50 @@ impl Craftable for Item {
             )),
 
             Item::Soup => Some((24, Bundle::new().add(Item::Potato, 3).add(Item::Carrot, 3))),
-            
-            Item::Crossbow => Some((21,
+
+            Item::Crossbow => Some((
+                21,
                 Bundle::new()
                     .add(Item::Wood, 5)
                     .add(Item::Iron, 10)
                     .add(Item::Nail, 3),
             )),
-            
+
             Item::BlackPowder => Some((28, Bundle::new().add(Item::Coal, 2).add(Item::Sulfur, 1))),
-            Item::Musket => Some((29,
+            Item::Musket => Some((
+                29,
                 Bundle::new()
                     .add(Item::Wood, 10)
                     .add(Item::Iron, 20)
                     .add(Item::BlackPowder, 5),
             )),
-            Item::Dynamite => Some((30,
+            Item::Dynamite => Some((
+                30,
                 Bundle::new()
                     .add(Item::BlackPowder, 10)
                     .add(Item::Fabric, 1),
             )),
-            Item::DynamiteCrossbow => {
-                Some((32, Bundle::new().add(Item::Dynamite, 1).add(Item::Crossbow, 1)))
-            }
+            Item::DynamiteCrossbow => Some((
+                32,
+                Bundle::new().add(Item::Dynamite, 1).add(Item::Crossbow, 1),
+            )),
 
-             
-            Item::Wheel => Some((36,
+            Item::Wheel => Some((
+                36,
                 Bundle::new()
                     .add(Item::Iron, 3)
                     .add(Item::Wood, 5)
                     .add(Item::Nail, 5),
             )),
-            Item::Wheelbarrow => Some((38,
+            Item::Wheelbarrow => Some((
+                38,
                 Bundle::new()
                     .add(Item::Wheel, 1)
                     .add(Item::Iron, 2)
                     .add(Item::Nail, 5),
             )),
-            Item::Plough => Some((40,
+            Item::Plough => Some((
+                40,
                 Bundle::new()
                     .add(Item::Wheel, 2)
                     .add(Item::Iron, 10)
@@ -247,32 +269,41 @@ impl Craftable for Item {
                     .add(Item::Chain, 5),
             )),
 
+            Item::BoneNecklace => Some((42, Bundle::new().add(Item::String, 5).add(Item::Bone, 5))),
+            Item::BoneHelmet => Some((44, Bundle::new().add(Item::Helmet, 1).add(Item::Bone, 5))),
+
             Item::Gold => Some((26, Bundle::new().add(Item::GoldOre, 1).add(Item::Coal, 1))),
             Item::GoldenRing => Some((28, Bundle::new().add(Item::Gold, 3))),
-            Item::RingOfIntelligence => Some((50,
+            Item::RingOfIntelligence => Some((
+                50,
                 Bundle::new()
                     .add(Item::GoldenRing, 1)
                     .add(Item::Fluorite, 1),
             )),
-            Item::RingOfStrength => {
-                Some((52, Bundle::new().add(Item::GoldenRing, 1).add(Item::Agate, 1)))
-            }
-            Item::RingOfPerception => Some((54,
+            Item::RingOfStrength => Some((
+                52,
+                Bundle::new().add(Item::GoldenRing, 1).add(Item::Agate, 1),
+            )),
+            Item::RingOfPerception => Some((
+                54,
                 Bundle::new()
                     .add(Item::GoldenRing, 1)
                     .add(Item::Sodalite, 1),
             )),
-            Item::RingOfEndurance => {
-                Some((56, Bundle::new().add(Item::GoldenRing, 1).add(Item::Ruby, 1)))
-            }
-            Item::RingOfAgility => Some((58,
+            Item::RingOfEndurance => Some((
+                56,
+                Bundle::new().add(Item::GoldenRing, 1).add(Item::Ruby, 1),
+            )),
+            Item::RingOfAgility => Some((
+                58,
                 Bundle::new()
                     .add(Item::GoldenRing, 1)
                     .add(Item::Selenite, 1),
             )),
-            Item::CrystalNecklace => Some((60,
+            Item::CrystalNecklace => Some((
+                60,
                 Bundle::new()
-                    .add(Item::String, 1)
+                    .add(Item::String, 5)
                     .add(Item::Fluorite, 1)
                     .add(Item::Agate, 1)
                     .add(Item::Sodalite, 1)
@@ -280,21 +311,32 @@ impl Craftable for Item {
                     .add(Item::Selenite, 1),
             )),
 
-            
             Item::DiamondAxe => Some((62, Bundle::new().add(Item::Axe, 1).add(Item::Diamond, 3))),
-            Item::DiamondPickaxe => Some((64, Bundle::new().add(Item::Pickaxe, 1).add(Item::Diamond, 3))),
-            Item::DiamondSword => Some((66, Bundle::new().add(Item::Sword, 1).add(Item::Diamond, 3))),
-            
-            Item::TigerFangDagger => Some((40, Bundle::new().add(Item::TigerFang, 1).add(Item::Dagger, 1))),
-            Item::RhinoHornHelmet => {
-                Some((42, Bundle::new().add(Item::RhinoHorn, 1).add(Item::Helmet, 1)))
+            Item::DiamondPickaxe => Some((
+                64,
+                Bundle::new().add(Item::Pickaxe, 1).add(Item::Diamond, 3),
+            )),
+            Item::DiamondSword => {
+                Some((66, Bundle::new().add(Item::Sword, 1).add(Item::Diamond, 3)))
             }
             Item::Longsword => Some((44, Bundle::new().add(Item::Wood, 1).add(Item::Iron, 10))),
-            Item::Dragon => Some((48, Bundle::new().add(Item::DragonsEgg, 1).add(Item::Coal, 100))),
-            Item::RhinoHornPants => Some((70,
+            Item::Dragon => Some((
+                48,
+                Bundle::new().add(Item::DragonsEgg, 1).add(Item::Coal, 100),
+            )),
+            Item::RhinoHornPants => Some((
+                70,
                 Bundle::new()
                     .add(Item::RhinoHorn, 1)
                     .add(Item::LeatherArmor, 1),
+            )),
+            Item::TigerFangDagger => Some((
+                72,
+                Bundle::new().add(Item::TigerFang, 1).add(Item::Dagger, 1),
+            )),
+            Item::RhinoHornHelmet => Some((
+                74,
+                Bundle::new().add(Item::RhinoHorn, 1).add(Item::Helmet, 1),
             )),
             _ => None,
         }
@@ -360,7 +402,9 @@ impl Item {
             | Item::BearClawBoots
             | Item::GoldenRing
             | Item::RhinoHornPants
-            | Item::CrystalNecklace => Some(ItemType::Clothing),
+            | Item::CrystalNecklace
+            | Item::BoneHelmet
+            | Item::BoneNecklace => Some(ItemType::Clothing),
 
             Item::Bow
             | Item::PoisonedBow
@@ -394,7 +438,8 @@ impl Item {
             | Item::Dragon
             | Item::Donkey
             | Item::Bird
-            | Item::Horse => Some(ItemType::Pet),
+            | Item::Horse
+            | Item::Dolphin => Some(ItemType::Pet),
 
             Item::Apple
             | Item::Blueberry
@@ -516,10 +561,27 @@ impl Item {
                 intelligence: 6,
                 perception: 6,
             },
+            Item::BoneNecklace => Stats {
+                strength: 2,
+                endurance: 2,
+                agility: 2,
+                intelligence: 2,
+                perception: 2,
+            },
             Item::RhinoHornPants => Stats {
                 strength: 8,
                 endurance: 8,
                 intelligence: -4,
+                ..Default::default()
+            },
+            Item::RhinoHornHelmet => Stats {
+                strength: 2,
+                endurance: 2,
+                intelligence: -4,
+                ..Default::default()
+            },
+            Item::Dolphin => Stats {
+                agility: 4,
                 ..Default::default()
             },
             _ => Stats::default(),
@@ -536,7 +598,7 @@ impl Item {
     }
 
     pub fn money_value(self) -> Money {
-        self.item_rarity_num() / 2000
+        self.item_rarity_num() / 5000
     }
 
     // sefulness from 0 - 10
@@ -577,13 +639,13 @@ impl Item {
             (Item::Dynamite, Occupation::Mining) => 10,
             (Item::Backpack, Occupation::Gathering) => 7,
             (Item::Bag, Occupation::Gathering) => 5,
-            (
-                Item::Helmet | Item::RhinoHornHelmet,
-                Occupation::Mining | Occupation::Logging | Occupation::Rockhounding,
-            ) => 4,
+            (Item::Helmet, Occupation::Mining | Occupation::Logging | Occupation::Rockhounding) => {
+                4
+            }
             (Item::Helmet, Occupation::Fighting) => 6,
             (Item::Headlamp, Occupation::Mining | Occupation::Rockhounding) => 8,
-            (Item::RhinoHornHelmet, Occupation::Fighting) => 8,
+            (Item::RhinoHornHelmet, Occupation::Fighting) => 9,
+            (Item::BoneHelmet, Occupation::Fighting) => 8,
             (Item::Horse, Occupation::Fighting | Occupation::Exploring) => 4,
             (Item::Horse, Occupation::Farming | Occupation::Logging) => 7,
             (Item::Map, Occupation::Exploring) => 8,
@@ -604,6 +666,7 @@ impl Item {
             (Item::Wheelbarrow, Occupation::Gathering) => 8,
             (Item::Plough, Occupation::Farming) => 10,
             (Item::Lantern, Occupation::Mining | Occupation::Rockhounding) => 4,
+            (Item::Dolphin, Occupation::Fishing) => 10,
             _ => 0,
         }
     }
@@ -612,188 +675,163 @@ impl Item {
         match occupation {
             Occupation::Mining => match self {
                 Item::Stone => Some(ItemProbability {
-                    starting_from_tick: 0,
-                    expected_ticks_per_drop: ONE_MINUTE / 2,
+                    expected_ticks_per_drop: ONE_MINUTE,
                 }),
                 Item::IronOre => Some(ItemProbability {
-                    starting_from_tick: ONE_MINUTE * 3,
-                    expected_ticks_per_drop: ONE_MINUTE * 3,
+                    expected_ticks_per_drop: ONE_MINUTE * 5,
                 }),
                 Item::Coal => Some(ItemProbability {
-                    starting_from_tick: ONE_MINUTE * 2,
-                    expected_ticks_per_drop: ONE_MINUTE * 2,
+                    expected_ticks_per_drop: ONE_MINUTE * 5,
                 }),
                 Item::Sulfur => Some(ItemProbability {
-                    starting_from_tick: ONE_HOUR,
                     expected_ticks_per_drop: ONE_HOUR,
                 }),
                 Item::GoldOre => Some(ItemProbability {
-                    starting_from_tick: ONE_HOUR * 2,
                     expected_ticks_per_drop: ONE_HOUR * 2,
                 }),
                 _ => None,
             },
             Occupation::Rockhounding => match self {
                 Item::Fluorite => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 Item::Agate => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 Item::Sodalite => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 Item::Ruby => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 Item::Selenite => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 Item::Diamond => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 _ => None,
             },
             Occupation::Logging => match self {
                 Item::Wood => Some(ItemProbability {
-                    starting_from_tick: 0,
-                    expected_ticks_per_drop: ONE_MINUTE / 2,
+                    expected_ticks_per_drop: ONE_MINUTE,
                 }),
                 Item::Apple => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_MINUTE * 5,
                 }),
                 Item::Parrot => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 Item::Bird => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 _ => None,
             },
             Occupation::Hunting => match self {
                 Item::RawMeat => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_MINUTE * 5,
                 }),
                 Item::Leather => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_MINUTE * 5,
                 }),
                 Item::Bone => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_MINUTE * 10,
                 }),
                 _ => None,
             },
             Occupation::Gathering => match self {
                 Item::Blueberry => Some(ItemProbability {
-                    starting_from_tick: 0,
-                    expected_ticks_per_drop: ONE_MINUTE,
+                    expected_ticks_per_drop: ONE_MINUTE * 2,
                 }),
                 Item::Apple => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_MINUTE * 2,
                 }),
                 Item::Hemp => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_MINUTE * 3,
                 }),
                 _ => None,
             },
             Occupation::Fishing => match self {
                 Item::RawFish => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_MINUTE * 5,
                 }),
                 Item::PufferFish => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_HOUR,
                 }),
                 Item::Boots => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_HOUR * 2,
                 }),
                 Item::Gloves => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_HOUR * 2,
                 }),
                 Item::GoldenRing => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_HOUR * 6,
+                }),
+                Item::Dolphin => Some(ItemProbability {
+                    expected_ticks_per_drop: ONE_DAY * 3,
                 }),
                 _ => None,
             },
             Occupation::Fighting => match self {
                 Item::Wolf => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 Item::TigerFang => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 Item::BearClaw => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 Item::RhinoHorn => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY,
+                }),
+                Item::RawMeat => Some(ItemProbability {
+                    expected_ticks_per_drop: ONE_MINUTE * 10,
+                }),
+                Item::Leather => Some(ItemProbability {
+                    expected_ticks_per_drop: ONE_MINUTE * 10,
+                }),
+                Item::Bone => Some(ItemProbability {
+                    expected_ticks_per_drop: ONE_MINUTE * 20,
                 }),
                 _ => None,
             },
             Occupation::Exploring => match self {
                 Item::Cat => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_DAY * 7,
                 }),
                 Item::Parrot => Some(ItemProbability {
-                    starting_from_tick: 0,
-                    expected_ticks_per_drop: ONE_DAY,
+                    expected_ticks_per_drop: ONE_DAY * 2,
                 }),
                 Item::Bird => Some(ItemProbability {
-                    starting_from_tick: 0,
-                    expected_ticks_per_drop: ONE_DAY,
+                    expected_ticks_per_drop: ONE_DAY * 2,
                 }),
                 Item::Donkey => Some(ItemProbability {
-                    starting_from_tick: 0,
-                    expected_ticks_per_drop: ONE_DAY,
+                    expected_ticks_per_drop: ONE_DAY * 7,
                 }),
                 Item::Horse => Some(ItemProbability {
-                    starting_from_tick: 0,
-                    expected_ticks_per_drop: ONE_DAY,
+                    expected_ticks_per_drop: ONE_DAY * 7,
                 }),
                 _ => None,
             },
             Occupation::Farming => match self {
                 Item::Milk => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_MINUTE * 5,
                 }),
                 Item::Egg => Some(ItemProbability {
-                    starting_from_tick: 0,
                     expected_ticks_per_drop: ONE_MINUTE * 5,
                 }),
                 Item::Wheat => Some(ItemProbability {
-                    starting_from_tick: ONE_HOUR,
                     expected_ticks_per_drop: ONE_MINUTE * 10,
                 }),
                 Item::Potato => Some(ItemProbability {
-                    starting_from_tick: ONE_HOUR * 3,
                     expected_ticks_per_drop: ONE_MINUTE * 10,
                 }),
                 Item::Carrot => Some(ItemProbability {
-                    starting_from_tick: ONE_HOUR * 3,
                     expected_ticks_per_drop: ONE_MINUTE * 10,
+                }),
+                Item::Hemp => Some(ItemProbability {
+                    expected_ticks_per_drop: ONE_MINUTE,
                 }),
                 _ => None,
             },
@@ -822,7 +860,8 @@ impl Item {
 
         if let Some(requires) = self.requires() {
             update_rarity(
-                requires.1
+                requires
+                    .1
                     .iter()
                     .map(|(item, n)| item.item_rarity_num() * *n)
                     .sum(),
@@ -840,7 +879,12 @@ impl Item {
         };
 
         if let Some(requires) = self.requires() {
-            if let Some(max_depth) = requires.1.iter().map(|(item, _)| item.crafting_depth()).max() {
+            if let Some(max_depth) = requires
+                .1
+                .iter()
+                .map(|(item, _)| item.crafting_depth())
+                .max()
+            {
                 update_depth(max_depth + 1)
             }
         }
@@ -880,7 +924,6 @@ impl From<u64> for ItemRarity {
 }
 
 pub struct ItemProbability {
-    pub starting_from_tick: u64,
     pub expected_ticks_per_drop: u64,
 }
 

@@ -2,6 +2,7 @@ use crate::{game::GameState, ServerError};
 use askama::{DynTemplate, Template};
 use askama_axum::Response;
 use axum::{
+    extract::Query,
     response::{IntoResponse, Redirect},
     Extension,
 };
@@ -73,7 +74,13 @@ pub async fn get_register() -> RegisterTemplate {
     RegisterTemplate::default()
 }
 
+#[derive(Deserialize)]
+pub struct RegisterQuery {
+    referrer: Option<i64>,
+}
+
 pub async fn post_register(
+    referrer: Query<RegisterQuery>,
     session: Session,
     Extension(pool): Extension<SqlitePool>,
     Extension(game_state): Extension<GameState>,
@@ -86,20 +93,27 @@ pub async fn post_register(
 
     let result: Result<(i64,), _> = sqlx::query_as(
         r#"
-            INSERT INTO users (username, password, premium, admin)
+            INSERT INTO users (username, password, premium, admin, referrer)
             VALUES ($1, $2, (
                 SELECT free_premium
                 FROM settings
                 LIMIT 1
             ), (
-                SELECT count(*) 
+                SELECT count(*)
                 FROM users
-            ) = 0)
+            ) = 0,
+            (
+                SELECT user_id
+                FROM users
+                WHERE user_id = $3
+                LIMIT 1
+            ))
             RETURNING user_id
         "#,
     )
     .bind(&register.username)
     .bind(&hashed)
+    .bind(referrer.referrer)
     .fetch_one(&pool)
     .await;
 

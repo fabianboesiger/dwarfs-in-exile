@@ -19,7 +19,9 @@ pub async fn setup() -> Result<SqlitePool, Box<dyn std::error::Error>> {
             username TEXT NOT NULL UNIQUE,
             password TEXT NOT NULL,
             premium INTEGER NOT NULL,
-            admin INTEGER NOT NULL DEFAULT 0
+            referrer INTEGER DEFAULT NULL,
+            admin INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY(referrer) REFERENCES users(user_id) ON DELETE SET NULL
         )
     "#,
     )
@@ -31,8 +33,9 @@ pub async fn setup() -> Result<SqlitePool, Box<dyn std::error::Error>> {
         CREATE TABLE IF NOT EXISTS games (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             data BLOB,
+            closed INTEGER NOT NULL DEFAULT 0,
             winner INTEGER,
-            FOREIGN KEY(winner) REFERENCES users(user_id)
+            FOREIGN KEY(winner) REFERENCES users(user_id) ON DELETE SET NULL
         )
     "#,
     )

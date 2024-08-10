@@ -40,7 +40,7 @@ impl GameStore {
             r#"
                     SELECT id
                     FROM games
-                    WHERE winner IS NULL
+                    WHERE closed = 0
                 "#,
         )
         .fetch_all(&self.db)
@@ -97,10 +97,12 @@ impl engine_server::BackendStore<shared::State> for GameStore {
     }
 
     async fn load_user_data(&self) -> Result<CustomMap<UserId, UserData>, Self::Error> {
-        let users: Vec<(i64, String, i64)> = sqlx::query_as(
+        let users: Vec<(i64, String, i64, i64, i64)> = sqlx::query_as(
             r#"
-                        SELECT user_id, username, premium
+                        SELECT user_id, username, premium, admin, COUNT(winner)
                         FROM users
+                        LEFT JOIN games ON winner = user_id
+                        GROUP BY user_id, username, premium, admin
                     "#,
         )
         .fetch_all(&self.db)
@@ -109,12 +111,14 @@ impl engine_server::BackendStore<shared::State> for GameStore {
 
         let users = users
             .into_iter()
-            .map(|(id, username, premium)| {
+            .map(|(id, username, premium, admin, games_won)| {
                 (
                     id.into(),
                     UserData {
                         username,
                         premium: premium as u64,
+                        admin: admin != 0,
+                        games_won,
                     },
                 )
             })
@@ -128,13 +132,13 @@ impl engine_server::BackendStore<shared::State> for GameStore {
             sqlx::query(
                 r#"
                         UPDATE games
-                        SET data = $2,
-                        winner = $3
+                        SET data = NULL,
+                        winner = $2,
+                        closed = 1
                         WHERE id = $1
                     "#,
             )
             .bind(&game_id)
-            .bind(rmp_serde::to_vec(&state).unwrap())
             .bind(&winner.0)
             .execute(&self.db)
             .await
@@ -248,7 +252,7 @@ pub async fn get_game_select(
         r#"
                 SELECT id
                 FROM games
-                WHERE winner IS NULL
+                WHERE closed = 0
             "#,
     )
     .fetch_all(&pool)

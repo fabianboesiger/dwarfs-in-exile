@@ -11,14 +11,14 @@
     width: 100vw;
     height: 100vh;
     background-image: url("/background.jpg");
-    background-position: center; 
+    background-position: center;
     background-repeat: no-repeat;
     background-size: cover;
     z-index: -1000;
 }
 
 html {
-    font-family: Georgia, 'Times New Roman', Times, serif;
+    font-family: Georgia, "Times New Roman", Times, serif;
     font-size: 12px;
 }
 
@@ -64,7 +64,8 @@ form > div {
     margin-bottom: 1em;
 }
 
-.form-wrapper > h2:first-child, .content > h2:first-child {
+.form-wrapper > h2:first-child,
+.content > h2:first-child {
     margin-top: 0;
 }
 
@@ -72,7 +73,11 @@ form > div {
     color: darkred;
 }
 
-input:not([type=checkbox]):not([type=radio]), button, select, a.button, summary {
+input:not([type="checkbox"]):not([type="radio"]),
+button,
+select,
+a.button,
+summary {
     width: 100%;
     box-sizing: border-box;
     border: none;
@@ -82,7 +87,7 @@ input:not([type=checkbox]):not([type=radio]), button, select, a.button, summary 
     text-align: left;
     text-decoration: none;
     color: black;
-    font-family: Georgia, 'Times New Roman', Times, serif;
+    font-family: Georgia, "Times New Roman", Times, serif;
     font-size: 12px;
     position: relative;
     outline: none;
@@ -95,19 +100,38 @@ input:not([type=checkbox]):not([type=radio]):focus, button:focus, select:focus, 
 }
 */
 
-input:not([type=checkbox]):not([type=radio]):hover, button:hover, select:hover, a.button:hover, summary:hover {
+button,
+select,
+a.button,
+summary {
+    cursor: pointer;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):hover,
+button:hover,
+select:hover,
+a.button:hover,
+summary:hover {
     background: #eee;
 }
 
-input:not([type=checkbox]):not([type=radio]):active, button:active, select:active, a.button:active, summary:active {
+input:not([type="checkbox"]):not([type="radio"]):active,
+button:active,
+select:active,
+a.button:active,
+summary:active {
     background: #ddd;
 }
 
-button, a.button, input[type=submit] {
+button,
+a.button,
+input[type="submit"] {
     text-align: center !important;
 }
 
-input:disabled, button:disabled, select:disabled {
+input:disabled,
+button:disabled,
+select:disabled {
     color: gray;
 }
 
@@ -133,12 +157,17 @@ header {
     visibility: hidden;
 }
 
-.list , #chat .togglable, #history .togglable, .form-wrapper, .content {
-    background: rgba(255, 255, 255, 0.3);    
+.list,
+#chat .togglable,
+#history .togglable,
+.form-wrapper,
+.content {
+    background: rgba(255, 255, 255, 0.3);
     backdrop-filter: blur(16px);
 }
 
-.content, .form-wrapper {
+.content,
+.form-wrapper {
     padding: 16px;
 }
 
@@ -156,7 +185,8 @@ header {
     height: 100%;
 }
 
-#chat, #history {
+#chat,
+#history {
     max-width: 384px;
     position: fixed;
     bottom: 0;
@@ -165,7 +195,10 @@ header {
     box-shadow: 0 -8px 8px -8px black;
 }
 
-#chat button, #history button, #chat input, #history input {
+#chat button,
+#history button,
+#chat input,
+#history input {
     height: 32px;
     margin: 0;
 }
@@ -182,12 +215,14 @@ header {
     left: 0;
 }
 
-#chat.visible, #history.visible {
+#chat.visible,
+#history.visible {
     z-index: 3000;
     height: auto;
 }
 
-#chat.visible > button, #history.visible > button {
+#chat.visible > button,
+#history.visible > button {
     position: relative;
     z-index: 3500;
 }
@@ -229,7 +264,8 @@ header {
     border-top: 1px solid var(--ui-background-default);
 }
 
-.messages .username, .messages .time {
+.messages .username,
+.messages .time {
     font-weight: bold;
 }
 
@@ -243,13 +279,14 @@ table {
     border-collapse: collapse;
 }
 
-th, td {
+th,
+td {
     text-align: left;
     padding-left: 4px;
     padding-right: 4px;
     border-bottom: 1px solid var(--ui-background-default);
     border-top: 1px solid var(--ui-background-default);
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.3);
 }
 
 nav {
@@ -269,11 +306,11 @@ nav {
 nav a.button {
     width: auto;
     margin: 0;
+    height: 32px;
+
 }
 
 nav a.button.active {
-    width: auto;
-    margin: 0;
     background: var(--ui-background-highlight);
 }
 
@@ -303,12 +340,11 @@ nav a.button.active {
     flex-shrink: 1;
 }
 
-
 .filter > *.no-shrink {
     flex-shrink: 0;
 }
 
-input[type=checkbox] {
+input[type="checkbox"] {
     width: auto;
 }
 
@@ -316,7 +352,7 @@ input[type=checkbox] {
     width: 100%;
     height: 16px;
     position: relative;
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.3);
 }
 
 .health-bar-curr {
@@ -340,7 +376,7 @@ input[type=checkbox] {
     width: 100%;
     height: 16px;
     position: relative;
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.3);
 }
 
 .score-bar-curr {
@@ -378,7 +414,7 @@ input[type=checkbox] {
     font-weight: bold;
     color: black;
 }
-  
+
 .tooltip .tooltiptext {
     visibility: hidden;
     position: absolute;
@@ -386,18 +422,19 @@ input[type=checkbox] {
     bottom: 16px;
     left: calc(50% - 64px);
     z-index: 10000;
-    background: white;    
+    background: white;
     backdrop-filter: blur(16px);
     border-radius: 8px;
     box-shadow: 0 0 8px;
     padding: 8px;
-    font-family: Georgia, 'Times New Roman', Times, serif;
+    font-family: Georgia, "Times New Roman", Times, serif;
     font-size: 12px;
     font-weight: normal;
     color: black;
 }
-  
-.tooltip:hover .tooltiptext, .tooltip:active .tooltiptext {
+
+.tooltip:hover .tooltiptext,
+.tooltip:active .tooltiptext {
     visibility: visible;
 }
 
@@ -412,7 +449,7 @@ input[type=checkbox] {
 #server-info > * {
     background-color: black;
     color: white;
-    font-family: 'Courier New', Courier, monospace;
+    font-family: "Courier New", Courier, monospace;
     font-size: 10px;
 }
 
@@ -496,11 +533,12 @@ input[type=checkbox] {
 .list td .list-item-image-placeholder {
     width: 128px;
     height: 128px;
-    background: rgba(0, 0, 0, 0.2);
+    background: rgba(0, 0, 0, 0.3);
     flex-grow: 0;
 }
 
-h4, .title {
+h4,
+.title {
     margin-bottom: 0;
 }
 
@@ -521,7 +559,7 @@ h4, .title {
     height: 32px;
     display: flex;
     vertical-align: middle;
-    background: rgba(255, 255, 255, 0.3);    
+    background: rgba(255, 255, 255, 0.3);
     backdrop-filter: blur(16px);
 }
 
@@ -540,23 +578,23 @@ h4, .title {
 }
 
 .item-common {
-    background: rgba(255, 255, 255, 0.2);    
+    background: rgba(255, 255, 255, 0.3);
 }
 .item-uncommon {
-    background: rgba(0, 175, 9, 0.2);    
+    background: rgba(0, 175, 9, 0.3);
 }
 .item-rare {
-    background: rgba(4, 101, 211, 0.2);    
+    background: rgba(4, 101, 211, 0.3);
 }
 .item-epic {
-    background: rgba(192, 0, 199, 0.2);    
+    background: rgba(192, 0, 199, 0.3);
 }
 .item-legendary {
-    background: rgba(194, 110, 0, 0.2);    
+    background: rgba(194, 110, 0, 0.3);
 }
 
 .list-item-row.selected {
-    background: rgba(0, 0, 0, 0.2);
+    background: rgba(0, 0, 0, 0.3);
 }
 
 .short-info + .short-info::before {
@@ -611,11 +649,11 @@ ul {
 
     .image-aside:not(.small) > div > *:first-child {
         margin-top: 1em;
-    }    
+    }
 }
 
 .important {
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.3);
     padding: 16px;
     margin-top: 1em;
     margin-bottom: 1em;
@@ -631,18 +669,18 @@ ul {
 
 .material-symbols-outlined.outlined {
     font-variation-settings:
-        'FILL' 0,
-        'wght' 400,
-        'GRAD' 0,
-        'opsz' 20;
+        "FILL" 0,
+        "wght" 400,
+        "GRAD" 0,
+        "opsz" 20;
     font-size: 12px;
 }
 .material-symbols-outlined.filled {
     font-variation-settings:
-        'FILL' 1,
-        'wght' 400,
-        'GRAD' 0,
-        'opsz' 20;
+        "FILL" 1,
+        "wght" 400,
+        "GRAD" 0,
+        "opsz" 20;
     font-size: 12px;
 }
 
@@ -673,7 +711,6 @@ ul {
     animation: quest 500ms alternate-reverse infinite;
 }
 
-
 @keyframes quest {
     from {
         transform: scale(100%);
@@ -685,7 +722,7 @@ ul {
 
 .panel-wrapper {
     position: fixed;
-    z-index: 10000;
+    z-index: 20000;
     top: 0;
     left: 0;
     width: 100vw;
@@ -732,4 +769,50 @@ ul {
 
 .next-unlock.future > img {
     filter: grayscale(100%);
+}
+
+figure {
+    margin: 0;
+    background: rgba(255, 255, 255, 0.3);
+}
+
+figure > figcaption {
+    padding: 8px;
+}
+
+details > div {
+    background: rgba(255, 255, 255, 0.3);
+    padding: 8px;
+    margin-bottom: 2px;
+}
+
+details > summary {
+    margin-bottom: 0;
+}
+
+summary > * {
+    display: inline;
+    margin: 0;
+}
+
+.nametag {
+    margin-left: 2px;
+    margin-right: 2px;
+    padding-left: 4px;
+    padding-right: 4px;
+    border-radius: 8px;
+    background: black;
+    color: white;
+}
+
+td.current-user {
+    background: rgba(255, 255, 255, 0.6);
+}
+
+a {
+    color: black;
+}
+
+.invitation-link {
+    font-family: monospace;
 }

@@ -6,7 +6,9 @@ mod error;
 mod game;
 mod index;
 mod store;
+mod wiki;
 
+use engine_shared::utils::custom_map::CustomMap;
 use error::*;
 
 use axum::{
@@ -19,9 +21,7 @@ use axum::{
 };
 use game::GameStore;
 use std::{
-    net::{SocketAddr, SocketAddrV4},
-    str::FromStr,
-    time::Duration,
+    net::{SocketAddr, SocketAddrV4}, str::FromStr, time::Duration
 };
 use tokio::{task, time};
 use tower_http::{
@@ -39,6 +39,16 @@ async fn set_static_cache_control(request: Request, next: Next) -> Response<Body
         response.headers_mut().insert(
             header::CACHE_CONTROL,
             HeaderValue::from_static("public, max-age=2592000"),
+        );
+        response
+    } else if request.uri().to_string().ends_with(".wasm")
+        || request.uri().to_string().ends_with(".js")
+        || request.uri().to_string().ends_with(".css")
+    {
+        let mut response = next.run(request).await;
+        response.headers_mut().insert(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("public, max-age=0"),
         );
         response
     } else {
@@ -81,19 +91,47 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         loop {
             interval.tick().await;
 
-            if game_state_clone.has_runing_games().await {
+            let mut active_users = CustomMap::new();
+            let mut num_active_games = 0;
+
+            game_state_clone
+                .read_games(|game| {
+                    if engine_shared::State::has_winner(game).is_none() {
+                        num_active_games += 1;
+
+                        for (user_id, player) in game.players.iter() {
+                            active_users
+                                .entry(*user_id)
+                                .and_modify(|level| {
+                                    if player.base.curr_level > *level {
+                                        *level = player.base.curr_level;
+                                    }
+                                })
+                                .or_insert(player.base.curr_level);
+                        }
+                    }
+                })
+                .await;
+
+            for (user_id, _level) in &active_users {
                 sqlx::query(
-                    r#" 
+                    r#"
                             UPDATE users
                             SET premium = premium - 1
                             WHERE premium > 0
+                            AND id = $1
                         "#,
                 )
+                .bind(user_id.0)
                 .execute(&pool_clone)
                 .await
                 .unwrap();
 
                 tracing::debug!("updated premium usage hours for all users");
+            }
+
+            if num_active_games == 0 {
+                //game_state_clone.create().await.unwrap();
             }
         }
     });
@@ -109,6 +147,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .layer(middleware::from_fn(set_static_cache_control)),
         )
         .route("/", get(index::get_index))
+        .route("/wiki", get(wiki::get_wiki))
         .route("/store", get(store::get_store))
         .route("/about", get(about::get_about))
         .nest(

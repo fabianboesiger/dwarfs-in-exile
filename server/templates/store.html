@@ -1,25 +1,98 @@
-{% extends "base.html" %}
-{% block content %}
+{% extends "base.html" %} {% block content %}
 <main>
     <div class="content">
+        <div class="important">
+            <strong>Invite Players</strong>
+            <div class="image-aside small">
+                <img src="/social.jpg" />
+                <div>
+                    <p>
+                        Use this link to invite players to the game. If they
+                        register with this link and buy a premium account, you
+                        will get the same number of premium days for free!
+                    </p>
+                    <p>
+                        <span class="invitation-link">
+                            https://dwarfs-in-exile.com/register?referrer={{user_id}}
+                        </span>
+                    </p>
+                    <button id="copy-invitation-link">Copy Link</button>
+                    <script>
+                        let button = document.getElementById(
+                            "copy-invitation-link",
+                        );
+
+                        button.addEventListener("click", function () {
+                            navigator.clipboard.writeText(
+                                "https://dwarfs-in-exile.com/register?referrer={{user_id}}",
+                            );
+
+                            button.textContent = "Copied!";
+                        });
+                    </script>
+                    <button id="share-invitation-link" style="display: none">
+                        Share
+                    </button>
+                    <script>
+                        if (navigator.share) {
+                            let button = document.getElementById(
+                                "share-invitation-link",
+                            );
+
+                            button.style.display = "block";
+
+                            button.addEventListener("click", function () {
+                                navigator.share({
+                                    title: "Play Dwarfs in Exile!",
+                                    text: "Join {{ username }} in their adventures and play Dwarfs in Exile now for free!",
+                                    url: "https://dwarfs-in-exile.com/register?referrer={{user_id}}",
+                                });
+                            });
+                        }
+                    </script>
+                </div>
+            </div>
+        </div>
+
         <h2>Store</h2>
 
-        <p>Here you can a premium account for your account with the username {{ username }}. The premium account enables in-game features that make it easier to manage lots of dwarfs and items. The features include automatically managed idling for dwarfs, as well as automatically managed item crafting, item selling and food storage.</p>
+        <p>
+            Here you can buy a premium account for your account with the
+            username {{ username }}. The premium account enables in-game
+            features that make it easier to manage lots of dwarfs and items.
+            These features include:
+        </p>
 
-        <p>Please note that no refunds are granted for any of the products listed below. The premium account is automatically paused if there are no games running. We do not store any customer information.</p>
+        <ul>
+            <li>Automatic idling for dwarfs</li>
+            <li>Automatic item crafting</li>
+            <li>Automatic food management</li>
+            <li>Automatic item selling</li>
+            <li>Dwarfen Manager</li>
+        </ul>
+
+        <p>
+            You can read more about these features on the
+            <a href="/wiki">Wiki page</a>.
+        </p>
+
+        <p>
+            Please note that no refunds are granted for any of the products
+            listed below. The premium account is automatically paused if there
+            are no games running. We do not store any customer information.
+        </p>
 
         <script async src="https://js.stripe.com/v3/buy-button.js"></script>
 
         <div class="store-items">
             {% for store_entry in store_entries %}
-                <stripe-buy-button
-                    buy-button-id="{{ store_entry.buy_button_id }}"
-                    publishable-key="{{ store_entry.publishable_key }}"
-                    client-reference-id="{{ user_id }}"
-                ></stripe-buy-button>
+            <stripe-buy-button
+                buy-button-id="{{ store_entry.buy_button_id }}"
+                publishable-key="{{ store_entry.publishable_key }}"
+                client-reference-id="{{ user_id }}"
+            ></stripe-buy-button>
             {% endfor %}
         </div>
-
     </div>
 </main>
 {% endblock %}
