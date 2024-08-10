@@ -165,6 +165,7 @@ pub enum Image {
     BoneHelmet,
     King,
     Manager,
+    Tornado,
 }
 
 impl AsAtValue for Image {
@@ -411,6 +412,7 @@ impl From<WorldEvent> for Image {
             WorldEvent::Flood => Image::Flood,
             WorldEvent::Earthquake => Image::Earthquake,
             WorldEvent::Plague => Image::Plague,
+            WorldEvent::Tornado => Image::Tornado,
         }
     }
 }

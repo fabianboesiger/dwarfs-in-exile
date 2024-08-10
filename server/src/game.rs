@@ -132,14 +132,13 @@ impl engine_server::BackendStore<shared::State> for GameStore {
             sqlx::query(
                 r#"
                         UPDATE games
-                        SET data = $2,
-                        winner = $3,
+                        SET data = NULL,
+                        winner = $2,
                         closed = 1
                         WHERE id = $1
                     "#,
             )
             .bind(&game_id)
-            .bind(rmp_serde::to_vec(&state).unwrap())
             .bind(&winner.0)
             .execute(&self.db)
             .await

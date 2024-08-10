@@ -1784,7 +1784,7 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
             if let Some(event) = state.event {
                 div![
                     C!["important"],
-                    strong![format!("Current Event: {}", event)],
+                    strong![format!("{}", event)],
                     div![
                         C!["image-aside", "small"],
                         img![attrs! {At::Src => Image::from(event).as_at_value()}],
@@ -1792,8 +1792,9 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                             match event {
                                 WorldEvent::Drought => p!["There is a drought happening. The drought makes it harder to farm, gather and hunt. Make sure that your dwarfs don't starve!"],
                                 WorldEvent::Flood => p!["A flood has occurred. The flood makes it harder to farm, gather and fish. Make sure that your dwarfs don't starve!"],
-                                WorldEvent::Earthquake => p!["An earthquake has occurred. The earthquake makes it harder to mine, rockhound and log. Be aware of your resource production!"],
                                 WorldEvent::Plague => p!["A plague is happening. During a plague, the health of your dwarfs decreases much faster. Settlements with more dwarfs are affected more than settlements with fewer dwarfs. Make sure that your dwarfs don't die!"],
+                                WorldEvent::Earthquake => p!["An earthquake has occurred. The earthquake makes it harder to mine, rockhound and log. Be aware of your resource production! There is also a higher chance that new dwarfs arrive in your settlement during this event."],
+                                WorldEvent::Tornado => p!["Tornadoes sweep accross the forbidden lands. The tornadoes makes it harder to log, gather and farm. Be aware of your resource production! There is also a higher chance that new dwarfs arrive in your settlement during this event."],
                             }
                         ]
                     ]

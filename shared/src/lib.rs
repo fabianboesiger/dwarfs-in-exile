@@ -54,6 +54,7 @@ pub enum WorldEvent {
     Flood,
     Earthquake,
     Plague,
+    Tornado,
 }
 
 impl WorldEvent {
@@ -71,6 +72,18 @@ impl WorldEvent {
                 WorldEvent::Earthquake,
                 Occupation::Mining | Occupation::Logging | Occupation::Rockhounding,
             ) => 3,
+            (
+                WorldEvent::Tornado,
+                Occupation::Logging | Occupation::Farming | Occupation::Gathering,
+            ) => 3,
+            _ => 1,
+        }
+    }
+
+    fn new_dwarfs_multiplier(&self) -> u32 {
+        match self {
+            WorldEvent::Earthquake => 3,
+            WorldEvent::Tornado => 3,
             _ => 1,
         }
     }
@@ -83,6 +96,7 @@ impl std::fmt::Display for WorldEvent {
             WorldEvent::Flood => write!(f, "Flood"),
             WorldEvent::Earthquake => write!(f, "Earthquake"),
             WorldEvent::Plague => write!(f, "Plague"),
+            WorldEvent::Tornado => write!(f, "Tornado"),
         }
     }
 }
@@ -392,6 +406,8 @@ impl engine_shared::State for State {
                             }
                         }
                         ClientEvent::OptimizeOccupations => {
+                            player.set_manager();
+
                             let mut occupations_to_fill = player.manager.clone();
                             occupations_to_fill.swap_remove(&Occupation::Idling);
 
@@ -437,6 +453,8 @@ impl engine_shared::State for State {
                             debug_assert!(occupations_to_fill.is_empty());
                         }
                         ClientEvent::SetManagerOccupation(occupation, num) => {
+                            player.set_manager();
+
                             let curr = player.manager.get(&occupation).copied().unwrap_or_default();
                             if curr < num {
                                 let diff = num - curr;
@@ -541,8 +559,6 @@ impl engine_shared::State for State {
                                 && dwarf.is_adult()
                             {
                                 dwarf.change_occupation(occupation);
-
-                                player.set_manager();
                             }
                         }
                         ClientEvent::Craft(item, qty) => {
@@ -674,7 +690,10 @@ impl engine_shared::State for State {
                                 player.base.build();
 
                                 // Chance for a new dwarf!
-                                if rng.gen_ratio(1, ONE_DAY as u32 * 2) {
+                                if rng.gen_ratio(
+                                    self.event.map(|event| event.new_dwarfs_multiplier()).unwrap_or(1), 
+                                    ONE_DAY as u32 * 2
+                                ) {
                                     player.new_dwarf(
                                         rng,
                                         &mut self.next_dwarf_id,
@@ -763,8 +782,6 @@ impl engine_shared::State for State {
                                                 self.time,
                                                 LogMsg::DwarfIsAdult(dwarf.name.clone()),
                                             );
-                                            *player.manager.entry(dwarf.occupation).or_default() +=
-                                                1;
                                         }
                                     }
                                 }
@@ -1483,11 +1500,19 @@ impl Player {
     }
 
     pub fn set_manager(&mut self) {
-        self.manager.clear();
-        for dwarf in self.dwarfs.values() {
-            if dwarf.is_adult() {
-                *self.manager.entry(dwarf.occupation).or_default() += 1;
+        let manager_num = self.manager.values().copied().sum::<u64>();
+        let dwarfs_num = self.dwarfs.values().filter(|dwarf| dwarf.is_adult()).count() as u64;
+        if manager_num > dwarfs_num {
+            self.manager.clear();
+            for dwarf in self.dwarfs.values() {
+                if dwarf.is_adult() {
+                    *self.manager.entry(dwarf.occupation).or_default() += 1;
+                }
             }
+        } else if dwarfs_num > manager_num {
+            self.manager.entry(Occupation::Idling)
+                .and_modify(|v| *v += dwarfs_num - manager_num)
+                .or_insert(dwarfs_num - manager_num);   
         }
     }
 
@@ -1518,9 +1543,7 @@ impl Player {
             let dwarf = if baby {
                 Dwarf::new_baby(rng)
             } else {
-                let dwarf = Dwarf::new_adult(rng);
-                *self.manager.entry(dwarf.occupation).or_default() += 1;
-                dwarf
+                Dwarf::new_adult(rng)
             };
             self.log.add(time, LogMsg::NewDwarf(dwarf.name.clone()));
             self.add_popup(Popup::NewDwarf(dwarf.clone()));
