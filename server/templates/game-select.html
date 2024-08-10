@@ -5,6 +5,7 @@
         <h2>Select your World</h2>
         {% if current_worlds.is_empty() %}
           <p>There are currently no active worlds. Please come back in a few hours, a new world will start shortly!</p>
+          <a href="/valhalla" class="button">Visit Valhalla</a>
         {% else %}
         {% for id in current_worlds %}
           <a href="/game/{{id}}" class="button">World {{id}}</a>

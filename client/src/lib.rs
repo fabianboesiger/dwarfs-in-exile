@@ -716,11 +716,11 @@ fn ranking(
                 th!["Level"],
             ],
             players.iter().enumerate().map(|(i, (user_id, player))| {
-                let (is_premium, is_dev, is_winner) = model
+                let (is_premium, is_dev, games_won) = model
                     .state
                     .get_user_data(user_id)
-                    .map(|user_data| (user_data.premium > 0, user_data.admin, user_data.games_won > 0))
-                    .unwrap_or((false, false, false));
+                    .map(|user_data| (user_data.premium > 0, user_data.admin, user_data.games_won))
+                    .unwrap_or((false, false, 0));
 
                 let rank = i + 1;
                 let current_user = *current_user_id == **user_id;
@@ -752,10 +752,15 @@ fn ranking(
                         } else {
                             Node::Empty
                         },
-                        if is_winner {
+                        if games_won == 1 {
                             span![
                                 C!["nametag"],
                                 "Winner"
+                            ]
+                        } else if games_won > 1 {
+                            span![
+                                C!["nametag"],
+                                format!("Winner ({})", games_won)
                             ]
                         } else {
                             Node::Empty

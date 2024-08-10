@@ -150,6 +150,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/wiki", get(wiki::get_wiki))
         .route("/store", get(store::get_store))
         .route("/about", get(about::get_about))
+        .route("/valhalla", get(game::get_valhalla))
         .nest(
             "/game",
             Router::new()
