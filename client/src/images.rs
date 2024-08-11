@@ -166,6 +166,7 @@ pub enum Image {
     King,
     Manager,
     Tornado,
+    Concert,
 }
 
 impl AsAtValue for Image {
@@ -367,6 +368,7 @@ impl From<QuestType> for Image {
             QuestType::ElvenVictory => Image::ElvenVictory,
             QuestType::TheMassacre => Image::TheMassacre,
             QuestType::TheElvenWar => Image::TheElvenWar,
+            QuestType::Concert => Image::Concert,
         }
     }
 }

@@ -82,8 +82,8 @@ impl WorldEvent {
 
     fn new_dwarfs_multiplier(&self) -> u32 {
         match self {
-            WorldEvent::Earthquake => 3,
-            WorldEvent::Tornado => 3,
+            WorldEvent::Earthquake => 5,
+            WorldEvent::Tornado => 5,
             _ => 1,
         }
     }
@@ -167,14 +167,14 @@ impl TutorialStep {
     pub fn reward(&self) -> TutorialReward {
         match self {
             TutorialStep::Welcome => TutorialReward::Dwarfs(1),
-            TutorialStep::Mining => TutorialReward::Items(Bundle::new().add(Item::Stone, 100)),
-            TutorialStep::Logging => TutorialReward::Items(Bundle::new().add(Item::Wood, 100)),
+            TutorialStep::Mining => TutorialReward::Items(Bundle::new().add(Item::Stone, 50)),
+            TutorialStep::Logging => TutorialReward::Items(Bundle::new().add(Item::Wood, 50)),
             TutorialStep::SettlementExpansion2 => TutorialReward::Dwarfs(1),
-            TutorialStep::Hunting => TutorialReward::Items(Bundle::new().add(Item::Coal, 100)),
+            TutorialStep::Hunting => TutorialReward::Items(Bundle::new().add(Item::Coal, 50)),
             TutorialStep::FoodPreparation => {
-                TutorialReward::Items(Bundle::new().add(Item::CookedMeat, 100))
+                TutorialReward::Items(Bundle::new().add(Item::CookedMeat, 50))
             }
-            TutorialStep::Idling => TutorialReward::Items(Bundle::new().add(Item::Hemp, 100)),
+            TutorialStep::Idling => TutorialReward::Items(Bundle::new().add(Item::Hemp, 50)),
             TutorialStep::SettlementExpansion3 => TutorialReward::Money(1000),
             TutorialStep::Quests => TutorialReward::Money(1000),
             TutorialStep::SettlementExpansion5 => TutorialReward::Dwarfs(1),
@@ -329,7 +329,57 @@ impl engine_shared::State for State {
 
                     match event {
                         ClientEvent::Init => {}
-                        ClientEvent::OptimizeEquipment => {
+                        ClientEvent::Optimize => {
+                            // Reassign occupations.
+
+                            player.set_manager();
+
+                            let mut occupations_to_fill = player.manager.clone();
+                            occupations_to_fill.swap_remove(&Occupation::Idling);
+
+                            for dwarf in player.dwarfs.values_mut() {
+                                dwarf.occupation = Occupation::Idling;
+                            }
+
+                            loop {
+                                occupations_to_fill.retain(|_, num| *num > 0);
+
+                                if occupations_to_fill.is_empty() {
+                                    break;
+                                }
+
+                                let mut best_dwarf_effectiveness = 0;
+                                let mut best_dwarf_occupation = None;
+                                let mut best_dwarf_id = None;
+                                for (dwarf_id, dwarf) in &player.dwarfs {
+                                    if dwarf.occupation == Occupation::Idling {
+                                        for (occupation, _num) in &occupations_to_fill {
+                                            let effectiveness =
+                                                dwarf.stats.cross(occupation.requires_stats());
+                                            if effectiveness >= best_dwarf_effectiveness {
+                                                best_dwarf_effectiveness = effectiveness;
+                                                best_dwarf_id = Some(*dwarf_id);
+                                                best_dwarf_occupation = Some(*occupation);
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if let Some(best_dwarf_id) = best_dwarf_id {
+                                    let best_dwarf = player.dwarfs.get_mut(&best_dwarf_id).unwrap();
+                                    best_dwarf.change_occupation(best_dwarf_occupation.unwrap());
+                                    *occupations_to_fill
+                                        .get_mut(&best_dwarf_occupation.unwrap())
+                                        .unwrap() -= 1;
+                                } else {
+                                    break;
+                                }
+                            }
+
+                            debug_assert!(occupations_to_fill.is_empty());
+
+                            // Reassign equipment.
+
                             for dwarf in player.dwarfs.values_mut() {
                                 for item in dwarf.equipment.values_mut() {
                                     if let Some(old_item) = item.take() {
@@ -404,53 +454,6 @@ impl engine_shared::State for State {
                                     break;
                                 }
                             }
-                        }
-                        ClientEvent::OptimizeOccupations => {
-                            player.set_manager();
-
-                            let mut occupations_to_fill = player.manager.clone();
-                            occupations_to_fill.swap_remove(&Occupation::Idling);
-
-                            for dwarf in player.dwarfs.values_mut() {
-                                dwarf.occupation = Occupation::Idling;
-                            }
-
-                            loop {
-                                occupations_to_fill.retain(|_, num| *num > 0);
-
-                                if occupations_to_fill.is_empty() {
-                                    break;
-                                }
-
-                                let mut best_dwarf_effectiveness = 0;
-                                let mut best_dwarf_occupation = None;
-                                let mut best_dwarf_id = None;
-                                for (dwarf_id, dwarf) in &player.dwarfs {
-                                    if dwarf.occupation == Occupation::Idling {
-                                        for (occupation, _num) in &occupations_to_fill {
-                                            let effectiveness =
-                                                dwarf.stats.cross(occupation.requires_stats());
-                                            if effectiveness >= best_dwarf_effectiveness {
-                                                best_dwarf_effectiveness = effectiveness;
-                                                best_dwarf_id = Some(*dwarf_id);
-                                                best_dwarf_occupation = Some(*occupation);
-                                            }
-                                        }
-                                    }
-                                }
-
-                                if let Some(best_dwarf_id) = best_dwarf_id {
-                                    let best_dwarf = player.dwarfs.get_mut(&best_dwarf_id).unwrap();
-                                    best_dwarf.change_occupation(best_dwarf_occupation.unwrap());
-                                    *occupations_to_fill
-                                        .get_mut(&best_dwarf_occupation.unwrap())
-                                        .unwrap() -= 1;
-                                } else {
-                                    break;
-                                }
-                            }
-
-                            debug_assert!(occupations_to_fill.is_empty());
                         }
                         ClientEvent::SetManagerOccupation(occupation, num) => {
                             player.set_manager();
@@ -692,7 +695,7 @@ impl engine_shared::State for State {
                                 // Chance for a new dwarf!
                                 if rng.gen_ratio(
                                     self.event.map(|event| event.new_dwarfs_multiplier()).unwrap_or(1), 
-                                    ONE_DAY as u32 * 2
+                                    ONE_DAY as u32 * 3
                                 ) {
                                     player.new_dwarf(
                                         rng,
@@ -1500,6 +1503,14 @@ impl Player {
         player
     }
 
+    pub fn average_efficiency(&self) -> u64 {
+        self
+            .dwarfs
+            .values()
+            .map(|dwarf| dwarf.effectiveness_percent(dwarf.occupation))
+            .sum::<u64>() / self.dwarfs.len() as u64
+    }
+
     pub fn set_manager(&mut self) {
         let manager_num = self.manager.values().copied().sum::<u64>();
         let dwarfs_num = self.dwarfs.values().filter(|dwarf| dwarf.is_adult()).count() as u64;
@@ -1886,6 +1897,11 @@ impl Dwarf {
         10 - ((6000 - self.effectiveness_not_normalized(occupation)).pow(1) / (6000u64.pow(1) / 10))
     }
 
+    // output 0 - 100
+    pub fn effectiveness_percent(&self, occupation: Occupation) -> u64 {
+        100 - ((6000 - self.effectiveness_not_normalized(occupation)).pow(1) / (6000u64.pow(1) / 100))
+    }
+
     // output 0 - 600
     fn effectiveness_not_normalized(&self, occupation: Occupation) -> u64 {
         let mut usefulness = 0;
@@ -2032,8 +2048,8 @@ impl Base {
 
             Some(
                 Bundle::new()
-                    .add(Item::Wood, 100 * multiplier(0))
-                    .add(Item::Stone, 100 * multiplier(20))
+                    .add(Item::Wood, 50 * multiplier(0))
+                    .add(Item::Stone, 50 * multiplier(20))
                     .add(Item::Nail, 10 * multiplier(40))
                     .add(Item::Fabric, 10 * multiplier(60))
                     .add(Item::Gold, 10 * multiplier(80)),
@@ -2116,9 +2132,8 @@ pub enum ClientEvent {
     HireDwarf(HireDwarfType),
     NextTutorialStep,
     ConfirmPopup,
-    OptimizeOccupations,
     SetManagerOccupation(Occupation, u64),
-    OptimizeEquipment,
+    Optimize,
 }
 
 impl engine_shared::ClientEvent for ClientEvent {
@@ -2269,6 +2284,7 @@ pub enum QuestType {
     ElvenVictory,
     TheMassacre,
     TheElvenWar,
+    Concert,
 }
 
 impl std::fmt::Display for QuestType {
@@ -2294,6 +2310,7 @@ impl std::fmt::Display for QuestType {
             QuestType::ElvenVictory => write!(f, "The Elven Victory"),
             QuestType::TheMassacre => write!(f, "The Massacre"),
             QuestType::TheElvenWar => write!(f, "The Elven War"),
+            QuestType::Concert => write!(f, "Concert in the Tavern"),
         }
     }
 }
@@ -2332,6 +2349,7 @@ impl QuestType {
             Self::ElvenVictory => RewardMode::SplitFairly(2000),
             Self::TheElvenWar => RewardMode::SplitFairly(10000),
             Self::TheMassacre => RewardMode::NewDwarfByChance(3),
+            Self::Concert => RewardMode::SplitFairly(1000),
         }
     }
 
@@ -2361,6 +2379,7 @@ impl QuestType {
             Self::ElvenVictory => ONE_HOUR * 2,
             Self::TheMassacre => ONE_HOUR * 8,
             Self::TheElvenWar => ONE_HOUR * 8,
+            Self::Concert => ONE_HOUR * 2,
         }
     }
 
@@ -2386,6 +2405,7 @@ impl QuestType {
             Self::ElvenVictory => Occupation::Logging,
             Self::TheMassacre => Occupation::Fighting,
             Self::TheElvenWar => Occupation::Fighting,
+            Self::Concert => Occupation::Idling,
         }
     }
 
@@ -2411,6 +2431,7 @@ impl QuestType {
             Self::ElvenVictory => 3,
             Self::TheMassacre => 3,
             Self::TheElvenWar => 5,
+            Self::Concert => 1,
         }
     }
 
