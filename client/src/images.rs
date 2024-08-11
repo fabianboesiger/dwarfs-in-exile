@@ -220,19 +220,19 @@ impl Image {
     }
 
     fn dwarf_from_name(rng: &mut impl Rng) -> Image {
-        Image::Dwarf(rng.next_u64() % 30)
+        Image::Dwarf(rng.next_u64() % 32)
     }
 
     fn female_dwarf_from_name(rng: &mut impl Rng) -> Image {
-        Image::FemaleDwarf(rng.next_u64() % 6)
+        Image::FemaleDwarf(rng.next_u64() % 16)
     }
 
     fn child_dwarf_from_name(rng: &mut impl Rng) -> Image {
-        Image::ChildDwarf(rng.next_u64() % 12)
+        Image::ChildDwarf(rng.next_u64() % 16)
     }
 
     fn child_female_dwarf_from_name(rng: &mut impl Rng) -> Image {
-        Image::ChildFemaleDwarf(rng.next_u64() % 4)
+        Image::ChildFemaleDwarf(rng.next_u64() % 8)
     }
 }
 
