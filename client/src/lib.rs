@@ -1391,7 +1391,7 @@ fn dwarf(
                                             p![C!["subtitle"],stats_simple(&occupation.requires_stats())],
                                             h4![C!["title"], "Provides"],
                                             p![C!["subtitle"], if all_items.len() == 0 {
-                                                "None".to_owned()
+                                                "Lets your dwarf eat and restore health. Adds a possibility for child dwarfs for each male and female dwarf that is idling.".to_owned()
                                             } else {
                                                 all_items.into_iter().join(", ")
                                             }]
@@ -1577,6 +1577,7 @@ fn quest(
                                 QuestType::ADarkSecret => p!["While exploring the elven regions, you find a dark secret. The elves are not what they seem to be. They have used their magic on the dwarfs to turn them into orks. It seems like the orks were never the barbaric enemies that they seemed like, they are just unfortunate dwarfen souls like you and me. A devious plan by the elves to divide and weaken the dwarfen kingdom!"],
                                 QuestType::TheMassacre => p!["The elves have unleased their dark magic in a final attempt to eliminate all orks. Realizing that you have helped in this terrible act by providing the elves with the crystals needed for their dark magic, you attempt to fight the elven magicians to stop the massacre."],
                                 QuestType::TheElvenWar => p!["All of the dwarfen settlements have realized their mistake and have united to fight the elves. The united dwarfen armies have to fight the elven magicians in order to restore peace in the forbidden lands. Send the best fighters that you have, or the forbidden lands will be lost forever to the elven dark magic."],
+                                QuestType::Concert => p!["The dwarfen bards have organized a concert in the tavern. Make sure to participate!"],
                             },
                         ],
                         h3!["Rewards"],
@@ -1924,6 +1925,9 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                     img![attrs! {At::Src => Image::Manager.as_at_value()}],
                     div![
                         p!["The dwarfen manager can optimally assign dwarfs to carry out the occupations that are best suited for them. Furthermore, the manager can also assign the optimal equipment to each dwarf to further increase their effectiveness in their occupation."],
+                        p![
+                            strong![format!("Average Efficiency: {}%", player.average_efficiency())]
+                        ],
                         table![
                             tr![
                                 th!["Occupation"],
@@ -1955,22 +1959,8 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                             } else {
                                 attrs! {At::Disabled => "true"}
                             },
-                            ev(Ev::Click, move |_| Msg::send_event(ClientEvent::OptimizeOccupations)),
-                            format!("Reassign Occupations"),
-                            if !is_premium {
-                                tip(REQUIRES_PREMIUM)
-                            } else {
-                                Node::Empty
-                            }
-                        ],
-                        button![
-                            if is_premium {
-                                attrs! {}
-                            } else {
-                                attrs! {At::Disabled => "true"}
-                            },
-                            ev(Ev::Click, move |_| Msg::send_event(ClientEvent::OptimizeEquipment)),
-                            format!("Reassign Equipment"),
+                            ev(Ev::Click, move |_| Msg::send_event(ClientEvent::Optimize)),
+                            format!("Reassign Occupations and Equipment"),
                             if !is_premium {
                                 tip(REQUIRES_PREMIUM)
                             } else {
@@ -2807,7 +2797,7 @@ fn stats_simple(stats: &Stats) -> String {
     }
 
     if v.is_empty() {
-        return "no skills".to_owned();
+        return "Nothing".to_owned();
     }
 
     v.into_iter().join(", ")
