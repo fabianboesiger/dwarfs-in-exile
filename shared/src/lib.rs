@@ -1503,12 +1503,12 @@ impl Player {
         player
     }
 
-    pub fn average_efficiency(&self) -> u64 {
+    pub fn average_efficiency(&self) -> Option<u64> {
         self
             .dwarfs
             .values()
             .map(|dwarf| dwarf.effectiveness_percent(dwarf.occupation))
-            .sum::<u64>() / self.dwarfs.len() as u64
+            .sum::<u64>().checked_div(self.dwarfs.len() as u64)
     }
 
     pub fn set_manager(&mut self) {

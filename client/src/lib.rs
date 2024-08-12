@@ -1926,7 +1926,7 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                     div![
                         p!["The dwarfen manager can optimally assign dwarfs to carry out the occupations that are best suited for them. Furthermore, the manager can also assign the optimal equipment to each dwarf to further increase their effectiveness in their occupation."],
                         p![
-                            strong![format!("Average Efficiency: {}%", player.average_efficiency())]
+                            strong![format!("Average Efficiency: {}%", player.average_efficiency().unwrap_or(0))]
                         ],
                         table![
                             tr![
