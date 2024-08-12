@@ -206,7 +206,7 @@ pub async fn ws_handler(
                     }
                 } => {},
                 _ = async {
-                    while let Some(res) = conn_res.poll().await {
+                    while let Ok(Some(res)) = conn_res.poll().await {
                         let msg = rmp_serde::to_vec(&res).unwrap();
                         if sink.send(Message::Binary(msg)).await.is_err() {
                             break;
