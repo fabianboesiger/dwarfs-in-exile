@@ -442,14 +442,20 @@ impl engine_shared::State for State {
                                 if let Some(best_dwarf_id) = best_dwarf_id {
                                     let best_dwarf = player.dwarfs.get_mut(&best_dwarf_id).unwrap();
 
-                                    debug_assert!(player.inventory.items.remove_checked(
+                                    if player.inventory.items.remove_checked(
                                         Bundle::new().add(best_dwarf_item.unwrap(), 1),
-                                    ));
+                                    ) {
+                                        best_dwarf.equipment.insert(
+                                            best_dwarf_item.unwrap().item_type().unwrap(),
+                                            Some(best_dwarf_item.unwrap()),
+                                        );
+                                    } else {
+                                        if cfg!(debug_assertions) {
+                                            panic!("something went wrong!");
+                                        }
+                                    }
 
-                                    best_dwarf.equipment.insert(
-                                        best_dwarf_item.unwrap().item_type().unwrap(),
-                                        Some(best_dwarf_item.unwrap()),
-                                    );
+                                    
                                 } else {
                                     break;
                                 }
@@ -1636,7 +1642,7 @@ impl Player {
     pub fn auto_sell(&mut self, is_premium: bool) {
         if is_premium {
             // Auto-sell!
-            for &item in &self.auto_functions.auto_store {
+            for &item in &self.auto_functions.auto_sell {
                 if let Some(&qty) = self.inventory.items.get(&item) {
                     if item.money_value() > 0 {
                         if self

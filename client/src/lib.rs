@@ -2404,7 +2404,7 @@ fn inventory(
                             if item.money_value() > 0 {
                                 vec![
                                     h4!["Sell Item"],
-                                    if player.auto_functions.auto_store.contains(&item)
+                                    if player.auto_functions.auto_sell.contains(&item)
                                         && is_premium
                                     {
                                         button![
