@@ -189,31 +189,32 @@ pub async fn ws_handler(
     );
 
     Ok(ws.on_upgrade(move |socket: WebSocket| async move {
-        let (conn_req, mut conn_res) = game_state.new_connection(user_id, game_id).await;
-        let (mut sink, mut stream) = socket.split();
+        if let Ok((conn_req, mut conn_res)) = game_state.new_connection(user_id, game_id).await {
+            let (mut sink, mut stream) = socket.split();
 
-        tokio::select!(
-            _ = async {
-                while let Some(msg) = stream.next().await {
-                    if let Ok(msg) = msg {
-                        if let Message::Binary(msg) = msg {
-                            let req: engine_shared::Req<shared::State> = rmp_serde::from_slice(&msg).unwrap();
-                            conn_req.request(req);
+            tokio::select!(
+                _ = async {
+                    while let Some(msg) = stream.next().await {
+                        if let Ok(msg) = msg {
+                            if let Message::Binary(msg) = msg {
+                                let req: engine_shared::Req<shared::State> = rmp_serde::from_slice(&msg).unwrap();
+                                conn_req.request(req);
+                            }
+                        } else {
+                            break;
                         }
-                    } else {
-                        break;
                     }
-                }
-            } => {},
-            _ = async {
-                while let Some(res) = conn_res.poll().await {
-                    let msg = rmp_serde::to_vec(&res).unwrap();
-                    if sink.send(Message::Binary(msg)).await.is_err() {
-                        break;
+                } => {},
+                _ = async {
+                    while let Some(res) = conn_res.poll().await {
+                        let msg = rmp_serde::to_vec(&res).unwrap();
+                        if sink.send(Message::Binary(msg)).await.is_err() {
+                            break;
+                        }
                     }
-                }
-            } => {}
-        );
+                } => {}
+            );
+        }
     }))
 }
 

@@ -166,7 +166,7 @@ impl TutorialStep {
 
     pub fn reward(&self) -> TutorialReward {
         match self {
-            TutorialStep::Welcome => TutorialReward::Dwarfs(1),
+            TutorialStep::Welcome => TutorialReward::Money(1000),
             TutorialStep::Mining => TutorialReward::Items(Bundle::new().add(Item::Stone, 50)),
             TutorialStep::Logging => TutorialReward::Items(Bundle::new().add(Item::Wood, 50)),
             TutorialStep::SettlementExpansion2 => TutorialReward::Dwarfs(1),
@@ -1483,6 +1483,8 @@ impl Player {
             popups: VecDeque::new(),
             manager: CustomMap::new(),
         };
+
+        player.new_dwarf(rng, next_dwarf_id, time, false);
 
         if cfg!(debug_assertions) {
             player.base.curr_level = 15;

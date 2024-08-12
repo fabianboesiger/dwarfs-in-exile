@@ -28,6 +28,8 @@ pub enum ServerError {
     UserDeleted,
     #[error("no admin permissions")]
     NoAdminPermissions,
+    #[error("engine error: {0}")]
+    EngineError(#[from] engine_server::Error),
 }
 
 impl IntoResponse for ServerError {
