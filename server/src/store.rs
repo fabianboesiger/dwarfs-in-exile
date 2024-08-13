@@ -97,7 +97,7 @@ pub async fn get_store(
         .fetch_optional(&pool)
         .await?
         .ok_or(ServerError::UserDeleted)?;
-    
+
         Ok(StoreTemplate {
             username: Some(username),
             user_id: Some(user_id),
@@ -107,13 +107,12 @@ pub async fn get_store(
         .into_response())
     } else {
         Ok(StoreTemplate {
-            username : None,
+            username: None,
             user_id: None,
             store_entries: STORE_ENTRIES,
         }
         .into_response())
     }
-    
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

@@ -21,7 +21,9 @@ use axum::{
 };
 use game::GameStore;
 use std::{
-    net::{SocketAddr, SocketAddrV4}, str::FromStr, time::Duration
+    net::{SocketAddr, SocketAddrV4},
+    str::FromStr,
+    time::Duration,
 };
 use tokio::{task, time};
 use tower_http::{

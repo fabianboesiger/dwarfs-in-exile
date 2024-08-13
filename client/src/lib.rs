@@ -2404,8 +2404,7 @@ fn inventory(
                             if item.money_value() > 0 {
                                 vec![
                                     h4!["Sell Item"],
-                                    if player.auto_functions.auto_sell.contains(&item)
-                                        && is_premium
+                                    if player.auto_functions.auto_sell.contains(&item) && is_premium
                                     {
                                         button![
                                             ev(Ev::Click, move |_| Msg::send_event(

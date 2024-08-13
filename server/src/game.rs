@@ -274,9 +274,7 @@ pub struct ValhallaTemplate {
     users: Vec<UserData>,
 }
 
-pub async fn get_valhalla(
-    Extension(pool): Extension<SqlitePool>,
-) -> Result<Response, ServerError> {
+pub async fn get_valhalla(Extension(pool): Extension<SqlitePool>) -> Result<Response, ServerError> {
     let users: Vec<(i64, String, i64, i64, i64)> = sqlx::query_as(
         r#"
                     SELECT user_id, username, premium, admin, COUNT(winner)
@@ -291,19 +289,22 @@ pub async fn get_valhalla(
 
     let mut users = users
         .into_iter()
-        .map(|(_id, username, premium, admin, games_won)| {
-            UserData {
-                username,
-                premium: premium as u64,
-                admin: admin != 0,
-                games_won,
-            }
+        .map(|(_id, username, premium, admin, games_won)| UserData {
+            username,
+            premium: premium as u64,
+            admin: admin != 0,
+            games_won,
         })
         .filter(|user_data| user_data.games_won > 0)
         .collect::<Vec<_>>();
 
-    users.sort_by_key(|user_data| (-user_data.games_won, -(user_data.premium as i64), user_data.username.clone()));
+    users.sort_by_key(|user_data| {
+        (
+            -user_data.games_won,
+            -(user_data.premium as i64),
+            user_data.username.clone(),
+        )
+    });
 
     Ok(ValhallaTemplate { users }.into_response())
 }
-

@@ -367,7 +367,8 @@ impl engine_shared::State for State {
 
                                 if let Some(best_dwarf_id) = best_dwarf_id {
                                     let best_dwarf = player.dwarfs.get_mut(&best_dwarf_id)?;
-                                    let best_dwarf_occupation = best_dwarf_occupation.expect("occupation known if id is known");
+                                    let best_dwarf_occupation = best_dwarf_occupation
+                                        .expect("occupation known if id is known");
                                     best_dwarf.change_occupation(best_dwarf_occupation);
                                     *occupations_to_fill
                                         .get_mut(&best_dwarf_occupation)
@@ -442,13 +443,18 @@ impl engine_shared::State for State {
 
                                 if let Some(best_dwarf_id) = best_dwarf_id {
                                     let best_dwarf = player.dwarfs.get_mut(&best_dwarf_id)?;
-                                    let best_dwarf_item = best_dwarf_item.expect("item known if id is known");
+                                    let best_dwarf_item =
+                                        best_dwarf_item.expect("item known if id is known");
 
-                                    if player.inventory.items.remove_checked(
-                                        Bundle::new().add(best_dwarf_item, 1),
-                                    ) {
+                                    if player
+                                        .inventory
+                                        .items
+                                        .remove_checked(Bundle::new().add(best_dwarf_item, 1))
+                                    {
                                         best_dwarf.equipment.insert(
-                                            best_dwarf_item.item_type().expect("equippables always have item types"),
+                                            best_dwarf_item
+                                                .item_type()
+                                                .expect("equippables always have item types"),
                                             Some(best_dwarf_item),
                                         );
                                     } else {
@@ -456,8 +462,6 @@ impl engine_shared::State for State {
                                             panic!("something went wrong!");
                                         }
                                     }
-
-                                    
                                 } else {
                                     break;
                                 }
@@ -702,8 +706,10 @@ impl engine_shared::State for State {
 
                                 // Chance for a new dwarf!
                                 if rng.gen_ratio(
-                                    self.event.map(|event| event.new_dwarfs_multiplier()).unwrap_or(1), 
-                                    ONE_DAY as u32 * 3
+                                    self.event
+                                        .map(|event| event.new_dwarfs_multiplier())
+                                        .unwrap_or(1),
+                                    ONE_DAY as u32 * 3,
                                 ) {
                                     player.new_dwarf(
                                         rng,
@@ -917,7 +923,11 @@ impl engine_shared::State for State {
                                 for quest in self.quests.values_mut() {
                                     if let Some(contestant) = quest.contestants.get_mut(user_id) {
                                         contestant.dwarfs.retain(|_, dwarf_id| {
-                                            !player.dwarfs.get(&*dwarf_id).map(|d| d.dead()).unwrap_or(true)
+                                            !player
+                                                .dwarfs
+                                                .get(&*dwarf_id)
+                                                .map(|d| d.dead())
+                                                .unwrap_or(true)
                                         });
                                     }
                                 }
@@ -1199,13 +1209,18 @@ impl engine_shared::State for State {
                             let active_not_new_players = self
                                 .players
                                 .iter()
-                                .filter(|(_, player)| player.is_active(self.time) && !player.is_new(self.time))
+                                .filter(|(_, player)| {
+                                    player.is_active(self.time) && !player.is_new(self.time)
+                                })
                                 .count();
 
                             let num_quests = if cfg!(debug_assertions) {
                                 30
                             } else {
-                                (active_players / 5).max(active_not_new_players / 3).max(3).min(30)
+                                (active_players / 5)
+                                    .max(active_not_new_players / 3)
+                                    .max(3)
+                                    .min(30)
                             };
 
                             let max_level = self
@@ -1253,8 +1268,6 @@ impl engine_shared::State for State {
             Some(())
         }();
     }
-
-
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
@@ -1515,16 +1528,20 @@ impl Player {
     }
 
     pub fn average_efficiency(&self) -> Option<u64> {
-        self
-            .dwarfs
+        self.dwarfs
             .values()
             .map(|dwarf| dwarf.effectiveness_percent(dwarf.occupation))
-            .sum::<u64>().checked_div(self.dwarfs.len() as u64)
+            .sum::<u64>()
+            .checked_div(self.dwarfs.len() as u64)
     }
 
     pub fn set_manager(&mut self) {
         let manager_num = self.manager.values().copied().sum::<u64>();
-        let dwarfs_num = self.dwarfs.values().filter(|dwarf| dwarf.is_adult()).count() as u64;
+        let dwarfs_num = self
+            .dwarfs
+            .values()
+            .filter(|dwarf| dwarf.is_adult())
+            .count() as u64;
         if manager_num > dwarfs_num {
             self.manager.clear();
             for dwarf in self.dwarfs.values() {
@@ -1533,9 +1550,10 @@ impl Player {
                 }
             }
         } else if dwarfs_num > manager_num {
-            self.manager.entry(Occupation::Idling)
+            self.manager
+                .entry(Occupation::Idling)
                 .and_modify(|v| *v += dwarfs_num - manager_num)
-                .or_insert(dwarfs_num - manager_num);   
+                .or_insert(dwarfs_num - manager_num);
         }
     }
 
@@ -1910,7 +1928,8 @@ impl Dwarf {
 
     // output 0 - 100
     pub fn effectiveness_percent(&self, occupation: Occupation) -> u64 {
-        100 - ((6000 - self.effectiveness_not_normalized(occupation)).pow(1) / (6000u64.pow(1) / 100))
+        100 - ((6000 - self.effectiveness_not_normalized(occupation)).pow(1)
+            / (6000u64.pow(1) / 100))
     }
 
     // output 0 - 600
