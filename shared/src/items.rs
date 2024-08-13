@@ -605,7 +605,8 @@ impl Item {
     pub fn usefulness_for(self, occupation: Occupation) -> u64 {
         match (self, occupation) {
             (Item::Crossbow, Occupation::Hunting | Occupation::Fighting) => 7,
-            (Item::DynamiteCrossbow, Occupation::Hunting | Occupation::Fighting) => 10,
+            (Item::DynamiteCrossbow, Occupation::Hunting) => 5,
+            (Item::DynamiteCrossbow, Occupation::Fighting) => 9,
             (Item::Bow, Occupation::Hunting | Occupation::Fighting) => 5,
             (Item::PoisonedBow, Occupation::Hunting | Occupation::Fighting) => 8,
             (Item::Spear, Occupation::Hunting | Occupation::Fighting) => 4,
@@ -729,7 +730,7 @@ impl Item {
             },
             Occupation::Hunting => match self {
                 Item::RawMeat => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_MINUTE * 5,
+                    expected_ticks_per_drop: ONE_MINUTE * 10,
                 }),
                 Item::Leather => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_MINUTE * 5,
@@ -741,10 +742,10 @@ impl Item {
             },
             Occupation::Gathering => match self {
                 Item::Blueberry => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_MINUTE * 2,
+                    expected_ticks_per_drop: ONE_MINUTE * 5,
                 }),
                 Item::Apple => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_MINUTE * 2,
+                    expected_ticks_per_drop: ONE_MINUTE * 5,
                 }),
                 Item::Hemp => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_MINUTE * 3,
@@ -753,7 +754,7 @@ impl Item {
             },
             Occupation::Fishing => match self {
                 Item::RawFish => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_MINUTE * 5,
+                    expected_ticks_per_drop: ONE_MINUTE * 10,
                 }),
                 Item::PufferFish => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_HOUR,
@@ -786,13 +787,13 @@ impl Item {
                     expected_ticks_per_drop: ONE_DAY,
                 }),
                 Item::RawMeat => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_MINUTE * 10,
+                    expected_ticks_per_drop: ONE_MINUTE * 20,
                 }),
                 Item::Leather => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_MINUTE * 10,
+                    expected_ticks_per_drop: ONE_MINUTE * 20,
                 }),
                 Item::Bone => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_MINUTE * 20,
+                    expected_ticks_per_drop: ONE_MINUTE * 50,
                 }),
                 _ => None,
             },
