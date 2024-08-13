@@ -1249,9 +1249,10 @@ impl engine_shared::State for State {
             }
 
             Some(())
-        }()
-        .unwrap();
+        }();
     }
+
+    
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
