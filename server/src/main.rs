@@ -115,22 +115,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 })
                 .await;
 
+            tracing::debug!("active users: {:?}", active_users);
+
             for (user_id, _level) in &active_users {
                 sqlx::query(
                     r#"
                             UPDATE users
                             SET premium = premium - 1
                             WHERE premium > 0
-                            AND id = $1
+                            AND user_id = $1
                         "#,
                 )
                 .bind(user_id.0)
                 .execute(&pool_clone)
                 .await
                 .unwrap();
-
-                tracing::debug!("updated premium usage hours for all users");
             }
+
 
             if num_active_games == 0 {
                 //game_state_clone.create().await.unwrap();
