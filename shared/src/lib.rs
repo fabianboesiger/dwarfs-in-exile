@@ -366,11 +366,12 @@ impl engine_shared::State for State {
                                 }
 
                                 if let Some(best_dwarf_id) = best_dwarf_id {
-                                    let best_dwarf = player.dwarfs.get_mut(&best_dwarf_id).unwrap();
-                                    best_dwarf.change_occupation(best_dwarf_occupation.unwrap());
+                                    let best_dwarf = player.dwarfs.get_mut(&best_dwarf_id)?;
+                                    let best_dwarf_occupation = best_dwarf_occupation.expect("occupation known if id is known");
+                                    best_dwarf.change_occupation(best_dwarf_occupation);
                                     *occupations_to_fill
-                                        .get_mut(&best_dwarf_occupation.unwrap())
-                                        .unwrap() -= 1;
+                                        .get_mut(&best_dwarf_occupation)
+                                        .expect("occupation is always one that is to fill") -= 1;
                                 } else {
                                     break;
                                 }
@@ -406,8 +407,8 @@ impl engine_shared::State for State {
                                                         .unwrap_or(false)
                                                     && dwarf
                                                         .equipment
-                                                        .get(&item.item_type().unwrap())
-                                                        .unwrap()
+                                                        .get(&item.item_type().expect("equippables always have item types"))
+                                                        .expect("equipment is always defined in the map")
                                                         .is_none()
                                             })
                                         {
@@ -420,7 +421,7 @@ impl engine_shared::State for State {
 
                                             dwarf_clone
                                                 .equipment
-                                                .insert(item.item_type().unwrap(), Some(*item));
+                                                .insert(item.item_type().expect("equippables always have item types"), Some(*item));
 
                                             let effectiveness_after = dwarf_clone
                                                 .effectiveness_not_normalized(
@@ -440,14 +441,15 @@ impl engine_shared::State for State {
                                 }
 
                                 if let Some(best_dwarf_id) = best_dwarf_id {
-                                    let best_dwarf = player.dwarfs.get_mut(&best_dwarf_id).unwrap();
+                                    let best_dwarf = player.dwarfs.get_mut(&best_dwarf_id)?;
+                                    let best_dwarf_item = best_dwarf_item.expect("item known if id is known");
 
                                     if player.inventory.items.remove_checked(
-                                        Bundle::new().add(best_dwarf_item.unwrap(), 1),
+                                        Bundle::new().add(best_dwarf_item, 1),
                                     ) {
                                         best_dwarf.equipment.insert(
-                                            best_dwarf_item.unwrap().item_type().unwrap(),
-                                            Some(best_dwarf_item.unwrap()),
+                                            best_dwarf_item.item_type().expect("equippables always have item types"),
+                                            Some(best_dwarf_item),
                                         );
                                     } else {
                                         if cfg!(debug_assertions) {
@@ -915,7 +917,7 @@ impl engine_shared::State for State {
                                 for quest in self.quests.values_mut() {
                                     if let Some(contestant) = quest.contestants.get_mut(user_id) {
                                         contestant.dwarfs.retain(|_, dwarf_id| {
-                                            !player.dwarfs.get(&*dwarf_id).unwrap().dead()
+                                            !player.dwarfs.get(&*dwarf_id).map(|d| d.dead()).unwrap_or(true)
                                         });
                                     }
                                 }
@@ -924,7 +926,7 @@ impl engine_shared::State for State {
 
                             // Continue the active quests.
                             for quest in self.quests.values_mut() {
-                                quest.run(&self.players);
+                                quest.run(&self.players)?;
 
                                 if quest.done() {
                                     match quest.quest_type.reward_mode() {
@@ -1236,7 +1238,7 @@ impl engine_shared::State for State {
                                         .into_iter()
                                         .collect::<Vec<_>>()
                                         .choose(rng)
-                                        .unwrap(),
+                                        .expect("potential quests is empty"),
                                 );
 
                                 self.quests.insert(self.next_quest_id, quest);
@@ -1252,7 +1254,7 @@ impl engine_shared::State for State {
         }();
     }
 
-    
+
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
@@ -1581,7 +1583,7 @@ impl Player {
                 matches!(item.item_rarity(), ItemRarity::Epic | ItemRarity::Legendary)
             })*/
             .collect();
-        let item = *possible_items.choose(rng).unwrap();
+        let item = *possible_items.choose(rng).expect("possible items is empty");
         let bundle = Bundle::new().add(item, (10000 / item.item_rarity_num()).max(1).min(100));
         self.log.add(time, LogMsg::OpenedLootCrate(bundle.clone()));
         self.add_popup(Popup::NewItems(bundle.clone()));
@@ -2233,12 +2235,12 @@ impl Quest {
         );
     }
 
-    pub fn run(&mut self, players: &CustomMap<UserId, Player>) {
+    pub fn run(&mut self, players: &CustomMap<UserId, Player>) -> Option<()> {
         if self.time_left > 0 {
             self.time_left -= 1;
             for (user_id, contestant) in self.contestants.iter_mut() {
                 for dwarf_id in contestant.dwarfs.values() {
-                    let dwarf = players.get(user_id).unwrap().dwarfs.get(dwarf_id).unwrap();
+                    let dwarf = players.get(user_id)?.dwarfs.get(dwarf_id)?;
 
                     if dwarf.actual_occupation() == self.quest_type.occupation() {
                         contestant.achieved_score +=
@@ -2247,6 +2249,8 @@ impl Quest {
                 }
             }
         }
+
+        Some(())
     }
 
     pub fn done(&self) -> bool {
