@@ -38,6 +38,13 @@ jobs:
         username: ${{ secrets.SSH_USERNAME }}
         password: ${{ secrets.SSH_PASSWORD }}
         script: "echo ${{ secrets.SSH_PASSWORD }} | sudo -S systemctl stop dwarfs-in-exile.service"
+    - name: Make Backup
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: dwarfs-in-exile.com
+        username: ${{ secrets.SSH_USERNAME }}
+        password: ${{ secrets.SSH_PASSWORD }}
+        script: "cp data.db data-backup-update.db"
     - name: Copy Public Files
       uses: appleboy/scp-action@v0.1.7
       with:
