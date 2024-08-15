@@ -329,6 +329,15 @@ impl engine_shared::State for State {
 
                     match event {
                         ClientEvent::Init => {}
+                        ClientEvent::SetDwarfName(dwarf_id, name) => {
+                            let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
+                            let name = name.trim();
+                            if name.is_empty() {
+                                dwarf.custom_name = None;
+                            } else {
+                                dwarf.custom_name = Some(name.to_string());
+                            }
+                        }
                         ClientEvent::Optimize => {
                             // Reassign occupations.
 
@@ -352,7 +361,7 @@ impl engine_shared::State for State {
                                 let mut best_dwarf_occupation = None;
                                 let mut best_dwarf_id = None;
                                 for (dwarf_id, dwarf) in &player.dwarfs {
-                                    if dwarf.occupation == Occupation::Idling {
+                                    if dwarf.occupation == Occupation::Idling && dwarf.can_be_managed() {
                                         for (occupation, _num) in &occupations_to_fill {
                                             let effectiveness =
                                                 dwarf.stats.cross(occupation.requires_stats());
@@ -383,12 +392,14 @@ impl engine_shared::State for State {
                             // Reassign equipment.
 
                             for dwarf in player.dwarfs.values_mut() {
-                                for item in dwarf.equipment.values_mut() {
-                                    if let Some(old_item) = item.take() {
-                                        player
-                                            .inventory
-                                            .items
-                                            .add_checked(Bundle::new().add(old_item, 1));
+                                if dwarf.can_be_managed() {
+                                    for item in dwarf.equipment.values_mut() {
+                                        if let Some(old_item) = item.take() {
+                                            player
+                                                .inventory
+                                                .items
+                                                .add_checked(Bundle::new().add(old_item, 1));
+                                        }
                                     }
                                 }
                             }
@@ -398,7 +409,7 @@ impl engine_shared::State for State {
                                 let mut best_dwarf_id = None;
                                 let mut best_dwarf_item = None;
                                 for (dwarf_id, dwarf) in &player.dwarfs {
-                                    if dwarf.occupation != Occupation::Idling {
+                                    if dwarf.occupation != Occupation::Idling && dwarf.can_be_managed() {
                                         for (item, _) in
                                             player.inventory.items.iter().filter(|(item, num)| {
                                                 **num > 0
@@ -1540,12 +1551,13 @@ impl Player {
         let dwarfs_num = self
             .dwarfs
             .values()
-            .filter(|dwarf| dwarf.is_adult())
+            .filter(|dwarf| dwarf.can_be_managed())
             .count() as u64;
+
         if manager_num > dwarfs_num {
             self.manager.clear();
             for dwarf in self.dwarfs.values() {
-                if dwarf.is_adult() {
+                if dwarf.can_be_managed() {
                     *self.manager.entry(dwarf.occupation).or_default() += 1;
                 }
             }
@@ -1778,6 +1790,7 @@ pub struct Dwarf {
     pub health: Health,
     pub is_female: bool,
     pub age_seconds: u64,
+    pub custom_name: Option<String>,
 }
 
 impl Dwarf {
@@ -1787,6 +1800,10 @@ impl Dwarf {
 
     pub fn is_adult(&self) -> bool {
         self.age_years() >= 18
+    }
+
+    pub fn can_be_managed(&self) -> bool {
+        self.is_adult() && self.participates_in_quest.is_none()
     }
 
     fn name(rng: &mut impl Rng) -> String {
@@ -1855,6 +1872,7 @@ impl Dwarf {
             participates_in_quest: None,
             is_female: rng.gen_bool(FEMALE_PROBABILITY),
             age_seconds: rng.gen_range(18..=80) * 365 * 24 * 60 * 60,
+            custom_name: None,
         }
     }
 
@@ -1875,6 +1893,7 @@ impl Dwarf {
             participates_in_quest: None,
             is_female: rng.gen_bool(FEMALE_PROBABILITY),
             age_seconds: 0,
+            custom_name: None,
         }
     }
 
@@ -2164,6 +2183,7 @@ pub enum ClientEvent {
     ConfirmPopup,
     SetManagerOccupation(Occupation, u64),
     Optimize,
+    SetDwarfName(DwarfId, String),
 }
 
 impl engine_shared::ClientEvent for ClientEvent {

@@ -163,6 +163,7 @@ pub struct Model {
     map_time: (Time, u64),
     game_id: GameId,
     show_tutorial: bool,
+    custom_name: Option<String>,
 }
 
 impl Model {
@@ -190,14 +191,12 @@ impl Model {
 // ------ ------
 
 fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
-    //orders.subscribe(|subs::UrlRequested(_, url_request)| url_request.handled());
     orders.subscribe(|subs::UrlRequested(url, url_request)| {
         if url.path().get(0).map(|s| s.as_str()) == Some("game") {
             url_request.unhandled()
         } else {
             url_request.handled()
         }
-        //url_request.handled()
     });
     orders.subscribe(|subs::UrlChanged(url)| Msg::ChangePage(Page::from_url(url).1));
 
@@ -215,6 +214,7 @@ fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
         map_time: (0, 0),
         game_id,
         show_tutorial: false,
+        custom_name: None,
     }
 }
 
@@ -244,6 +244,7 @@ pub enum Msg {
     QuestsFilterNoneParticipating,
     GoToItem(Item),
     ToggleTutorial,
+    UpdateName(Option<String>),
 }
 
 impl EngineMsg<shared::State> for Msg {}
@@ -256,6 +257,9 @@ impl From<EventWrapper<shared::State>> for Msg {
 
 fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
     match msg {
+        Msg::UpdateName(name) => {
+            model.custom_name = name;
+        }
         Msg::GameStateEvent(ev) => {
             model.state.update(ev.clone(), orders);
 
@@ -273,7 +277,7 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
         }
         Msg::ChangePage(page) => {
             model.page = page;
-
+            model.custom_name = None;
             web_sys::window().unwrap().scroll_to_with_x_and_y(0.0, 0.0);
         }
         Msg::ChangeMessage(message) => {
@@ -428,7 +432,7 @@ fn popup(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                             div![
                                 C!["panel-content"],
                                 h3!["A New Dwarf has Arrived"],
-                                h4![C!["title"], &dwarf.name],
+                                h4![C!["title"], dwarf.custom_name.as_ref().unwrap_or(&dwarf.name)],
                                 p![
                                     C!["subtitle"],
                                     format!(
@@ -1015,7 +1019,7 @@ fn dwarfs(
                         ]],
                         td![
                             C!["list-item-content"],
-                            h3![C!["title"], &dwarf.name],
+                            h3![C!["title"], dwarf.custom_name.as_ref().unwrap_or(&dwarf.name)],
                             p![
                                 C!["subtitle"],
                                 format!("{}, {} Years old.", if dwarf.is_female {
@@ -1145,7 +1149,7 @@ fn dwarf(
             div![
                 C!["content"],
                 C!["dwarf", format!("dwarf-{}", dwarf_id)],
-                h2![C!["title"], &dwarf.name],
+                h2![C!["title"], dwarf.custom_name.as_ref().unwrap_or(&dwarf.name)],
                 div![C!["image-aside"],
                     img![attrs! {At::Src => Image::from_dwarf(&dwarf).as_at_value()}],
                     div![
@@ -1199,6 +1203,36 @@ fn dwarf(
                             ]
                         }],
                         health_bar(dwarf.health, MAX_HEALTH),
+                        if let Some(custom_name) = model.custom_name.as_ref().cloned() {
+                            p![
+                                label!["Name"],
+                                input![
+                                    attrs! {At::Value => custom_name},
+                                    input_ev(Ev::Input, move |name| Msg::UpdateName(Some(name))),
+                                ],
+                                button![
+                                    ev(Ev::Click, move |_| Msg::send_event(
+                                        ClientEvent::SetDwarfName(dwarf_id, custom_name.clone())
+                                    )),
+                                    "Save"
+                                ],
+                                button![
+                                    ev(Ev::Click, move |_| Msg::send_event(
+                                        ClientEvent::SetDwarfName(dwarf_id, String::new())
+                                    )),
+                                    "Reset Name"
+                                ]
+                            ]
+                        } else {
+                            let dwarf_name = dwarf.custom_name.as_ref().unwrap_or(&dwarf.name).clone();
+
+                            p![
+                                button![
+                                    ev(Ev::Click, move |_| Msg::UpdateName(Some(dwarf_name))),
+                                    "Edit Name"
+                                ]
+                            ]
+                        },
                         p![
                             button![
                                 if is_premium {
@@ -1624,7 +1658,7 @@ fn quest(
                                 C!["list-item-content"],
                                 if let Some(dwarf) = dwarf {
                                     vec![
-                                        h3![C!["title"], &dwarf.name],
+                                        h3![C!["title"], dwarf.custom_name.as_ref().unwrap_or(&dwarf.name)],
                                         stars(dwarf.effectiveness(state.quests.get(&quest_id).unwrap().quest_type.occupation()) as i8, true),
                                     ]
                                 } else {
@@ -1644,17 +1678,20 @@ fn quest(
                                     }
                                 ],
                                 if dwarf_id.is_some() {
-                                    /*button![
-                                        ev(Ev::Click, move |_| Msg::AssignToQuest(quest_id, dwarf_idx, None)),
-                                        "Remove Dwarf"
-                                    ]*/
-                                    a![
-                                        C!["button"],
-                                        attrs! { At::Href => format!("{}/dwarfs/{}", model.base_path(), dwarf_id.unwrap()) },
-                                        "Dwarf Details"
+
+                                    vec![
+                                        button![
+                                            ev(Ev::Click, move |_| Msg::AssignToQuest(quest_id, dwarf_idx, None)),
+                                            "Remove Dwarf"
+                                        ],
+                                        a![
+                                            C!["button"],
+                                            attrs! { At::Href => format!("{}/dwarfs/{}", model.base_path(), dwarf_id.unwrap()) },
+                                            "Dwarf Details"
+                                        ]
                                     ]
                                 } else {
-                                    Node::Empty
+                                    Vec::new()
                                 }
                             ]
                         ]
