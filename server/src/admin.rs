@@ -44,6 +44,11 @@ pub struct AdminTemplate {
     games: Vec<Game>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct AddPremium {
+    add_premium: i64,
+}
+
 pub async fn get_admin(
     session: Session,
     Extension(pool): Extension<SqlitePool>,
@@ -204,6 +209,53 @@ pub async fn post_manage_user(
 
     Ok(Redirect::to("/admin").into_response())
 }
+
+
+pub async fn post_add_premium(
+    session: Session,
+    Extension(pool): Extension<SqlitePool>,
+    Extension(game_state): Extension<GameState>,
+    Form(add_premium): Form<AddPremium>,
+) -> Result<Response, ServerError> {
+    let user_id = session
+        .get::<i64>(crate::USER_ID_KEY)
+        .await?
+        .ok_or(ServerError::InvalidSession)?;
+
+    let result: (i64,) = sqlx::query_as(
+        r#"
+                SELECT admin
+                FROM users
+                WHERE user_id = $1
+            "#,
+    )
+    .bind(&user_id)
+    .fetch_one(&pool)
+    .await?;
+
+    let admin = result.0 == 1;
+
+    if !admin {
+        return Err(ServerError::NoAdminPermissions);
+    }
+
+    if add_premium.add_premium > 0 {
+        sqlx::query(
+            r#"
+                    UPDATE users
+                    SET premium = premium + $1
+                "#,
+        )
+        .bind(&add_premium.add_premium)
+        .execute(&pool)
+        .await?;
+    }
+
+    game_state.new_server_connection().await.updated_user_data();
+
+    Ok(Redirect::to("/admin").into_response())
+}
+
 
 pub async fn post_create_world(
     session: Session,

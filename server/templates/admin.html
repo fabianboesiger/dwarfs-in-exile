@@ -5,7 +5,7 @@
         <h2>Admin Panel</h2>
 
         <h3>Settings</h3>
-        <form action="/admin/update-settings" method="POST">
+        <form action="/admin/update-settings" method="POST" class="formset">
             <div>
                 <label for="free_premium">Free Premium on Start</label>
                 <input id="free_premium" type="number" name="free_premium" value="{{ settings.free_premium }}">
@@ -35,6 +35,13 @@
         </form>
         
         <h3>Users</h3>
+        <form action="/admin/add-premium" method="POST" class="formset">
+            <div>
+                <label for="add-premium">Add Premium for all Users</label>
+                <input id="add-premium" type="number" name="add_premium" value="0">
+            </div>
+            <input type="submit" value="Submit">
+        </form>
         <table>
             <tr>
                 <th>User ID</th>

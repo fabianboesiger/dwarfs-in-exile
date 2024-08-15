@@ -93,6 +93,7 @@ pub struct InventoryFilter {
     clothing: bool,
     tools: bool,
     sort: InventorySort,
+    auto: bool,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
@@ -112,6 +113,7 @@ impl Default for InventoryFilter {
             clothing: false,
             tools: false,
             sort: InventorySort::Rarity,
+            auto: false,
         }
     }
 }
@@ -234,6 +236,7 @@ pub enum Msg {
     InventoryFilterTools,
     InventoryFilterPets,
     InventoryFilterClothing,
+    InventoryFilterAuto,
     InventoryFilterName(String),
     InventoryFilterReset,
     DwarfsFilterReset,
@@ -298,6 +301,11 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
         }
         Msg::InventoryFilterFood => {
             model.inventory_filter.food = !model.inventory_filter.food;
+        }
+        Msg::InventoryFilterAuto => {
+            model.inventory_filter.auto = !model.inventory_filter.auto;
+            model.inventory_filter.owned = false;
+            model.inventory_filter.craftable = false;
         }
         Msg::InventoryFilterOwned => {
             model.inventory_filter.owned = !model.inventory_filter.owned;
@@ -2051,7 +2059,15 @@ fn inventory(
                             ev(Ev::Click, |_| Msg::InventoryFilterCraftable),
                         ],
                         label![attrs! {At::For => "craftable"}, "Craftable"]
-                    ]
+                    ],
+                    div![
+                        input![
+                            id!["auto"],
+                            attrs! {At::Type => "checkbox", At::Checked => model.inventory_filter.auto.as_at_value()},
+                            ev(Ev::Click, |_| Msg::InventoryFilterAuto),
+                        ],
+                        label![attrs! {At::For => "auto"}, "Auto Enabled"]
+                    ],
                 ],
                 div![
                     C!["no-shrink"],
@@ -2136,6 +2152,15 @@ fn inventory(
                             false
                         }) || (!model.inventory_filter.owned
                             && !model.inventory_filter.craftable))
+                        && (
+                            if model.inventory_filter.auto {
+                                player.auto_functions.auto_craft.contains(item)
+                                || player.auto_functions.auto_sell.contains(item)
+                                || player.auto_functions.auto_store.contains(item)
+                            } else {
+                                true
+                            }
+                        )
                         && ((if model.inventory_filter.food {
                             item.item_type() == Some(ItemType::Food)
                         } else {
