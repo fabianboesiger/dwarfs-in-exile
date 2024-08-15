@@ -44,7 +44,7 @@ jobs:
         host: dwarfs-in-exile.com
         username: ${{ secrets.SSH_USERNAME }}
         password: ${{ secrets.SSH_PASSWORD }}
-        script: "cp data.db data-backup-update.db"
+        script: "cp /home/fabian/projects/dwarfs-in-exile/data.db /home/fabian/projects/dwarfs-in-exile/backups/data-$(date +'%Y-%m-%d-%H-%M-%S').db"
     - name: Copy Public Files
       uses: appleboy/scp-action@v0.1.7
       with:
