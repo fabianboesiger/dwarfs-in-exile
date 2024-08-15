@@ -128,6 +128,7 @@ impl engine_server::BackendStore<shared::State> for GameStore {
     }
 
     async fn save_game(&self, game_id: GameId, state: &shared::State) -> Result<(), Self::Error> {
+
         if let Some(winner) = state.has_winner() {
             sqlx::query(
                 r#"
@@ -143,6 +144,8 @@ impl engine_server::BackendStore<shared::State> for GameStore {
             .execute(&self.db)
             .await
             .unwrap();
+
+            tracing::info!("game {} saved, ingame time {}", game_id, state.time);
 
             sqlx::query(
                 r#"
@@ -167,6 +170,8 @@ impl engine_server::BackendStore<shared::State> for GameStore {
             .bind(rmp_serde::to_vec(&state).unwrap())
             .execute(&self.db)
             .await?;
+
+            tracing::info!("game {} saved, ingame time {}", game_id, state.time);
         }
 
         Ok(())
@@ -180,7 +185,8 @@ pub async fn ws_handler(
     session: Session,
     Extension(game_state): Extension<GameState>,
 ) -> Result<Response, ServerError> {
-    tracing::info!("new websocket connection");
+    tracing::debug!("new websocket connection");
+
     let user_id = UserId(
         session
             .get::<i64>(crate::USER_ID_KEY)
