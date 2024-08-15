@@ -1805,7 +1805,9 @@ pub struct Dwarf {
     pub health: Health,
     pub is_female: bool,
     pub age_seconds: u64,
+    #[serde(default)]
     pub custom_name: Option<String>,
+    #[serde(default)]
     pub manual_management: bool,
 }
 
