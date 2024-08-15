@@ -816,3 +816,18 @@ a {
 .invitation-link {
     font-family: monospace;
 }
+
+.formset {
+    background: rgba(255, 255, 255, 0.3);
+    padding: 8px;
+    margin-top: 1em;
+    margin-bottom: 1em;
+}
+
+.formset > *:first-child {
+    margin-top: 0;
+}
+
+.formset > *:last-child {
+    margin-bottom: 0;
+}

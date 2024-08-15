@@ -590,7 +590,7 @@ impl Item {
 
     pub fn nutritional_value(self) -> Option<Food> {
         if self.item_type() == Some(ItemType::Food) {
-            let nutrition = self.item_rarity_num() / 100 * (self.crafting_depth() + 1);
+            let nutrition = self.item_rarity_num() / 200 * (self.crafting_depth() + 1);
             Some(nutrition.max(1))
         } else {
             None

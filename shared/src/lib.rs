@@ -329,6 +329,10 @@ impl engine_shared::State for State {
 
                     match event {
                         ClientEvent::Init => {}
+                        ClientEvent::ToggleManualManagement(dwarf_id) => {
+                            let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
+                            dwarf.manual_management = !dwarf.manual_management;
+                        }
                         ClientEvent::SetDwarfName(dwarf_id, name) => {
                             let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
                             let name = name.trim();
@@ -923,9 +927,20 @@ impl engine_shared::State for State {
 
                                         dwarf.occupation_duration += 1;
                                     } else {
+                                        // Send log message that dwarf died.
                                         player
                                             .log
                                             .add(self.time, LogMsg::DwarfDied(dwarf.name.clone()));
+
+                                        // Add the equipment to the inventory.
+                                        for equipment in dwarf.equipment.values_mut() {
+                                            if let Some(item) = equipment.take() {
+                                                player
+                                                    .inventory
+                                                    .items
+                                                    .add_checked(Bundle::new().add(item, 1));
+                                            }
+                                        }
                                     }
                                 }
                                 player.add_items(added_items, self.time, is_premium);
@@ -1791,6 +1806,7 @@ pub struct Dwarf {
     pub is_female: bool,
     pub age_seconds: u64,
     pub custom_name: Option<String>,
+    pub manual_management: bool,
 }
 
 impl Dwarf {
@@ -1803,7 +1819,7 @@ impl Dwarf {
     }
 
     pub fn can_be_managed(&self) -> bool {
-        self.is_adult() && self.participates_in_quest.is_none()
+        self.is_adult() && self.participates_in_quest.is_none() && !self.manual_management
     }
 
     fn name(rng: &mut impl Rng) -> String {
@@ -1873,6 +1889,7 @@ impl Dwarf {
             is_female: rng.gen_bool(FEMALE_PROBABILITY),
             age_seconds: rng.gen_range(18..=80) * 365 * 24 * 60 * 60,
             custom_name: None,
+            manual_management: false,
         }
     }
 
@@ -1894,6 +1911,7 @@ impl Dwarf {
             is_female: rng.gen_bool(FEMALE_PROBABILITY),
             age_seconds: 0,
             custom_name: None,
+            manual_management: false,
         }
     }
 
@@ -2184,6 +2202,7 @@ pub enum ClientEvent {
     SetManagerOccupation(Occupation, u64),
     Optimize,
     SetDwarfName(DwarfId, String),
+    ToggleManualManagement(DwarfId),
 }
 
 impl engine_shared::ClientEvent for ClientEvent {

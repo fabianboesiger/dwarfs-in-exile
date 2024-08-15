@@ -1147,7 +1147,7 @@ fn dwarf(
 ) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
         let dwarf = player.dwarfs.get(&dwarf_id);
-        let is_premium = model
+        let _is_premium = model
             .state
             .get_user_data(user_id)
             .map(|user_data| user_data.premium > 0)
@@ -1242,22 +1242,13 @@ fn dwarf(
                             ]
                         },
                         p![
-                            button![
-                                if is_premium {
-                                    attrs! {}
-                                } else {
-                                    attrs! {At::Disabled => "true"}
-                                },
-                                ev(Ev::Click, move |_| Msg::send_event(
-                                    ClientEvent::ToggleAutoIdle
-                                )),
-                                if player.auto_functions.auto_idle && is_premium { "Disable Auto Idling for all Dwarfs" } else { "Enable Auto Idling for all Dwarfs" },
-                                if !is_premium {
-                                    tip(REQUIRES_PREMIUM)
-                                } else {
-                                    Node::Empty
-                                }
-                            ]
+                            input![
+                                id!["manual-management"],
+                                attrs! {At::Type => "checkbox", At::Checked => dwarf.manual_management.as_at_value()},
+                                ev(Ev::Click, move |_| Msg::send_event(ClientEvent::ToggleManualManagement(dwarf_id))),
+                            ],
+                            label![attrs! {At::For => "manual-management"}, "Manual Management Only (Disables Dwarfen Manager)"]
+   
                         ],
                         div![
                             h3!["Stats"],
@@ -1970,6 +1961,32 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                     img![attrs! {At::Src => Image::Manager.as_at_value()}],
                     div![
                         p!["The dwarfen manager can optimally assign dwarfs to carry out the occupations that are best suited for them. Furthermore, the manager can also assign the optimal equipment to each dwarf to further increase their effectiveness in their occupation."],
+                        p!["The dwarfen manager ignores children and dwarfs that are on quests, as well as dwarfs that have manual magement enabled."],
+                        p![
+                            strong![if player.auto_functions.auto_idle && is_premium {
+                                "Auto-Idling is enabled."
+                            } else {
+                                "Auto-Idling is disabled."
+                            }]
+                        ],
+                        p![
+                            button![
+                                if is_premium {
+                                    attrs! {}
+                                } else {
+                                    attrs! {At::Disabled => "true"}
+                                },
+                                ev(Ev::Click, move |_| Msg::send_event(
+                                    ClientEvent::ToggleAutoIdle
+                                )),
+                                if player.auto_functions.auto_idle && is_premium { "Disable Auto Idling for all Dwarfs" } else { "Enable Auto Idling for all Dwarfs" },
+                                if !is_premium {
+                                    tip(REQUIRES_PREMIUM)
+                                } else {
+                                    Node::Empty
+                                }
+                            ]
+                        ],
                         p![
                             strong![format!("Average Efficiency: {}%", player.average_efficiency().unwrap_or(0))]
                         ],
