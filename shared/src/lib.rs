@@ -36,6 +36,7 @@ pub const AGE_SECONDS_PER_TICK: u64 = 365 * 12;
 pub const ADULT_AGE: u64 = 20;
 pub const ELDER_AGE: u64 = 100;
 pub const DEATH_AGE: u64 = 200;
+pub const EFFECTIVENESS_REDUCTION: u32 = 3;
 
 pub type Money = u64;
 pub type Food = u64;
@@ -85,8 +86,8 @@ impl WorldEvent {
 
     fn new_dwarfs_multiplier(&self) -> u32 {
         match self {
-            WorldEvent::Earthquake => 5,
-            WorldEvent::Tornado => 5,
+            WorldEvent::Earthquake => 7,
+            WorldEvent::Tornado => 7,
             _ => 1,
         }
     }
@@ -477,7 +478,7 @@ impl engine_shared::State for State {
 
                                             let effectiveness_after = dwarf_clone
                                                 .effectiveness_not_normalized(
-                                                    occupation_to_optimize,
+                                                    dwarf_clone.occupation,
                                                 );
 
                                             let effectiveness_diff = effectiveness_after as i64
@@ -760,7 +761,7 @@ impl engine_shared::State for State {
                                     self.event
                                         .map(|event| event.new_dwarfs_multiplier())
                                         .unwrap_or(1),
-                                    ONE_DAY as u32 * 3,
+                                    ONE_DAY as u32 * 7,
                                 ) {
                                     player.new_dwarf(
                                         rng,
@@ -956,10 +957,10 @@ impl engine_shared::State for State {
                                             }) = item.item_probability(dwarf.actual_occupation())
                                             {
                                                 if rng.gen_ratio(
-                                                    2 + dwarf
+                                                    EFFECTIVENESS_REDUCTION + dwarf
                                                         .effectiveness(dwarf.actual_occupation())
                                                         as u32,
-                                                    2 * expected_ticks_per_drop as u32
+                                                        EFFECTIVENESS_REDUCTION * expected_ticks_per_drop as u32
                                                         * self
                                                             .event
                                                             .as_ref()
@@ -2164,7 +2165,11 @@ impl Base {
     }
 
     pub fn max_dwarfs(&self) -> usize {
-        self.curr_level as usize
+        self.max_dwarfs_at(self.curr_level)
+    }
+
+    pub fn max_dwarfs_at(&self, level: u64) -> usize {
+        (level as usize + 1) / 2
     }
 
     pub fn upgrade_cost(&self) -> Option<Bundle<Item>> {

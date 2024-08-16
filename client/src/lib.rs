@@ -1866,7 +1866,14 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
             .unwrap_or(0);
 
         let mut unlocks = (1..100)
-            .map(Unlock::MaxPopulation)
+            .filter_map(|curr_level| {
+                let prev_level = curr_level - 1;
+                if player.base.max_dwarfs_at(curr_level) > player.base.max_dwarfs_at(prev_level) {
+                    Some(Unlock::MaxPopulation(curr_level))
+                } else {
+                    None
+                }
+            })
             .chain(enum_iterator::all::<Occupation>().map(Unlock::Occupation))
             .chain(enum_iterator::all::<Item>().map(Unlock::Item))
             .collect::<Vec<_>>();
