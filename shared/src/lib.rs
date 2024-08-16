@@ -358,10 +358,10 @@ impl engine_shared::State for State {
                                 dwarf.custom_name = Some(name.to_string());
                             }
                         }
-                        ClientEvent::Optimize(dwarf_id) => {
+                        ClientEvent::Optimize(to_optimize_dwarf_id) => {
                             // Reassign occupations.
 
-                            if dwarf_id.is_none() {
+                            if to_optimize_dwarf_id.is_none() {
 
                                 player.set_manager();
 
@@ -416,15 +416,17 @@ impl engine_shared::State for State {
 
                             // Reassign equipment.
                             
-                            let dwarf_ids = if let Some(dwarf_id) = dwarf_id {
+                            let dwarf_ids = if let Some(dwarf_id) = to_optimize_dwarf_id {
                                 vec![dwarf_id]
                             } else {
                                 player.dwarfs.keys().cloned().collect()
                             };
 
+                            println!("optimize equipment for {:?}", dwarf_ids);
+
                             for dwarf_id in &dwarf_ids {
                                 let dwarf = player.dwarfs.get_mut(dwarf_id)?;
-                                if dwarf.can_be_managed() {
+                                if dwarf.can_be_managed() || to_optimize_dwarf_id.is_some() {
                                     for item in dwarf.equipment.values_mut() {
                                         if let Some(old_item) = item.take() {
                                             player
@@ -442,7 +444,7 @@ impl engine_shared::State for State {
                                 let mut best_dwarf_item = None;
                                 for dwarf_id in &dwarf_ids {
                                     let dwarf = player.dwarfs.get(dwarf_id)?;
-                                    if dwarf.occupation != Occupation::Idling && dwarf.can_be_managed() {
+                                    if dwarf.occupation != Occupation::Idling && (dwarf.can_be_managed() || to_optimize_dwarf_id.is_some()) {
                                         for (item, _) in
                                             player.inventory.items.iter().filter(|(item, num)| {
                                                 **num > 0
@@ -458,10 +460,15 @@ impl engine_shared::State for State {
                                             })
                                         {
                                             let mut dwarf_clone = dwarf.clone();
+                                            let occupation_to_optimize = if to_optimize_dwarf_id.is_some() {
+                                                dwarf.actual_occupation()
+                                            } else {
+                                                dwarf.occupation
+                                            };
 
                                             let effectiveness_before = dwarf_clone
                                                 .effectiveness_not_normalized(
-                                                    dwarf_clone.occupation,
+                                                    occupation_to_optimize,
                                                 );
 
                                             dwarf_clone
@@ -470,7 +477,7 @@ impl engine_shared::State for State {
 
                                             let effectiveness_after = dwarf_clone
                                                 .effectiveness_not_normalized(
-                                                    dwarf_clone.occupation,
+                                                    occupation_to_optimize,
                                                 );
 
                                             let effectiveness_diff = effectiveness_after as i64
