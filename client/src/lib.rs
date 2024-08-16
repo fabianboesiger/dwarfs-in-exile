@@ -6,10 +6,7 @@ use images::Image;
 use itertools::Itertools;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType,
-    LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, Stats, Time,
-    TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, FREE_LOOT_CRATE,
-    LOOT_CRATE_COST, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS,
+    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, Stats, Time, TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, FREE_LOOT_CRATE, LOOT_CRATE_COST, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS
 };
 use std::str::FromStr;
 use web_sys::js_sys::Date;
@@ -82,6 +79,7 @@ pub enum DwarfsMode {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum DwarfsSelect {
     Quest(QuestId, usize),
+    Mentor(DwarfId),
 }
 
 pub struct InventoryFilter {
@@ -230,6 +228,7 @@ pub enum Msg {
     ToggleHistory,
     ChangeEquipment(DwarfId, ItemType, Option<Item>),
     AssignToQuest(QuestId, usize, Option<DwarfId>),
+    AssignMentor(DwarfId, Option<DwarfId>),
     InventoryFilterFood,
     InventoryFilterOwned,
     InventoryFilterCraftable,
@@ -365,6 +364,16 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
                 quest_id, dwarf_idx, dwarf_id,
             )));
         }
+        Msg::AssignMentor(dwarf_id, mentor_id) => {
+            if mentor_id.is_some() {
+                orders.notify(subs::UrlRequested::new(
+                    Url::from_str(&format!("{}/dwarfs/{}", model.base_path(), dwarf_id)).unwrap(),
+                ));
+            }
+            orders.send_msg(Msg::send_event(ClientEvent::SetMentor(
+                dwarf_id, mentor_id
+            )));
+        }
         Msg::ChangeEquipment(dwarf_id, item_type, item) => {
             if item.is_some() {
                 orders.notify(subs::UrlRequested::new(
@@ -440,7 +449,7 @@ fn popup(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                             div![
                                 C!["panel-content"],
                                 h3!["A New Dwarf has Arrived"],
-                                h4![C!["title"], dwarf.custom_name.as_ref().unwrap_or(&dwarf.name)],
+                                h4![C!["title"], dwarf.actual_name()],
                                 p![
                                     C!["subtitle"],
                                     format!(
@@ -708,15 +717,19 @@ fn ranking(
             strong!["The Dwarfen King"],
             div![C!["image-aside", "small"],
                 img![attrs! {At::Src => Image::King.as_at_value()}],
-                div![
-                    if let Some(king) = state.king {
-                        p![format!("All hail our King {}!", client_state.get_user_data(&king).map(|data| data.username.clone()).unwrap_or_default())]
-                    } else {
-                        p!["At the moment, there is no King in this world. Be the first to become the new King!"]
-                    },
-                ]
-            ],
+                if let Some(king) = state.king {
+                    div![
+                        p![format!("All hail our King {}!", client_state.get_user_data(&king).map(|data| data.username.clone()).unwrap_or_default())],
+                        p![format!("Become the new king by being better in the quest {} than the current king.", QuestType::ForTheKing)]
+                    ]
+                } else {
+                    div![
+                        p![format!("At the moment, there is no King in this world. Be the first to become the new King by completing the quest {}!", QuestType::ForTheKing)]
+                    ]
+                },
+            ]
         ],
+    
 
         h2!["Ranking"],
         p![format!("To win this game, you need to meet two conditions. First, expand your settlement until you reach level 100. Second, become the king of this world. If both conditions are met, the game will be over and you will be the winner. As a reward, you get gifted a free premium account for {} days.", WINNER_NUM_PREMIUM_DAYS)],
@@ -938,6 +951,77 @@ fn score_bar(curr: u64, max: u64, rank: usize, max_rank: usize, markers: Vec<u64
     ]
 }
 
+fn dwarf_occupation(dwarf: &Dwarf, player: &Player) -> Node<Msg> {
+    if dwarf.is_adult() {
+        if let Some((quest_type, _, _)) = dwarf.participates_in_quest {
+            div![
+                if dwarf.auto_idle {
+                    format!(
+                        "Auto-idling, resuming quest {} shortly.",
+                        quest_type,
+                    )
+                } else {
+                    format!(
+                        "Participating in quest {}.",
+                        quest_type,
+                    )
+                },
+                br![],
+                if dwarf.occupation != Occupation::Idling {
+                    stars(dwarf.effectiveness(quest_type.occupation()) as i8, true)
+                } else {
+                    Node::Empty
+                }
+            ]
+        } else {
+            div![
+                if dwarf.auto_idle {
+                    format!(
+                        "Auto-idling, resuming occupation {} shortly.",
+                        dwarf.occupation,
+                    )
+                } else {
+                    format!(
+                        "{} since {}.",
+                        dwarf.occupation,
+                        fmt_time(dwarf.occupation_duration)
+                    )
+                },
+                br![],
+                if dwarf.occupation != Occupation::Idling {
+                    stars(dwarf.effectiveness(dwarf.occupation) as i8, true)
+                } else {
+                    Node::Empty
+                }
+            ]
+        }
+    } else {
+        div![
+            if let Some(mentor) = dwarf.mentor {
+                let mentor = player.dwarfs.get(&mentor).unwrap();
+                format!(
+                    "Doing an apprenticeship with {} in {}.",
+                    mentor.custom_name.as_ref().unwrap_or(&mentor.name),
+                    mentor.actual_occupation(),
+                )
+            } else {
+                format!(
+                    "{} since {}.",
+                    dwarf.occupation,
+                    fmt_time(dwarf.occupation_duration)
+                )
+            },
+            br![],
+            if dwarf.occupation != Occupation::Idling {
+                stars(dwarf.effectiveness(dwarf.occupation) as i8, true)
+            } else {
+                Node::Empty
+            }
+        ]
+    }
+    
+}
+
 fn dwarfs(
     model: &Model,
     state: &shared::State,
@@ -1027,7 +1111,7 @@ fn dwarfs(
                         ]],
                         td![
                             C!["list-item-content"],
-                            h3![C!["title"], dwarf.custom_name.as_ref().unwrap_or(&dwarf.name)],
+                            h3![C!["title"], dwarf.actual_name()],
                             p![
                                 C!["subtitle"],
                                 format!("{}, {} Years old.", if dwarf.is_female {
@@ -1036,48 +1120,7 @@ fn dwarfs(
                                     "Male"
                                 }, dwarf.age_years()),
                                 br![],
-                                if let Some((quest_type, _, _)) = dwarf.participates_in_quest {
-                                    div![
-                                        if dwarf.auto_idle {
-                                            format!(
-                                                "Auto-idling, resuming quest {} shortly.",
-                                                quest_type,
-                                            )
-                                        } else {
-                                            format!(
-                                                "Participating in quest {}.",
-                                                quest_type,
-                                            )
-                                        },
-                                        br![],
-                                        if dwarf.occupation != Occupation::Idling {
-                                            stars(dwarf.effectiveness(quest_type.occupation()) as i8, true)
-                                        } else {
-                                            Node::Empty
-                                        }
-                                    ]
-                                } else {
-                                    div![
-                                        if dwarf.auto_idle {
-                                            format!(
-                                                "Auto-idling, resuming occupation {} shortly.",
-                                                dwarf.occupation,
-                                            )
-                                        } else {
-                                            format!(
-                                                "{} since {}.",
-                                                dwarf.occupation,
-                                                fmt_time(dwarf.occupation_duration)
-                                            )
-                                        },
-                                        br![],
-                                        if dwarf.occupation != Occupation::Idling {
-                                            stars(dwarf.effectiveness(dwarf.occupation) as i8, true)
-                                        } else {
-                                            Node::Empty
-                                        }
-                                    ]
-                                },
+                                dwarf_occupation(dwarf, player),
                             ],
                             health_bar(dwarf.health, MAX_HEALTH),
                             p![match mode {
@@ -1118,6 +1161,22 @@ fn dwarfs(
                                         )
                                     ]]
                                 }
+                                DwarfsMode::Select(DwarfsSelect::Mentor(apprentice_id)) => {
+                                    div![button![
+                                        if !dwarf.is_adult() {
+                                            attrs! { At::Disabled => "true" }
+                                        } else {
+                                            attrs! {}
+                                        },
+                                        ev(Ev::Click, move |_| Msg::AssignMentor(
+                                            apprentice_id,
+                                            Some(id)
+                                        )),
+                                        format!(
+                                            "Assign as Mentor",
+                                        ),
+                                    ]]
+                                }
                             }]
                         ],
                     ])
@@ -1147,7 +1206,7 @@ fn dwarf(
 ) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
         let dwarf = player.dwarfs.get(&dwarf_id);
-        let _is_premium = model
+        let is_premium = model
             .state
             .get_user_data(user_id)
             .map(|user_data| user_data.premium > 0)
@@ -1157,7 +1216,7 @@ fn dwarf(
             div![
                 C!["content"],
                 C!["dwarf", format!("dwarf-{}", dwarf_id)],
-                h2![C!["title"], dwarf.custom_name.as_ref().unwrap_or(&dwarf.name)],
+                h2![C!["title"], dwarf.actual_name()],
                 div![C!["image-aside"],
                     img![attrs! {At::Src => Image::from_dwarf(&dwarf).as_at_value()}],
                     div![
@@ -1168,49 +1227,10 @@ fn dwarf(
                             "Male"
                         }, dwarf.age_years()),
                         br![],
-                        if let Some((quest_type, _, _)) = dwarf.participates_in_quest {
-                            div![
-                                if dwarf.auto_idle {
-                                    format!(
-                                        "Auto-idling, resuming quest {} shortly.",
-                                        quest_type,
-                                    )
-                                } else {
-                                    format!(
-                                        "Participating in quest {}.",
-                                        quest_type,
-                                    )
-                                },
-                                br![],
-                                if dwarf.occupation != Occupation::Idling {
-                                    stars(dwarf.effectiveness(quest_type.occupation()) as i8, true)
-                                } else {
-                                    Node::Empty
-                                }
-                            ]
-                        } else {
-                            div![
-                                if dwarf.auto_idle {
-                                    format!(
-                                        "Auto-idling, resuming occupation {} shortly.",
-                                        dwarf.occupation,
-                                    )
-                                } else {
-                                    format!(
-                                        "{} since {}.",
-                                        dwarf.occupation,
-                                        fmt_time(dwarf.occupation_duration)
-                                    )
-                                },
-                                br![],
-                                if dwarf.occupation != Occupation::Idling {
-                                    stars(dwarf.effectiveness(dwarf.occupation) as i8, true)
-                                } else {
-                                    Node::Empty
-                                }
-                            ]
-                        }],
+                        dwarf_occupation(dwarf, player),
+                        ],
                         health_bar(dwarf.health, MAX_HEALTH),
+
                         if let Some(custom_name) = model.custom_name.as_ref().cloned() {
                             p![
                                 label!["Name"],
@@ -1232,7 +1252,7 @@ fn dwarf(
                                 ]
                             ]
                         } else {
-                            let dwarf_name = dwarf.custom_name.as_ref().unwrap_or(&dwarf.name).clone();
+                            let dwarf_name = dwarf.actual_name().to_owned();
 
                             p![
                                 button![
@@ -1242,13 +1262,28 @@ fn dwarf(
                             ]
                         },
                         p![
+                            button![
+                                if is_premium {
+                                    attrs! {}
+                                } else {
+                                    attrs! {At::Disabled => "true"}
+                                },
+                                ev(Ev::Click, move |_| Msg::send_event(ClientEvent::Optimize(Some(dwarf_id)))),
+                                format!("Optimize Equipment for Current Occupation"),
+                                if !is_premium {
+                                    tip(REQUIRES_PREMIUM)
+                                } else {
+                                    Node::Empty
+                                }
+                            ]
+                        ],
+                        p![
                             input![
                                 id!["manual-management"],
                                 attrs! {At::Type => "checkbox", At::Checked => dwarf.manual_management.as_at_value()},
                                 ev(Ev::Click, move |_| Msg::send_event(ClientEvent::ToggleManualManagement(dwarf_id))),
                             ],
                             label![attrs! {At::For => "manual-management"}, "Manual Management Only (Disables Dwarfen Manager)"]
-   
                         ],
                         div![
                             h3!["Stats"],
@@ -1434,7 +1469,56 @@ fn dwarf(
                             ]
                         }
                     } else {
-                        p!["This dwarf is too young to work."]
+                        div![
+                            p!["This dwarf is too young to work. You can assign a mentor such that this dwarf can learn from the mentors occupation."],
+                            table![C!["list"],
+                                tr![
+                                    C!["list-item-row"],
+                                    if let Some(dwarf) = dwarf.mentor.map(|mentor| player.dwarfs.get(&mentor)).flatten() {
+                                        td![img![C!["list-item-image"], attrs! {At::Src => Image::from_dwarf(&dwarf).as_at_value()}]]
+                                    } else {
+                                        td![div![C!["list-item-image-placeholder"]]]
+                                    },
+                                    td![
+                                        C!["list-item-content"],
+                                        if let Some(dwarf) = dwarf.mentor.map(|mentor| player.dwarfs.get(&mentor)).flatten() {
+                                            vec![
+                                                h3![C!["title"], dwarf.actual_name()],
+                                                stars(dwarf.effectiveness(dwarf.actual_occupation()) as i8, true),
+                                            ]
+                                        } else {
+                                            vec![
+                                                h3![C!["title"], "None"]
+                                            ]
+                                        },
+                                        button![
+                                            ev(Ev::Click, move |_| Msg::ChangePage(Page::Dwarfs(DwarfsMode::Select(DwarfsSelect::Mentor(dwarf_id))))),
+                                            if dwarf.mentor.map(|mentor| player.dwarfs.get(&mentor)).flatten().is_some() {
+                                                "Change Mentor"
+                                            } else {
+                                                "Select Mentor"
+                                            }
+                                        ],
+                                        if dwarf.mentor.map(|mentor| player.dwarfs.get(&mentor)).flatten().is_some() {
+                                            vec![
+                                                button![
+                                                    ev(Ev::Click, move |_| Msg::AssignMentor(dwarf_id, None)),
+                                                    "Remove Mentor"
+                                                ],
+                                                a![
+                                                    C!["button"],
+                                                    attrs! { At::Href => format!("{}/dwarfs/{}", model.base_path(), dwarf.mentor.unwrap()) },
+                                                    "Dwarf Details"
+                                                ]
+                                            ]
+                                        } else {
+                                            Vec::new()
+                                        }
+                                    ]
+                                ]
+                            ]
+                        ]
+                        
                     }
 
                 ]
@@ -1657,7 +1741,7 @@ fn quest(
                                 C!["list-item-content"],
                                 if let Some(dwarf) = dwarf {
                                     vec![
-                                        h3![C!["title"], dwarf.custom_name.as_ref().unwrap_or(&dwarf.name)],
+                                        h3![C!["title"], dwarf.actual_name()],
                                         stars(dwarf.effectiveness(state.quests.get(&quest_id).unwrap().quest_type.occupation()) as i8, true),
                                     ]
                                 } else {
@@ -1665,9 +1749,6 @@ fn quest(
                                         h3![C!["title"], "None"]
                                     ]
                                 },
-                                /*span![
-                                    C!["subtitle"],
-                                ],*/
                                 button![
                                     ev(Ev::Click, move |_| Msg::ChangePage(Page::Dwarfs(DwarfsMode::Select(DwarfsSelect::Quest(quest_id, dwarf_idx))))),
                                     if dwarf_id.is_some() {
@@ -2021,7 +2102,7 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                             } else {
                                 attrs! {At::Disabled => "true"}
                             },
-                            ev(Ev::Click, move |_| Msg::send_event(ClientEvent::Optimize)),
+                            ev(Ev::Click, move |_| Msg::send_event(ClientEvent::Optimize(None))),
                             format!("Reassign Occupations and Equipment"),
                             if !is_premium {
                                 tip(REQUIRES_PREMIUM)
@@ -2652,7 +2733,7 @@ fn history(
                             match msg {
                                 LogMsg::DwarfUpgrade(name, stat) => {
                                     span![format!(
-                                        "Your dwarf {} has inproved his {} stat while working.",
+                                        "Your dwarf {} has improved his {} stat while working.",
                                         name, stat
                                     )]
                                 }

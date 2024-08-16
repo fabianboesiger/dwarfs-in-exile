@@ -357,6 +357,7 @@ pub enum ItemType {
     Clothing,
     Pet,
     Food,
+    Jewelry,
 }
 
 impl ItemType {
@@ -372,6 +373,7 @@ impl std::fmt::Display for ItemType {
             ItemType::Clothing => write!(f, "Clothing"),
             ItemType::Pet => write!(f, "Pet"),
             ItemType::Food => write!(f, "Food"),
+            ItemType::Jewelry => write!(f, "Jewelry"),
         }
     }
 }
@@ -390,21 +392,22 @@ impl Item {
             | Item::FishingHat
             | Item::Overall
             | Item::Boots
-            | Item::RingOfIntelligence
-            | Item::RingOfStrength
-            | Item::RingOfPerception
-            | Item::RingOfEndurance
-            | Item::RingOfAgility
             | Item::RhinoHornHelmet
             | Item::Gloves
             | Item::BearClawGloves
             | Item::Headlamp
             | Item::BearClawBoots
-            | Item::GoldenRing
             | Item::RhinoHornPants
+            | Item::BoneHelmet=> Some(ItemType::Clothing),
+
+            Item::RingOfIntelligence
+            | Item::RingOfStrength
+            | Item::RingOfPerception
+            | Item::RingOfEndurance
+            | Item::RingOfAgility
+            | Item::GoldenRing
             | Item::CrystalNecklace
-            | Item::BoneHelmet
-            | Item::BoneNecklace => Some(ItemType::Clothing),
+            | Item::BoneNecklace => Some(ItemType::Jewelry),
 
             Item::Bow
             | Item::PoisonedBow
@@ -456,19 +459,7 @@ impl Item {
 
     pub fn provides_stats(self) -> Stats {
         match self {
-            Item::ChainMail => Stats {
-                agility: -2,
-                ..Default::default()
-            },
             Item::LeatherArmor => Stats {
-                ..Default::default()
-            },
-            Item::Backpack => Stats {
-                agility: -2,
-                ..Default::default()
-            },
-            Item::Musket => Stats {
-                agility: -2,
                 ..Default::default()
             },
             Item::Parrot => Stats {
@@ -720,11 +711,8 @@ impl Item {
                 Item::Apple => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_MINUTE * 5,
                 }),
-                Item::Parrot => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_DAY,
-                }),
                 Item::Bird => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_DAY,
+                    expected_ticks_per_drop: ONE_DAY * 7,
                 }),
                 _ => None,
             },
@@ -750,6 +738,9 @@ impl Item {
                 Item::Hemp => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_MINUTE * 3,
                 }),
+                Item::Parrot => Some(ItemProbability {
+                    expected_ticks_per_drop: ONE_DAY * 7,
+                }),
                 _ => None,
             },
             Occupation::Fishing => match self {
@@ -769,13 +760,13 @@ impl Item {
                     expected_ticks_per_drop: ONE_HOUR * 6,
                 }),
                 Item::Dolphin => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_DAY * 3,
+                    expected_ticks_per_drop: ONE_DAY * 7,
                 }),
                 _ => None,
             },
             Occupation::Fighting => match self {
                 Item::Wolf => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_DAY,
+                    expected_ticks_per_drop: ONE_DAY * 7,
                 }),
                 Item::TigerFang => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_DAY,
@@ -800,12 +791,6 @@ impl Item {
             Occupation::Exploring => match self {
                 Item::Cat => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_DAY * 7,
-                }),
-                Item::Parrot => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_DAY * 2,
-                }),
-                Item::Bird => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_DAY * 2,
                 }),
                 Item::Donkey => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_DAY * 7,

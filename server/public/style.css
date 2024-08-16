@@ -314,11 +314,6 @@ nav a.button.active {
     background: var(--ui-background-highlight);
 }
 
-.occupation button {
-    width: auto;
-    margin: 0;
-}
-
 .filter {
     width: 100%;
     position: sticky;
