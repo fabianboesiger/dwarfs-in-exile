@@ -351,7 +351,9 @@ impl engine_shared::State for State {
                             occupations_to_fill.swap_remove(&Occupation::Idling);
 
                             for dwarf in player.dwarfs.values_mut() {
-                                dwarf.occupation = Occupation::Idling;
+                                if dwarf.can_be_managed() {
+                                    dwarf.occupation = Occupation::Idling;
+                                }
                             }
 
                             loop {
