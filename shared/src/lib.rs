@@ -864,8 +864,15 @@ impl engine_shared::State for State {
                                         (dwarf.actual_occupation(), 1)
                                     } else {
                                         if let Some(mentor_id) = dwarf.mentor {
-                                            let mentor = player.dwarfs.get(&mentor_id)?;
-                                            (mentor.actual_occupation(), 7)
+                                            if let Some(mentor) = player.dwarfs.get(&mentor_id) {
+                                                if mentor.is_adult() {
+                                                    (mentor.actual_occupation(), 7)
+                                                } else {
+                                                    (Occupation::Idling, 7)
+                                                }
+                                            } else {
+                                                (Occupation::Idling, 7)
+                                            }
                                         } else {
                                             (Occupation::Idling, 7)
                                         }
@@ -2416,6 +2423,9 @@ pub enum QuestType {
     TheMassacre,
     TheElvenWar,
     Concert,
+    MagicalBerries,
+    EatingContest,
+    Socializing,
 }
 
 impl std::fmt::Display for QuestType {
@@ -2442,6 +2452,9 @@ impl std::fmt::Display for QuestType {
             QuestType::TheMassacre => write!(f, "The Massacre"),
             QuestType::TheElvenWar => write!(f, "The Elven War"),
             QuestType::Concert => write!(f, "Concert in the Tavern"),
+            QuestType::MagicalBerries => write!(f, "Magical Berries"),
+            QuestType::EatingContest => write!(f, "Eating Contest"),
+            QuestType::Socializing => write!(f, "Socializing in the Tavern"),
         }
     }
 }
@@ -2481,6 +2494,9 @@ impl QuestType {
             Self::TheElvenWar => RewardMode::SplitFairly(10000),
             Self::TheMassacre => RewardMode::NewDwarfByChance(3),
             Self::Concert => RewardMode::SplitFairly(1000),
+            Self::MagicalBerries => RewardMode::SplitFairly(1000),
+            Self::EatingContest => RewardMode::SplitFairly(1000),
+            Self::Socializing => RewardMode::NewDwarfByChance(1),
         }
     }
 
@@ -2511,6 +2527,9 @@ impl QuestType {
             Self::TheMassacre => ONE_HOUR * 8,
             Self::TheElvenWar => ONE_HOUR * 8,
             Self::Concert => ONE_HOUR * 2,
+            Self::MagicalBerries => ONE_HOUR * 2,
+            Self::EatingContest => ONE_HOUR * 2,
+            Self::Socializing => ONE_HOUR * 2,
         }
     }
 
@@ -2537,6 +2556,9 @@ impl QuestType {
             Self::TheMassacre => Occupation::Fighting,
             Self::TheElvenWar => Occupation::Fighting,
             Self::Concert => Occupation::Idling,
+            Self::MagicalBerries => Occupation::Gathering,
+            Self::EatingContest => Occupation::Idling,
+            Self::Socializing => Occupation::Idling,
         }
     }
 
@@ -2563,6 +2585,9 @@ impl QuestType {
             Self::TheMassacre => 3,
             Self::TheElvenWar => 5,
             Self::Concert => 1,
+            Self::MagicalBerries => 3,
+            Self::EatingContest => 1,
+            Self::Socializing => 1,
         }
     }
 

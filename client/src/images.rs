@@ -167,6 +167,9 @@ pub enum Image {
     Manager,
     Tornado,
     Concert,
+    MagicalBerries,
+    EatingContest,
+    Socializing,
 }
 
 impl AsAtValue for Image {
@@ -369,6 +372,9 @@ impl From<QuestType> for Image {
             QuestType::TheMassacre => Image::TheMassacre,
             QuestType::TheElvenWar => Image::TheElvenWar,
             QuestType::Concert => Image::Concert,
+            QuestType::MagicalBerries => Image::MagicalBerries,
+            QuestType::EatingContest => Image::EatingContest,
+            QuestType::Socializing => Image::Socializing,
         }
     }
 }

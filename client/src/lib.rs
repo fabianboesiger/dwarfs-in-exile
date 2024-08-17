@@ -1,7 +1,7 @@
 mod images;
 
 use engine_client::{ClientState, EventWrapper, Msg as EngineMsg};
-use engine_shared::GameId;
+use engine_shared::{utils::custom_map::CustomMap, GameId};
 use images::Image;
 use itertools::Itertools;
 use seed::{prelude::*, *};
@@ -85,13 +85,10 @@ pub enum DwarfsSelect {
 pub struct InventoryFilter {
     item_name: String,
     craftable: bool,
-    food: bool,
     owned: bool,
-    pets: bool,
-    clothing: bool,
-    tools: bool,
     sort: InventorySort,
     auto: bool,
+    by_type: CustomMap<ItemType, bool>,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
@@ -105,13 +102,10 @@ impl Default for InventoryFilter {
         Self {
             item_name: String::new(),
             craftable: true,
-            food: false,
             owned: true,
-            pets: false,
-            clothing: false,
-            tools: false,
             sort: InventorySort::Rarity,
             auto: false,
+            by_type: CustomMap::new(),
         }
     }
 }
@@ -229,12 +223,9 @@ pub enum Msg {
     ChangeEquipment(DwarfId, ItemType, Option<Item>),
     AssignToQuest(QuestId, usize, Option<DwarfId>),
     AssignMentor(DwarfId, Option<DwarfId>),
-    InventoryFilterFood,
     InventoryFilterOwned,
     InventoryFilterCraftable,
-    InventoryFilterTools,
-    InventoryFilterPets,
-    InventoryFilterClothing,
+    InventoryFilterByType(ItemType),
     InventoryFilterAuto,
     InventoryFilterName(String),
     InventoryFilterReset,
@@ -298,8 +289,9 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
             model.history_visible = !model.history_visible;
             //model.chat_visible = !model.history_visible;
         }
-        Msg::InventoryFilterFood => {
-            model.inventory_filter.food = !model.inventory_filter.food;
+        Msg::InventoryFilterByType(item_type) => {
+            let old_value = model.inventory_filter.by_type.get(&item_type).copied().unwrap_or(false);
+            model.inventory_filter.by_type.insert(item_type, !old_value);
         }
         Msg::InventoryFilterAuto => {
             model.inventory_filter.auto = !model.inventory_filter.auto;
@@ -311,15 +303,6 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
         }
         Msg::InventoryFilterCraftable => {
             model.inventory_filter.craftable = !model.inventory_filter.craftable;
-        }
-        Msg::InventoryFilterPets => {
-            model.inventory_filter.pets = !model.inventory_filter.pets;
-        }
-        Msg::InventoryFilterTools => {
-            model.inventory_filter.tools = !model.inventory_filter.tools;
-        }
-        Msg::InventoryFilterClothing => {
-            model.inventory_filter.clothing = !model.inventory_filter.clothing;
         }
         Msg::InventoryFilterName(item_name) => {
             model.inventory_filter.item_name = item_name;
@@ -1695,6 +1678,9 @@ fn quest(
                                 QuestType::TheMassacre => p!["The elves have unleased their dark magic in a final attempt to eliminate all orks. Realizing that you have helped in this terrible act by providing the elves with the crystals needed for their dark magic, you attempt to fight the elven magicians to stop the massacre."],
                                 QuestType::TheElvenWar => p!["All of the dwarfen settlements have realized their mistake and have united to fight the elves. The united dwarfen armies have to fight the elven magicians in order to restore peace in the forbidden lands. Send the best fighters that you have, or the forbidden lands will be lost forever to the elven dark magic."],
                                 QuestType::Concert => p!["The dwarfen bards have organized a concert in the tavern. Make sure to participate!"],
+                                QuestType::MagicalBerries => p!["The magical berries are ripe and ready to be picked. Pick them gets a reward."],
+                                QuestType::EatingContest => p!["Participate in the eating contest and earn a reward."],
+                                QuestType::Socializing => p!["Socialize with the other dwarfs in the tavern. You may find a new friend."],
                             },
                         ],
                         h3!["Rewards"],
@@ -2176,38 +2162,17 @@ fn inventory(
                 ],
                 div![
                     C!["no-shrink"],
-                    div![
-                        input![
-                            id!["food"],
-                            attrs! {At::Type => "checkbox", At::Checked => model.inventory_filter.food.as_at_value()},
-                            ev(Ev::Click, |_| Msg::InventoryFilterFood),
-                        ],
-                        label![attrs! {At::For => "food"}, "Food"]
-                    ],
-                    div![
-                        input![
-                            id!["tools"],
-                            attrs! {At::Type => "checkbox", At::Checked => model.inventory_filter.tools.as_at_value()},
-                            ev(Ev::Click, |_| Msg::InventoryFilterTools),
-                        ],
-                        label![attrs! {At::For => "tools"}, "Tools"]
-                    ],
-                    div![
-                        input![
-                            id!["clothing"],
-                            attrs! {At::Type => "checkbox", At::Checked => model.inventory_filter.clothing.as_at_value()},
-                            ev(Ev::Click, |_| Msg::InventoryFilterClothing),
-                        ],
-                        label![attrs! {At::For => "clothing"}, "Clothing"]
-                    ],
-                    div![
-                        input![
-                            id!["pets"],
-                            attrs! {At::Type => "checkbox", At::Checked => model.inventory_filter.pets.as_at_value()},
-                            ev(Ev::Click, |_| Msg::InventoryFilterPets),
-                        ],
-                        label![attrs! {At::For => "pets"}, "Pets"]
-                    ],
+                    enum_iterator::all::<ItemType>()
+                        .map(|item_type| {
+                            div![
+                                input![
+                                    id![format!("{}", item_type)],
+                                    attrs! {At::Type => "checkbox", At::Checked => model.inventory_filter.by_type.get(&item_type).copied().unwrap_or(false).as_at_value()},
+                                    ev(Ev::Click, move |_| Msg::InventoryFilterByType(item_type)),
+                                ],
+                                label![attrs! {At::For => format!("{}", item_type)}, format!("{}", item_type)]
+                            ]
+                        })
                 ],
                 div![
                     input![
@@ -2266,26 +2231,16 @@ fn inventory(
                                 true
                             }
                         )
-                        && ((if model.inventory_filter.food {
-                            item.item_type() == Some(ItemType::Food)
-                        } else {
-                            false
-                        }) || (if model.inventory_filter.tools {
-                            item.item_type() == Some(ItemType::Tool)
-                        } else {
-                            false
-                        }) || (if model.inventory_filter.clothing {
-                            item.item_type() == Some(ItemType::Clothing)
-                        } else {
-                            false
-                        }) || (if model.inventory_filter.pets {
-                            item.item_type() == Some(ItemType::Pet)
-                        } else {
-                            false
-                        }) || (!model.inventory_filter.food
-                            && !model.inventory_filter.tools
-                            && !model.inventory_filter.clothing
-                            && !model.inventory_filter.pets))
+                        && (
+
+                            model.inventory_filter.by_type.values().all(|v| !v)
+                            || if let Some(item_type) = item.item_type() {
+                                model.inventory_filter.by_type.get(&item_type).copied().unwrap_or(false)
+                            } else {
+                                false
+                            }
+                            
+                        )
                         && if let InventoryMode::Select(InventorySelect::Equipment(_, item_type)) =
                             mode
                         {
