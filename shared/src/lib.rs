@@ -265,6 +265,7 @@ impl State {
         }
     }
 
+    /*
     fn sell(player: &mut Player, item: Item, qty: u64) {
         if item.money_value(1) > 0 {
             if player
@@ -276,6 +277,7 @@ impl State {
             }
         }
     }
+    */
 
     fn craft(player: &mut Player, item: Item, qty: u64) {
         if let Some((level, requires)) = item.requires() {
@@ -574,13 +576,13 @@ impl engine_shared::State for State {
                                 }
                             }
                         }
-                        ClientEvent::HireDwarf(dwarf_type) => {
-                            if player.money >= dwarf_type.cost()
+                        ClientEvent::HireDwarf(_dwarf_type) => {
+                            /*if player.money >= dwarf_type.cost()
                                 && player.dwarfs.len() < player.base.max_dwarfs()
                             {
                                 player.money -= dwarf_type.cost();
                                 player.new_dwarf(rng, &mut self.next_dwarf_id, self.time, false);
-                            }
+                            }*/
                         }
                         ClientEvent::ToggleAutoCraft(item) => {
                             if is_premium {
@@ -677,16 +679,16 @@ impl engine_shared::State for State {
                             }
                         }
                         ClientEvent::OpenLootCrate => {
-                            if player.money >= LOOT_CRATE_COST {
+                            /*if player.money >= LOOT_CRATE_COST {
                                 player.money -= LOOT_CRATE_COST;
                                 player.open_loot_crate(rng, self.time);
-                            }
+                            }*/
                         }
                         ClientEvent::OpenDailyReward => {
-                            if player.reward_time <= self.time {
+                            /*if player.reward_time <= self.time {
                                 player.reward_time = self.time + FREE_LOOT_CRATE;
                                 player.open_loot_crate(rng, self.time);
-                            }
+                            }*/
                         }
                         ClientEvent::AssignToQuest(quest_id, dwarf_idx, dwarf_id) => {
                             if let Some(dwarf_id) = dwarf_id {
@@ -732,8 +734,8 @@ impl engine_shared::State for State {
                         ClientEvent::AddToFoodStorage(item, qty) => {
                             Self::add_to_food_storage(player, item, qty);
                         }
-                        ClientEvent::Sell(item, qty) => {
-                            Self::sell(player, item, qty);
+                        ClientEvent::Sell(_item, _qty) => {
+                            /*Self::sell(player, item, qty);*/
                         }
                     }
                 }
@@ -2677,7 +2679,7 @@ impl TradeDeal {
     pub fn update(&mut self, players: &mut CustomMap<UserId, Player>, time: Time) -> Option<()> {
         if self.time_left > 0 {
             self.time_left -= 1;
-            if self.time_left == 0 {
+            if self.time_left == 0 || self.next_bid <= 1 {
                 if let Some((best_bidder_user_id, best_bidder_money)) = self.highest_bidder {
                     if self.user_trade_type == TradeType::Buy {
                         players.get_mut(&best_bidder_user_id)?.inventory.add(self.items.clone(), time);
@@ -2716,9 +2718,6 @@ impl TradeDeal {
                 players.get_mut(&user_id)?.inventory.items.remove_checked(self.items.clone());
                 self.highest_bidder = Some((user_id, self.next_bid));
                 self.next_bid -= (self.next_bid / 10).max(1);
-                if self.next_bid <= 1 {
-                    self.time_left = 0;
-                } else
                 if self.time_left < ONE_MINUTE {
                     self.time_left += ONE_MINUTE;
                 }

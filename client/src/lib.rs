@@ -6,7 +6,7 @@ use images::Image;
 use itertools::Itertools;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, Stats, Time, TradeType, TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, FREE_LOOT_CRATE, LOOT_CRATE_COST, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS
+    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, Stats, Time, TradeType, TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS
 };
 use std::str::FromStr;
 use web_sys::js_sys::Date;
@@ -96,6 +96,7 @@ pub struct InventoryFilter {
 pub struct TradeFilter {
     can_afford: bool,
     craftable: bool,
+    my_bids: bool,
     by_type: CustomMap<ItemType, bool>,
     trade_type: Option<TradeType>,
 }
@@ -104,6 +105,7 @@ impl Default for TradeFilter {
     fn default() -> Self {
         Self {
             can_afford: true,
+            my_bids: true,
             craftable: false,
             by_type: CustomMap::new(),
             trade_type: None,
@@ -253,6 +255,7 @@ pub enum Msg {
     InventoryFilterName(String),
     InventoryFilterReset,
     TradeFilterCanAfford,
+    TradeFilterMyBids,
     TradeFilterCraftable,
     TradeFilterReset,
     TradeFilterTradeType(Option<TradeType>),
@@ -344,6 +347,9 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
         }
         Msg::TradeFilterCanAfford => {
             model.trade_filter.can_afford = !model.trade_filter.can_afford;
+        }
+        Msg::TradeFilterMyBids => {
+            model.trade_filter.my_bids = !model.trade_filter.my_bids;
         }
         Msg::TradeFilterCraftable => {
             model.trade_filter.craftable = !model.trade_filter.craftable;
@@ -2024,7 +2030,7 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                     Node::Empty
                 },
             ],
-
+            /*
             div![
                 h3!["Open Loot Crate"],
                 div![C!["image-aside", "small"],
@@ -2077,9 +2083,10 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                     ],
                 ]
             ],
+            */
             div![
                 h3!["Dwarfen Manager"],
-                div![C!["image-aside", "small"],
+                div![C!["image-aside"],
                     img![attrs! {At::Src => Image::Manager.as_at_value()}],
                     div![
                         p!["The dwarfen manager can optimally assign dwarfs to carry out the occupations that are best suited for them. Furthermore, the manager can also assign the optimal equipment to each dwarf to further increase their effectiveness in their occupation."],
@@ -2687,11 +2694,19 @@ fn trades(
                     C!["no-shrink"],
                     div![
                         input![
-                            id!["owned"],
+                            id!["can-afford"],
                             attrs! {At::Type => "checkbox", At::Checked => model.trade_filter.can_afford.as_at_value()},
                             ev(Ev::Click, |_| Msg::TradeFilterCanAfford),
                         ],
-                        label![attrs! {At::For => "owned"}, "Can Afford"]
+                        label![attrs! {At::For => "can-afford"}, "Can Afford"]
+                    ],
+                    div![
+                        input![
+                            id!["my-trades"],
+                            attrs! {At::Type => "checkbox", At::Checked => model.trade_filter.my_bids.as_at_value()},
+                            ev(Ev::Click, |_| Msg::TradeFilterMyBids),
+                        ],
+                        label![attrs! {At::For => "my-trades"}, "My Trades"]
                     ],
                 ],
                 div![
@@ -2736,15 +2751,23 @@ fn trades(
                 trades 
                 .into_iter()
                 .filter(|(_, trade_deal)| {                    
-                        (if model.trade_filter.can_afford {
+                        ((if model.trade_filter.can_afford {
                             if trade_deal.user_trade_type == TradeType::Buy {
                                 player.money >= trade_deal.next_bid
                             } else {
                                 player.inventory.items.check_remove(&trade_deal.items)
                             }
                         } else {
-                            true
-                        })
+                            false
+                        }) || (if model.trade_filter.my_bids {
+                            if let Some((highest_bidder_user_id, _)) = trade_deal.highest_bidder {
+                                highest_bidder_user_id == *user_id
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        }) || (!model.trade_filter.can_afford && !model.trade_filter.my_bids))
                         && (
                             model.trade_filter.by_type.values().all(|v| !v)
                             || if let Some(item_type) = trade_deal.items.iter().next().and_then(|(item, _)| item.item_type()) {
@@ -2807,7 +2830,7 @@ fn trades(
                     td![
                         C!["list-item-content", "shrink"],
                         p![format!("Deal ends in {}.", fmt_time(trade_deal.time_left))],
-                        if !can_afford {
+                        if !can_afford && !highest_bidder_is_you {
                             p![format!("You can't afford this deal.")]
                         } else {
                             Node::Empty
@@ -2821,7 +2844,7 @@ fn trades(
                                 }
                             } else {
                                 if highest_bidder_user_id == *user_id {
-                                    p![format!("You have accepted the lowest offer with {} coins.", highest_bidder_money)]
+                                    p![format!("You have accepted the lowest offer at {} coins.", highest_bidder_money)]
                                 } else {
                                     p![format!("Lowest accepted offer is at {} coins.", highest_bidder_money)]
                                 }
@@ -3243,7 +3266,7 @@ fn nav(model: &Model) -> Node<Msg> {
             C!["nav-section"],
             a![C!["button"], attrs! {At::Href => "/"}, "Home"],
             a![C!["button", "disabled"], attrs! {At::Href => "/game"}, "Play"],
-            a![C!["button"], attrs! {At::Href => "/wiki"}, "Home"],
+            a![C!["button"], attrs! {At::Href => "/wiki"}, "Wiki"],
             a![C!["button"], attrs! {At::Href => "/valhalla"}, "Valhalla"],
             a![C!["button"], attrs! {At::Href => "/account"}, "Account"],
             a![C!["button"], attrs! {At::Href => "/store"}, "Store"],

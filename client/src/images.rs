@@ -144,8 +144,6 @@ pub enum Image {
     DiamondSword,
     TheHiddenTreasure,
     CatStuckOnATree,
-    LootCrate,
-    HireDwarf,
     AttackTheOrks,
     FreeTheDwarf,
     FarmersContest,
