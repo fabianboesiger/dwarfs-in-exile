@@ -362,7 +362,7 @@ pub enum ItemType {
 
 impl ItemType {
     pub fn equippable(&self) -> bool {
-        matches!(self, Self::Tool | Self::Clothing | Self::Pet)
+        matches!(self, Self::Tool | Self::Clothing | Self::Pet | Self::Jewelry)
     }
 }
 
