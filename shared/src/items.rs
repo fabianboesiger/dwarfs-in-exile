@@ -895,13 +895,13 @@ pub enum ItemRarity {
 
 impl From<u64> for ItemRarity {
     fn from(value: u64) -> Self {
-        if value < 200 {
+        if value < 500 {
             ItemRarity::Common
-        } else if value < 1000 {
+        } else if value < 2000 {
             ItemRarity::Uncommon
-        } else if value < 5000 {
+        } else if value < 10000 {
             ItemRarity::Rare
-        } else if value < 25000 {
+        } else if value < 40000 {
             ItemRarity::Epic
         } else {
             ItemRarity::Legendary

@@ -108,15 +108,18 @@ impl std::fmt::Display for WorldEvent {
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Sequence, Hash)]
 pub enum TutorialStep {
     Welcome,
-    Mining,
     Logging,
     SettlementExpansion2,
+    Axe,
+    SettlementExpansion3,
     Hunting,
     FoodPreparation,
+    SettlementExpansion4,
     Idling,
-    SettlementExpansion3,
-    Quests,
     SettlementExpansion5,
+    SettlementExpansion7,
+    SettlementExpansion9,
+    Quests,
 }
 
 pub enum TutorialReward {
@@ -154,34 +157,40 @@ impl TutorialStep {
     pub fn requires(&self) -> TutorialRequirement {
         match self {
             TutorialStep::Welcome => TutorialRequirement::Nothing,
-            TutorialStep::Mining => TutorialRequirement::Items(Bundle::new().add(Item::Stone, 10)),
-            TutorialStep::Logging => TutorialRequirement::Items(Bundle::new().add(Item::Wood, 10)),
+            TutorialStep::Logging => TutorialRequirement::Items(Bundle::new().add(Item::Wood, 1)),
             TutorialStep::SettlementExpansion2 => TutorialRequirement::BaseLevel(2),
+            TutorialStep::Axe => TutorialRequirement::Items(Bundle::new().add(Item::Axe, 1)),
+            TutorialStep::SettlementExpansion3 => TutorialRequirement::BaseLevel(3),
             TutorialStep::Hunting => {
-                TutorialRequirement::Items(Bundle::new().add(Item::RawMeat, 10))
+                TutorialRequirement::Items(Bundle::new().add(Item::RawMeat, 1))
             }
             TutorialStep::FoodPreparation => TutorialRequirement::Food(1),
+            TutorialStep::SettlementExpansion4 => TutorialRequirement::BaseLevel(4),
             TutorialStep::Idling => TutorialRequirement::AnyDwarfOccupation(Occupation::Idling),
-            TutorialStep::SettlementExpansion3 => TutorialRequirement::BaseLevel(3),
-            TutorialStep::Quests => TutorialRequirement::NumberOfDwarfs(3),
             TutorialStep::SettlementExpansion5 => TutorialRequirement::BaseLevel(5),
+            TutorialStep::SettlementExpansion7 => TutorialRequirement::BaseLevel(7),
+            TutorialStep::SettlementExpansion9 => TutorialRequirement::BaseLevel(9),
+            TutorialStep::Quests => TutorialRequirement::NumberOfDwarfs(6),
         }
     }
 
     pub fn reward(&self) -> TutorialReward {
         match self {
             TutorialStep::Welcome => TutorialReward::Money(1000),
-            TutorialStep::Mining => TutorialReward::Items(Bundle::new().add(Item::Stone, 50)),
             TutorialStep::Logging => TutorialReward::Items(Bundle::new().add(Item::Wood, 50)),
-            TutorialStep::SettlementExpansion2 => TutorialReward::Dwarfs(1),
+            TutorialStep::SettlementExpansion2 => TutorialReward::Items(Bundle::new().add(Item::Iron, 10).add(Item::Wood, 10)),
+            TutorialStep::Axe => TutorialReward::Items(Bundle::new().add(Item::Wood, 50)),
+            TutorialStep::SettlementExpansion3 => TutorialReward::Dwarfs(1),
             TutorialStep::Hunting => TutorialReward::Items(Bundle::new().add(Item::Coal, 50)),
             TutorialStep::FoodPreparation => {
                 TutorialReward::Items(Bundle::new().add(Item::CookedMeat, 50))
             }
-            TutorialStep::Idling => TutorialReward::Items(Bundle::new().add(Item::Hemp, 50)),
-            TutorialStep::SettlementExpansion3 => TutorialReward::Money(1000),
-            TutorialStep::Quests => TutorialReward::Money(1000),
+            TutorialStep::SettlementExpansion4 => TutorialReward::Items(Bundle::new().add(Item::Wood, 100)),
+            TutorialStep::Idling => TutorialReward::Items(Bundle::new().add(Item::Wood, 100)),
             TutorialStep::SettlementExpansion5 => TutorialReward::Dwarfs(1),
+            TutorialStep::SettlementExpansion7 => TutorialReward::Dwarfs(1),
+            TutorialStep::SettlementExpansion9 => TutorialReward::Dwarfs(1),
+            TutorialStep::Quests => TutorialReward::Money(1000),
         }
     }
 }
@@ -190,15 +199,18 @@ impl std::fmt::Display for TutorialStep {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             TutorialStep::Welcome => write!(f, "Welcome to the Exile"),
-            TutorialStep::Mining => write!(f, "Into the Mines"),
             TutorialStep::Logging => write!(f, "Into the Woods"),
             TutorialStep::SettlementExpansion2 => write!(f, "Expand Your Settlement"),
             TutorialStep::Hunting => write!(f, "A Well Fed Population"),
             TutorialStep::FoodPreparation => write!(f, "Dinner is Ready"),
-            TutorialStep::Idling => write!(f, "Time for a Break"),
             TutorialStep::SettlementExpansion3 => write!(f, "Expand Your Settlement"),
+            TutorialStep::Idling => write!(f, "Time for a Break"),
             TutorialStep::Quests => write!(f, "Make new Friends"),
+            TutorialStep::SettlementExpansion4 => write!(f, "Expand Your Settlement"),
             TutorialStep::SettlementExpansion5 => write!(f, "Expand Your Settlement"),
+            TutorialStep::Axe => write!(f, "Craft an Axe"),
+            TutorialStep::SettlementExpansion7 => write!(f, "Expand Your Settlement"),
+            TutorialStep::SettlementExpansion9 => write!(f, "Expand Your Settlement"),
         }
     }
 }
@@ -1626,7 +1638,7 @@ impl Player {
 
         player.new_dwarf(rng, next_dwarf_id, time, false);
 
-        if cfg!(debug_assertions) {
+        /*if cfg!(debug_assertions) {
             player.base.curr_level = 15;
             player.money = 100000;
             for _ in 0..4 {
@@ -1640,7 +1652,7 @@ impl Player {
                     .add(Item::Coal, 10000),
                 time,
             )
-        }
+        }*/
 
         player
     }
