@@ -30,6 +30,8 @@ pub enum ServerError {
     NoAdminPermissions,
     #[error("engine error: {0}")]
     EngineError(#[from] engine_server::Error),
+    #[error("guest account error")]
+    GuestAccountError,
 }
 
 impl IntoResponse for ServerError {

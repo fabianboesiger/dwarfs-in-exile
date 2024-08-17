@@ -13,6 +13,7 @@ use std::str::FromStr;
 use web_sys::js_sys::Date;
 
 #[derive(Clone, Copy, Display)]
+#[allow(unused)]
 enum Icon {
     Coins,
     Food,
@@ -1948,6 +1949,12 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
             .map(|user_data| user_data.premium)
             .unwrap_or(0);
 
+        let guest = model
+            .state
+            .get_user_data(user_id)
+            .map(|user_data| user_data.guest)
+            .unwrap_or(false);
+
         let mut unlocks = (1..100)
             .filter_map(|curr_level| {
                 let prev_level = curr_level - 1;
@@ -1986,6 +1993,27 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                                 C!["button"],
                                 attrs! { At::Href => format!("/store") },
                                 "Visit Store"
+                            ]
+                        ]
+                    ]
+                ]
+            } else {
+                Node::Empty
+            },
+
+            if guest {
+                div![
+                    C!["important"],
+                    strong![format!("Guest Account")],
+                    div![
+                        C!["image-aside", "small"],
+                        img![attrs! {At::Src => "/guest.jpg"}],
+                        div![
+                            p!["You are currently using a guest account. Set your password to keep access to your account and play from multiple devices."],
+                            a![
+                                C!["button"],
+                                attrs! { At::Href => format!("/change-password") },
+                                "Set Password"
                             ]
                         ]
                     ]

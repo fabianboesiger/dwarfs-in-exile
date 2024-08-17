@@ -25,13 +25,14 @@ use std::{
     str::FromStr,
     time::Duration,
 };
-use tokio::{task, time};
+use tokio::task;
 use tower_http::{
     services::ServeDir,
     trace::{DefaultMakeSpan, TraceLayer},
 };
-use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer};
+use tower_sessions::{Expiry, SessionManagerLayer, ExpiredDeletion};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use tower_sessions_sqlx_store::SqliteStore;
 
 pub const USER_ID_KEY: &str = "user_id";
 
@@ -73,12 +74,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let pool = db::setup().await?;
 
+    /* 
     let store = MemoryStore::default();
     let session_layer = SessionManagerLayer::new(store)
         .with_http_only(false)
         .with_expiry(Expiry::OnInactivity(
             tower_sessions::cookie::time::Duration::days(30),
         ));
+    */
+
+    let session_store = SqliteStore::new(pool.clone());
+    session_store.migrate().await?;
+
+    let _deletion_task = tokio::task::spawn(
+        session_store
+            .clone()
+            .continuously_delete_expired(tokio::time::Duration::from_secs(60)),
+    );
+
+    let session_layer = SessionManagerLayer::new(session_store)
+        .with_secure(false)
+        .with_expiry(Expiry::OnInactivity(time::Duration::days(30)));
 
     let game_state = GameStore::new(pool.clone()).load_all().await?;
 
@@ -86,7 +102,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let pool_clone = pool.clone();
     let game_state_clone = game_state.clone();
     task::spawn(async move {
-        let mut interval = time::interval(Duration::from_secs(60 * 60));
+        let mut interval = tokio::time::interval(Duration::from_secs(60 * 60));
         // The first tick fires immediately, we don't want that so we await it directly.
         interval.tick().await;
 
@@ -164,6 +180,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route(
             "/register",
             get(auth::register::get_register).post(auth::register::post_register),
+        )
+        .route(
+            "/register-guest",
+            get(auth::register::get_register_guest),
         )
         .route(
             "/login",

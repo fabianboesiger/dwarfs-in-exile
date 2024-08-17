@@ -220,6 +220,7 @@ pub struct UserData {
     pub premium: u64,
     pub games_won: i64,
     pub admin: bool,
+    pub guest: bool,
 }
 
 impl engine_shared::UserData for UserData {}
@@ -1921,7 +1922,7 @@ impl Dwarf {
         self.is_adult() && self.participates_in_quest.is_none() && !self.manual_management
     }
 
-    fn name(rng: &mut impl Rng) -> String {
+    pub fn name(rng: &mut impl Rng) -> String {
         let vowels = ['a', 'e', 'i', 'o', 'u'];
         let consonants = [
             'b', 'c', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'm', 'n', 'p', 'q', 'r', 's', 't', 'v',

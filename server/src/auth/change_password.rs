@@ -1,4 +1,4 @@
-use crate::ServerError;
+use crate::{game::GameState, ServerError};
 use askama::{DynTemplate, Template};
 use askama_axum::Response;
 use axum::{
@@ -64,6 +64,7 @@ pub async fn get_change_password(session: Session) -> Result<Response, ServerErr
 pub async fn post_change_password(
     session: Session,
     Extension(pool): Extension<SqlitePool>,
+    Extension(game_state): Extension<GameState>,
     ValidatedForm(change_password): ValidatedForm<ChangePasswordForm>,
 ) -> Result<Response, ServerError> {
     let password = change_password.password.clone();
@@ -74,7 +75,8 @@ pub async fn post_change_password(
     sqlx::query(
         r#"
             UPDATE users
-            SET password = $1
+            SET password = $1,
+            guest = 0
             WHERE user_id = $2
         "#,
     )
@@ -87,6 +89,8 @@ pub async fn post_change_password(
     )
     .execute(&pool)
     .await?;
+
+    game_state.new_server_connection().await.updated_user_data();
 
     Ok(Redirect::to("/account").into_response())
 }

@@ -21,11 +21,12 @@ pub async fn setup() -> Result<SqlitePool, Box<dyn std::error::Error>> {
             premium INTEGER NOT NULL,
             referrer INTEGER DEFAULT NULL,
             admin INTEGER NOT NULL DEFAULT 0,
+            guest INTEGER NOT NULL DEFAULT 0,
             FOREIGN KEY(referrer) REFERENCES users(user_id) ON DELETE SET NULL
         )
     "#,
     )
-    .execute(&mut transaction)
+    .execute(&mut *transaction)
     .await?;
 
     sqlx::query(
@@ -39,7 +40,7 @@ pub async fn setup() -> Result<SqlitePool, Box<dyn std::error::Error>> {
         )
     "#,
     )
-    .execute(&mut transaction)
+    .execute(&mut *transaction)
     .await?;
 
     sqlx::query(
@@ -49,7 +50,7 @@ pub async fn setup() -> Result<SqlitePool, Box<dyn std::error::Error>> {
         )
     "#,
     )
-    .execute(&mut transaction)
+    .execute(&mut *transaction)
     .await?;
 
     sqlx::query(
@@ -58,7 +59,7 @@ pub async fn setup() -> Result<SqlitePool, Box<dyn std::error::Error>> {
         VALUES (0)
     "#,
     )
-    .execute(&mut transaction)
+    .execute(&mut *transaction)
     .await?;
 
     transaction.commit().await?;

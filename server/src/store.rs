@@ -78,6 +78,7 @@ static STORE_ENTRIES: &[StoreEntry] = &[
 pub struct StoreTemplate {
     user_id: Option<i64>,
     username: Option<String>,
+    guest: bool,
     store_entries: &'static [StoreEntry],
 }
 
@@ -86,9 +87,9 @@ pub async fn get_store(
     Extension(pool): Extension<SqlitePool>,
 ) -> Result<Response, ServerError> {
     if let Some(user_id) = session.get::<i64>(crate::USER_ID_KEY).await? {
-        let (username, user_id): (String, i64) = sqlx::query_as(
+        let (username, user_id, guest): (String, i64, i64) = sqlx::query_as(
             r#"
-                SELECT username, user_id
+                SELECT username, user_id, guest
                 FROM users
                 WHERE user_id = $1
             "#,
@@ -101,6 +102,7 @@ pub async fn get_store(
         Ok(StoreTemplate {
             username: Some(username),
             user_id: Some(user_id),
+            guest: guest != 0,
             store_entries: STORE_ENTRIES,
             ..StoreTemplate::default()
         }
@@ -109,6 +111,7 @@ pub async fn get_store(
         Ok(StoreTemplate {
             username: None,
             user_id: None,
+            guest: false,
             store_entries: STORE_ENTRIES,
         }
         .into_response())
