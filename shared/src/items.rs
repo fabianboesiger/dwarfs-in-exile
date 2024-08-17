@@ -588,8 +588,8 @@ impl Item {
         }
     }
 
-    pub fn money_value(self) -> Money {
-        self.item_rarity_num() / 5000
+    pub fn money_value(self, qty: u64) -> Money {
+        self.item_rarity_num() * qty / 5000
     }
 
     // sefulness from 0 - 10

@@ -6,7 +6,7 @@ use images::Image;
 use itertools::Itertools;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, Stats, Time, TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, FREE_LOOT_CRATE, LOOT_CRATE_COST, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS
+    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, Stats, Time, TradeType, TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, FREE_LOOT_CRATE, LOOT_CRATE_COST, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS
 };
 use std::str::FromStr;
 use web_sys::js_sys::Date;
@@ -35,6 +35,7 @@ pub enum Page {
     Quests,
     Quest(QuestId),
     Ranking,
+    Trading,
 }
 
 impl Page {
@@ -52,6 +53,7 @@ impl Page {
                 Some(id) => Page::Quest(id.parse().unwrap()),
             },
             Some("ranking") => Page::Ranking,
+            Some("trading") => Page::Trading,
             _ => Page::Base,
         };
 
@@ -90,6 +92,25 @@ pub struct InventoryFilter {
     auto: bool,
     by_type: CustomMap<ItemType, bool>,
 }
+
+pub struct TradeFilter {
+    can_afford: bool,
+    craftable: bool,
+    by_type: CustomMap<ItemType, bool>,
+    trade_type: Option<TradeType>,
+}
+
+impl Default for TradeFilter {
+    fn default() -> Self {
+        Self {
+            can_afford: true,
+            craftable: false,
+            by_type: CustomMap::new(),
+            trade_type: None,
+        }
+    }
+}
+
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum InventorySort {
@@ -152,6 +173,7 @@ pub struct Model {
     chat_visible: bool,
     history_visible: bool,
     inventory_filter: InventoryFilter,
+    trade_filter: TradeFilter,
     dwarfs_filter: DwarfsFilter,
     quests_filter: QuestsFilter,
     map_time: (Time, u64),
@@ -205,6 +227,7 @@ fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
         inventory_filter: InventoryFilter::default(),
         dwarfs_filter: DwarfsFilter::default(),
         quests_filter: QuestsFilter::default(),
+        trade_filter: TradeFilter::default(),
         map_time: (0, 0),
         game_id,
         show_tutorial: false,
@@ -229,6 +252,11 @@ pub enum Msg {
     InventoryFilterAuto,
     InventoryFilterName(String),
     InventoryFilterReset,
+    TradeFilterCanAfford,
+    TradeFilterCraftable,
+    TradeFilterReset,
+    TradeFilterTradeType(Option<TradeType>),
+    TradeFilterByType(ItemType),
     DwarfsFilterReset,
     DwarfsFilterOccupation(Option<Occupation>),
     DwarfsFilterSort(DwarfsSort),
@@ -310,6 +338,22 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
         Msg::InventoryFilterReset => {
             model.inventory_filter = InventoryFilter::default();
         }
+        Msg::TradeFilterByType(item_type) => {
+            let old_value = model.trade_filter.by_type.get(&item_type).copied().unwrap_or(false);
+            model.trade_filter.by_type.insert(item_type, !old_value);
+        }
+        Msg::TradeFilterCanAfford => {
+            model.trade_filter.can_afford = !model.trade_filter.can_afford;
+        }
+        Msg::TradeFilterCraftable => {
+            model.trade_filter.craftable = !model.trade_filter.craftable;
+        }
+        Msg::TradeFilterReset => {
+            model.trade_filter = TradeFilter::default();
+        }
+        Msg::TradeFilterTradeType(trade_type) => {
+            model.trade_filter.trade_type = trade_type;
+        }
         Msg::DwarfsFilterReset => {
             model.dwarfs_filter = DwarfsFilter::default();
         }
@@ -389,7 +433,10 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
     ) {
         vec![
             div![id!["background"]],
-            header![h1![a![attrs! { At::Href => "/" }, "Dwarfs in Exile"]]],
+            header![
+                h1![a![attrs! { At::Href => "/" }, "Dwarfs in Exile"]],
+                //a![C!["button"], id!["home-button"], attrs! {At::Href => "/account"}, icon_outlined("account_circle")],
+            ],
             nav(model),
             popup(model, state, user_id),
             tutorial(model, state, user_id),
@@ -401,6 +448,7 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
                 Page::Ranking => ranking(model, state, client_state, user_id),
                 Page::Quests => quests(model, state, user_id),
                 Page::Quest(quest_id) => quest(model, state, user_id, quest_id),
+                Page::Trading => trades(model, state, user_id),
             }],
             chat(model, state, client_state),
             history(model, state, user_id, client_state),
@@ -499,14 +547,14 @@ fn popup(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                                     } else {
                                         Node::Empty
                                     },
-                                    if item.money_value() > 0 {
+                                    /*if item.money_value() > 0 {
                                         span![
                                             C!["short-info"],
                                             format!("{} Coins", item.money_value())
                                         ]
                                     } else {
                                         Node::Empty
-                                    },
+                                    },*/
                                 ],
                                 p![
                                     if !item.provides_stats().is_zero() {
@@ -2279,11 +2327,11 @@ fn inventory(
                             } else {
                                 Node::Empty
                             },
-                            if item.money_value() > 0 {
+                            /*if item.money_value() > 0 {
                                 span![C!["short-info"], format!("{} Coins", item.money_value())]
                             } else {
                                 Node::Empty
-                            },
+                            },*/
                             if cfg!(debug_assertions) {
                                 vec![
                                     span![
@@ -2523,6 +2571,7 @@ fn inventory(
                             } else {
                                 Vec::new()
                             },
+                            /*
                             if item.money_value() > 0 {
                                 vec![
                                     h4!["Sell Item"],
@@ -2604,6 +2653,7 @@ fn inventory(
                             } else {
                                 Vec::new()
                             },
+                            */
                         ]
                     }
                 ]),
@@ -2613,6 +2663,191 @@ fn inventory(
         Node::Empty
     }
 }
+
+
+
+fn trades(
+    model: &Model,
+    state: &shared::State,
+    user_id: &shared::UserId,
+) -> Node<Msg> {
+    if let Some(player) = state.players.get(user_id) {
+        let trade_type = model.trade_filter.trade_type;
+        let mut trades = state.trade_deals
+            .iter()
+            .enumerate()
+            .collect::<Vec<_>>();
+
+        trades.sort_by_key(|(_, trade_deal)| trade_deal.time_left);
+
+        div![
+            div![
+                C!["filter"],
+                div![
+                    C!["no-shrink"],
+                    div![
+                        input![
+                            id!["owned"],
+                            attrs! {At::Type => "checkbox", At::Checked => model.trade_filter.can_afford.as_at_value()},
+                            ev(Ev::Click, |_| Msg::TradeFilterCanAfford),
+                        ],
+                        label![attrs! {At::For => "owned"}, "Can Afford"]
+                    ],
+                ],
+                div![
+                    C!["no-shrink"],
+                    enum_iterator::all::<ItemType>()
+                        .map(|item_type| {
+                            div![
+                                input![
+                                    id![format!("{}", item_type)],
+                                    attrs! {At::Type => "checkbox", At::Checked => model.trade_filter.by_type.get(&item_type).copied().unwrap_or(false).as_at_value()},
+                                    ev(Ev::Click, move |_| Msg::TradeFilterByType(item_type)),
+                                ],
+                                label![attrs! {At::For => format!("{}", item_type)}, format!("{}", item_type)]
+                            ]
+                        })
+                ],
+                div![
+                    div![
+                        input![
+                            id!["buy"],
+                            attrs! {At::Type => "checkbox", At::Checked => matches!(trade_type, Some(TradeType::Buy) | None).as_at_value()},
+                            ev(Ev::Click, move |_| Msg::TradeFilterTradeType(if matches!(trade_type, Some(_)) { None } else { Some(TradeType::Sell) })),
+                        ],
+                        label![attrs! {At::For => "buy"}, "Buy Items"]
+                    ],
+                    div![
+                        input![
+                            id!["sell"],
+                            attrs! {At::Type => "checkbox", At::Checked => matches!(trade_type, Some(TradeType::Sell) | None).as_at_value()},
+                            ev(Ev::Click, move |_| Msg::TradeFilterTradeType(if matches!(trade_type, Some(_)) { None } else { Some(TradeType::Buy) })),
+                        ],
+                        label![attrs! {At::For => "sell"}, "Sell Items"]
+                    ],
+                    button![
+                        ev(Ev::Click, move |_| Msg::TradeFilterReset),
+                        "Reset Filter",
+                    ],
+                ]
+            ],
+            table![
+                C!["items", "list"],
+                trades 
+                .into_iter()
+                .filter(|(_, trade_deal)| {                    
+                        (if model.trade_filter.can_afford {
+                            if trade_deal.user_trade_type == TradeType::Buy {
+                                player.money >= trade_deal.next_bid
+                            } else {
+                                player.inventory.items.check_remove(&trade_deal.items)
+                            }
+                        } else {
+                            true
+                        })
+                        && (
+                            model.trade_filter.by_type.values().all(|v| !v)
+                            || if let Some(item_type) = trade_deal.items.iter().next().and_then(|(item, _)| item.item_type()) {
+                                model.trade_filter.by_type.get(&item_type).copied().unwrap_or(false)
+                            } else {
+                                false
+                            }
+                            
+                        )
+                        && if let Some(trade_type) = trade_type {
+                            trade_deal.user_trade_type == trade_type
+                        } else {
+                            true
+                        }
+                })
+                .map(|(idx, trade_deal)| {
+                    let item = *trade_deal.items.iter().next().unwrap().0;
+                    let n = *trade_deal.items.iter().next().unwrap().1;
+                    let highest_bidder_is_you = if let Some((highest_bidder_user_id, _)) = trade_deal.highest_bidder {   
+                        highest_bidder_user_id == *user_id
+                    } else {
+                        false
+                    };
+                    let can_afford = if trade_deal.user_trade_type == TradeType::Buy {
+                        player.money >= trade_deal.next_bid
+                    } else {
+                        player.inventory.items.check_remove(&trade_deal.items)
+                    };
+
+                    tr![
+
+                    C!["item"],
+                    C!["list-item-row"],
+                    match item.item_rarity() {
+                        ItemRarity::Common => C!["item-common"],
+                        ItemRarity::Uncommon => C!["item-uncommon"],
+                        ItemRarity::Rare => C!["item-rare"],
+                        ItemRarity::Epic => C!["item-epic"],
+                        ItemRarity::Legendary => C!["item-legendary"],
+                    },
+                    td![img![
+                        C!["list-item-image"],
+                        attrs! {At::Src => Image::from(item).as_at_value()}
+                    ]],
+                    td![
+                        C!["list-item-content", "grow"],
+                        h3![C!["title"], "Offer"],
+                        if trade_deal.user_trade_type == TradeType::Buy {
+                            p![C!["subtitle"], format!("{} {item}", big_number(n))]
+                        } else {
+                            p![C!["subtitle"], format!("{} coins", trade_deal.next_bid)]
+                        },
+                        h4![C!["title"], "Cost"],
+                        if trade_deal.user_trade_type == TradeType::Sell {
+                            p![C!["subtitle"], format!("{} {item}", big_number(n))]
+                        } else {
+                            p![C!["subtitle"], format!("{} coins", trade_deal.next_bid)]
+                        },
+                    ],
+                    td![
+                        C!["list-item-content", "shrink"],
+                        p![format!("Deal ends in {}.", fmt_time(trade_deal.time_left))],
+                        if !can_afford {
+                            p![format!("You can't afford this deal.")]
+                        } else {
+                            Node::Empty
+                        },
+                        if let Some((highest_bidder_user_id, highest_bidder_money)) = trade_deal.highest_bidder {
+                            if trade_deal.user_trade_type == TradeType::Buy {
+                                if highest_bidder_user_id == *user_id {
+                                    p![format!("You are the highest bidder with {} coins.", highest_bidder_money)]
+                                } else {
+                                    p![format!("Highest bidder has offered {} coins.", highest_bidder_money)]
+                                }
+                            } else {
+                                if highest_bidder_user_id == *user_id {
+                                    p![format!("You have accepted the lowest offer with {} coins.", highest_bidder_money)]
+                                } else {
+                                    p![format!("Lowest accepted offer is at {} coins.", highest_bidder_money)]
+                                }
+                            }
+                        } else {
+                            Node::Empty
+                        },
+                        button![
+                            attrs! { At::Disabled => (highest_bidder_is_you || !can_afford).as_at_value() },
+                            ev(Ev::Click, move |_| Msg::send_event(ClientEvent::Bid(idx))),
+                            if trade_deal.user_trade_type == TradeType::Buy {
+                                format!("Bid {} coins", trade_deal.next_bid)
+                            } else {
+                                format!("Accept {} coins", trade_deal.next_bid)
+                            }
+                        ]
+                    ]
+                ]
+            }),
+            ]
+        ]
+    } else {
+        Node::Empty
+    }
+}
+
 
 fn chat(
     model: &Model,
@@ -2944,7 +3179,7 @@ fn stars(stars: i8, padded: bool) -> Node<Msg> {
             s.push(icon_outlined("star_rate"));
         }
     }
-    span![C!["symbols"], s]
+    span![C!["symbols"], attrs!{At::Role => "meter", At::AriaValueNow => (stars as f64 / 2.0), At::AriaValueMin => 0.0, At::AriaValueMax => 5.0, At::AriaLabel => "Effectiveness"}, s]
 }
 
 fn nav(model: &Model) -> Node<Msg> {
@@ -3004,67 +3239,91 @@ fn nav(model: &Model) -> Node<Msg> {
     */
 
     nav![
-        a![C!["button"], attrs! {At::Href => "/"}, "Home"],
-        a![
-            C![
-                "button",
-                if let Page::Base = model.page {
-                    "active"
-                } else {
-                    ""
-                }
-            ],
-            attrs! {At::Href => model.base_path()},
-            "Settlement"
+        div![
+            C!["nav-section"],
+            a![C!["button"], attrs! {At::Href => "/"}, "Home"],
+            a![C!["button", "disabled"], attrs! {At::Href => "/game"}, "Play"],
+            a![C!["button"], attrs! {At::Href => "/wiki"}, "Home"],
+            a![C!["button"], attrs! {At::Href => "/valhalla"}, "Valhalla"],
+            a![C!["button"], attrs! {At::Href => "/account"}, "Account"],
+            a![C!["button"], attrs! {At::Href => "/store"}, "Store"],
+            a![C!["button"], attrs! {At::Href => "/about"}, "About"],
         ],
-        a![
-            C![
-                "button",
-                if let Page::Dwarfs(DwarfsMode::Overview) = model.page {
-                    "active"
-                } else {
-                    ""
-                }
+        div![
+            C!["nav-section", "ingame"],
+            a![
+                C![
+                    "button",
+                    if let Page::Base = model.page {
+                        "active disabled"
+                    } else {
+                        ""
+                    }
+                ],
+                attrs! {At::Href => model.base_path()},
+                "Settlement"
             ],
-            attrs! {At::Href => format!("{}/dwarfs", model.base_path())},
-            "Dwarfs",
-        ],
-        a![
-            C![
-                "button",
-                if let Page::Inventory(InventoryMode::Overview) = model.page {
-                    "active"
-                } else {
-                    ""
-                }
+            a![
+                C![
+                    "button",
+                    if let Page::Dwarfs(DwarfsMode::Overview) = model.page {
+                        "active disabled"
+                    } else {
+                        ""
+                    }
+                ],
+                attrs! {At::Href => format!("{}/dwarfs", model.base_path())},
+                "Dwarfs",
             ],
-            attrs! {At::Href => format!("{}/inventory", model.base_path())},
-            "Inventory",
-        ],
-        a![
-            C![
-                "button",
-                if let Page::Quests = model.page {
-                    "active"
-                } else {
-                    ""
-                }
+            a![
+                C![
+                    "button",
+                    if let Page::Inventory(InventoryMode::Overview) = model.page {
+                        "active disabled"
+                    } else {
+                        ""
+                    }
+                ],
+                attrs! {At::Href => format!("{}/inventory", model.base_path())},
+                "Inventory",
             ],
-            attrs! {At::Href => format!("{}/quests", model.base_path())},
-            "Quests",
-        ],
-        a![
-            C![
-                "button",
-                if let Page::Ranking = model.page {
-                    "active"
-                } else {
-                    ""
-                }
+            a![
+                C![
+                    "button",
+                    if let Page::Trading = model.page {
+                        "active disabled"
+                    } else {
+                        ""
+                    }
+                ],
+                attrs! {At::Href => format!("{}/trading", model.base_path())},
+                "Trading",
             ],
-            attrs! {At::Href => format!("{}/ranking", model.base_path())},
-            "Ranking",
-        ],
+            a![
+                C![
+                    "button",
+                    if let Page::Quests = model.page {
+                        "active disabled"
+                    } else {
+                        ""
+                    }
+                ],
+                attrs! {At::Href => format!("{}/quests", model.base_path())},
+                "Quests",
+            ],
+            a![
+                C![
+                    "button",
+                    if let Page::Ranking = model.page {
+                        "active disabled"
+                    } else {
+                        ""
+                    }
+                ],
+                attrs! {At::Href => format!("{}/ranking", model.base_path())},
+                "Ranking",
+            ]
+        ]
         //a![C!["button"], attrs! { At::Href => "/account"}, "Account"]
     ]
 }
@@ -3087,9 +3346,9 @@ pub fn start() {
 }
 
 fn icon_outlined(name: &str) -> Node<Msg> {
-    span![C!["material-symbols-outlined", "outlined"], name]
+    span![attrs!{At::Alt => name}, C!["material-symbols-outlined", "outlined"], name]
 }
 
 fn icon_filled(name: &str) -> Node<Msg> {
-    span![C!["material-symbols-outlined", "filled"], name]
+    span![attrs!{At::Alt => name}, C!["material-symbols-outlined", "filled"], name]
 }

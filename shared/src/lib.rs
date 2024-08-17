@@ -33,7 +33,7 @@ pub const WINNER_NUM_PREMIUM_DAYS: i64 = 30;
 pub const FEMALE_PROBABILITY: f64 = 1.0 / 3.0;
 pub const MAX_LEVEL: u64 = 100;
 pub const AGE_SECONDS_PER_TICK: u64 = 365 * 12;
-pub const ADULT_AGE: u64 = 20;
+pub const ADULT_AGE: u64 = 18;
 pub const ELDER_AGE: u64 = 100;
 pub const DEATH_AGE: u64 = 200;
 pub const EFFECTIVENESS_REDUCTION: u32 = 3;
@@ -249,6 +249,7 @@ pub struct State {
     pub king: Option<UserId>,
     #[serde(default)]
     pub event: Option<WorldEvent>,
+    pub trade_deals: Vec<TradeDeal>,
 }
 
 impl State {
@@ -265,13 +266,13 @@ impl State {
     }
 
     fn sell(player: &mut Player, item: Item, qty: u64) {
-        if item.money_value() > 0 {
+        if item.money_value(1) > 0 {
             if player
                 .inventory
                 .items
                 .remove_checked(Bundle::new().add(item, qty))
             {
-                player.money += item.money_value() * qty;
+                player.money += item.money_value(1) * qty;
             }
         }
     }
@@ -333,6 +334,11 @@ impl engine_shared::State for State {
 
                     match event {
                         ClientEvent::Init => {}
+                        ClientEvent::Bid(trade_idx) => {
+                            if let Some(trade) = self.trade_deals.get_mut(trade_idx) {
+                                trade.bid(&mut self.players, user_id, self.time)?;
+                            }
+                        }
                         ClientEvent::SetMentor(dwarf_id, mentor_id) => {
                             if let Some(mentor_id) = mentor_id {
                                 let mentor = player.dwarfs.get_mut(&mentor_id)?;
@@ -1341,6 +1347,33 @@ impl engine_shared::State for State {
 
                                 self.next_quest_id += 1;
                             }
+
+
+
+
+
+                            // Add trades.
+                            for trade in &mut self.trade_deals {
+                                trade.update(&mut self.players, self.time)?;
+                            }
+
+                            self.trade_deals.retain(|trade| !trade.done());
+
+                            let num_trades = if cfg!(debug_assertions) {
+                                30
+                            } else {
+                                (active_players / 5)
+                                    .max(active_not_new_players / 3)
+                                    .max(3)
+                                    .min(30)
+                            };
+
+                            while self.trade_deals.len() < num_trades {
+                                self.trade_deals.push(TradeDeal::new(rng));
+                            }
+
+                            println!("trade deals: {:?}", self.trade_deals);
+
                         }
                     }
                 }
@@ -1748,13 +1781,13 @@ impl Player {
             // Auto-sell!
             for &item in &self.auto_functions.auto_sell {
                 if let Some(&qty) = self.inventory.items.get(&item) {
-                    if item.money_value() > 0 {
+                    if item.money_value(1) > 0 {
                         if self
                             .inventory
                             .items
                             .remove_checked(Bundle::new().add(item, qty))
                         {
-                            self.money += item.money_value() * qty;
+                            self.money += item.money_value(1) * qty;
                         }
                     }
                 }
@@ -2269,7 +2302,8 @@ pub enum ClientEvent {
     Optimize(Option<DwarfId>),
     SetDwarfName(DwarfId, String),
     ToggleManualManagement(DwarfId),
-    SetMentor(DwarfId, Option<DwarfId>)
+    SetMentor(DwarfId, Option<DwarfId>),
+    Bid(usize)
 }
 
 impl engine_shared::ClientEvent for ClientEvent {
@@ -2606,5 +2640,91 @@ impl QuestType {
             Self::TheElvenWar => (90..=100).contains(&level),
             _ => true,
         }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
+pub struct TradeDeal {
+    pub items: Bundle<Item>,
+    pub next_bid: Money,
+    pub highest_bidder: Option<(UserId, Money)>,
+    pub time_left: Time,
+    pub user_trade_type: TradeType,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash, PartialEq, Eq)]
+pub enum TradeType {
+    Buy,
+    Sell,
+}
+
+impl TradeDeal {
+    pub fn new(rng: &mut impl Rng) -> Self {
+        let item = enum_iterator::all::<Item>().choose(rng).unwrap();
+        let time_left = rng.gen_range(ONE_MINUTE * 10 .. ONE_HOUR * 2);
+        let qty = ((time_left * 20) / item.item_rarity_num()).max(1);
+        let user_trade_type = if rng.gen_bool(0.5) { TradeType::Buy } else { TradeType::Sell };
+
+        TradeDeal {
+            items: Bundle::new().add(item, qty),
+            next_bid: item.money_value(qty) as u64 * if user_trade_type == TradeType::Buy { 10 } else { 1 },
+            time_left,
+            highest_bidder: None,
+            user_trade_type,
+        }
+    }
+
+    pub fn update(&mut self, players: &mut CustomMap<UserId, Player>, time: Time) -> Option<()> {
+        if self.time_left > 0 {
+            self.time_left -= 1;
+            if self.time_left == 0 {
+                if let Some((best_bidder_user_id, best_bidder_money)) = self.highest_bidder {
+                    if self.user_trade_type == TradeType::Buy {
+                        players.get_mut(&best_bidder_user_id)?.inventory.add(self.items.clone(), time);
+                    } else {
+                        players.get_mut(&best_bidder_user_id)?.money += best_bidder_money;
+                    }
+                    
+                }
+            }
+        }
+        Some(())
+    }
+
+    pub fn done(&self) -> bool {
+        self.time_left == 0
+    }
+
+    pub fn bid(&mut self, players: &mut CustomMap<UserId, Player>, user_id: UserId, time: Time) -> Option<()> {
+        if self.user_trade_type == TradeType::Buy {
+            if players.get_mut(&user_id)?.money >= self.next_bid {
+                if let Some((best_bidder_user_id, best_bidder_money)) = self.highest_bidder {
+                    players.get_mut(&best_bidder_user_id)?.money += best_bidder_money;
+                }
+                players.get_mut(&user_id)?.money -= self.next_bid;
+                self.highest_bidder = Some((user_id, self.next_bid));
+                self.next_bid += (self.next_bid / 10).max(1);
+                if self.time_left < ONE_MINUTE {
+                    self.time_left += ONE_MINUTE;
+                }
+            }    
+        } else {
+            if players.get(&user_id)?.inventory.items.check_remove(&self.items) {
+                if let Some((best_bidder_user_id, _)) = self.highest_bidder {
+                    players.get_mut(&best_bidder_user_id)?.inventory.add(self.items.clone(), time);
+                }
+                players.get_mut(&user_id)?.inventory.items.remove_checked(self.items.clone());
+                self.highest_bidder = Some((user_id, self.next_bid));
+                self.next_bid -= (self.next_bid / 10).max(1);
+                if self.next_bid <= 1 {
+                    self.time_left = 0;
+                } else
+                if self.time_left < ONE_MINUTE {
+                    self.time_left += ONE_MINUTE;
+                }
+            }
+        }
+        
+        Some(())
     }
 }

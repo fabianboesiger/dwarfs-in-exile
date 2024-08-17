@@ -131,7 +131,8 @@ input[type="submit"] {
 
 input:disabled,
 button:disabled,
-select:disabled {
+select:disabled,
+a.button.disabled {
     color: gray;
 }
 
@@ -295,19 +296,24 @@ nav {
     z-index: 1000;
     text-align: center;
     background: var(--ui-background-default);
-    height: 32px;
     box-shadow: 0 8px 8px -8px black;
+}
+
+nav .nav-section {
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     justify-content: center;
     align-items: end;
+}
+
+nav .nav-section.ingame {
+    font-style: italic;
 }
 
 nav a.button {
     width: auto;
     margin: 0;
     height: 32px;
-
 }
 
 nav a.button.active {
@@ -317,16 +323,16 @@ nav a.button.active {
 .filter {
     width: 100%;
     position: sticky;
-    top: 32px;
+    top: 0;
     z-index: 1000;
     background: var(--ui-background-highlight);
     display: flex;
     gap: 8px;
     justify-content: space-between;
-    flex-wrap: nowrap;
     padding: 8px;
     box-sizing: border-box;
     box-shadow: 0 8px 8px -8px black;
+    flex-wrap: wrap;
 }
 
 .filter > * {
