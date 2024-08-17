@@ -428,14 +428,14 @@ impl engine_shared::State for State {
                             for dwarf_id in &dwarf_ids {
                                 let dwarf = player.dwarfs.get_mut(dwarf_id)?;
                                 if dwarf.can_be_managed() || to_optimize_dwarf_id.is_some() {
-                                    for item in dwarf.equipment.values_mut() {
-                                        if let Some(old_item) = item.take() {
-                                            player
-                                                .inventory
-                                                .items
-                                                .add_checked(Bundle::new().add(old_item, 1));
-                                        }
+
+                                    for (_, item) in dwarf.equipment.drain(..) {
+                                        player
+                                            .inventory
+                                            .items
+                                            .add_checked(Bundle::new().add(item, 1));
                                     }
+
                                 }
                             }
 
@@ -456,7 +456,6 @@ impl engine_shared::State for State {
                                                     && dwarf
                                                         .equipment
                                                         .get(&item.item_type().expect("equippables always have item types"))
-                                                        .expect("equipment is always defined in the map")
                                                         .is_none()
                                             })
                                         {
@@ -474,7 +473,7 @@ impl engine_shared::State for State {
 
                                             dwarf_clone
                                                 .equipment
-                                                .insert(item.item_type().expect("equippables always have item types"), Some(*item));
+                                                .insert(item.item_type().expect("equippables always have item types"), *item);
 
                                             let effectiveness_after = dwarf_clone
                                                 .effectiveness_not_normalized(
@@ -507,7 +506,7 @@ impl engine_shared::State for State {
                                             best_dwarf_item
                                                 .item_type()
                                                 .expect("equippables always have item types"),
-                                            Some(best_dwarf_item),
+                                            best_dwarf_item,
                                         );
                                     } else {
                                         if cfg!(debug_assertions) {
@@ -639,11 +638,10 @@ impl engine_shared::State for State {
                             }
                         }
                         ClientEvent::ChangeEquipment(dwarf_id, item_type, item) => {
-                            let equipment = player
+                            let equipment = &mut player
                                 .dwarfs
                                 .get_mut(&dwarf_id)?
-                                .equipment
-                                .get_mut(&item_type)?;
+                                .equipment;
 
                             let old_item = if let Some(item) = item {
                                 if item
@@ -651,17 +649,18 @@ impl engine_shared::State for State {
                                     .as_ref()
                                     .map(ItemType::equippable)
                                     .unwrap_or(false)
+                                    && item.item_type().unwrap() == item_type
                                     && player
                                         .inventory
                                         .items
                                         .remove_checked(Bundle::new().add(item, 1))
                                 {
-                                    equipment.replace(item)
+                                    equipment.insert(item_type, item)
                                 } else {
                                     None
                                 }
                             } else {
-                                equipment.take()
+                                equipment.swap_remove(&item_type)
                             };
 
                             if let Some(old_item) = old_item {
@@ -984,13 +983,11 @@ impl engine_shared::State for State {
                                             .add(self.time, LogMsg::DwarfDied(dwarf.actual_name().to_owned()));
 
                                         // Add the equipment to the inventory.
-                                        for equipment in dwarf.equipment.values_mut() {
-                                            if let Some(item) = equipment.take() {
-                                                player
-                                                    .inventory
-                                                    .items
-                                                    .add_checked(Bundle::new().add(item, 1));
-                                            }
+                                        for (_, item) in dwarf.equipment.drain(..) {
+                                            player
+                                                .inventory
+                                                .items
+                                                .add_checked(Bundle::new().add(item, 1));
                                         }
                                     }
                                 }
@@ -1853,7 +1850,7 @@ pub struct Dwarf {
     pub auto_idle: bool,
     pub occupation_duration: u64,
     pub stats: Stats,
-    pub equipment: CustomMap<ItemType, Option<Item>>,
+    pub equipment: CustomMap<ItemType, Item>,
     pub health: Health,
     pub is_female: bool,
     pub age_seconds: u64,
@@ -1940,10 +1937,7 @@ impl Dwarf {
             auto_idle: false,
             occupation_duration: 0,
             stats: Stats::random(rng, 1, 6),
-            equipment: enum_iterator::all()
-                .filter(ItemType::equippable)
-                .map(|item_type| (item_type, None))
-                .collect(),
+            equipment: CustomMap::new(),
             health: MAX_HEALTH,
             participates_in_quest: None,
             is_female: rng.gen_bool(FEMALE_PROBABILITY),
@@ -1963,10 +1957,7 @@ impl Dwarf {
             auto_idle: false,
             occupation_duration: 0,
             stats: Stats::random(rng, 1, 6),
-            equipment: enum_iterator::all()
-                .filter(ItemType::equippable)
-                .map(|item_type| (item_type, None))
-                .collect(),
+            equipment: CustomMap::new(),
             health: MAX_HEALTH,
             participates_in_quest: None,
             is_female: rng.gen_bool(FEMALE_PROBABILITY),
@@ -2014,7 +2005,7 @@ impl Dwarf {
 
     pub fn effective_stats(&self) -> Stats {
         let mut stats = self.stats.clone();
-        for item in self.equipment.values().flatten() {
+        for item in self.equipment.values() {
             stats = stats.sum(item.provides_stats());
         }
         stats
@@ -2034,9 +2025,11 @@ impl Dwarf {
     // output 0 - 6000
     fn effectiveness_not_normalized(&self, occupation: Occupation) -> u64 {
         let mut usefulness = 0;
-        for item in self.equipment.values().flatten() {
+        for item in self.equipment.values() {
             usefulness += item.usefulness_for(occupation);
         }
+
+        usefulness = usefulness.min(30);
 
         debug_assert!(usefulness <= 30);
 

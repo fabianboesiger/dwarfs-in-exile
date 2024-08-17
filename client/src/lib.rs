@@ -1317,7 +1317,7 @@ fn dwarf(
                     h3!["Equipment"],
                     table![C!["list"],
                         enum_iterator::all::<ItemType>().filter(ItemType::equippable).map(|item_type| {
-                            let equipment = dwarf.equipment.get(&item_type).unwrap();
+                            let equipment = dwarf.equipment.get(&item_type);
 
                             tr![C!["list-item-row"],
                                 if let Some(equipment) = equipment {
