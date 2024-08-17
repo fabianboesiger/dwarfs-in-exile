@@ -270,6 +270,14 @@ header {
     font-weight: bold;
 }
 
+.messages .icon > span {
+    width: 16px;
+    height: 16px;
+    font-size: 16px;
+    padding-right: 4px;
+    vertical-align: middle;
+}
+
 ul {
     padding-left: 20px;
     margin: 4px;
@@ -675,6 +683,7 @@ ul {
         "GRAD" 0,
         "opsz" 20;
     font-size: 12px;
+    vertical-align: middle;
 }
 .material-symbols-outlined.filled {
     font-variation-settings:
@@ -683,6 +692,7 @@ ul {
         "GRAD" 0,
         "opsz" 20;
     font-size: 12px;
+    vertical-align: middle;
 }
 
 #tutorial-button {

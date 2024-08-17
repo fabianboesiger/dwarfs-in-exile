@@ -8,8 +8,59 @@ use seed::{prelude::*, *};
 use shared::{
     Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, Stats, Time, TradeType, TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS
 };
+use strum::Display;
 use std::str::FromStr;
 use web_sys::js_sys::Date;
+
+#[derive(Clone, Copy, Display)]
+enum Icon {
+    Coins,
+    Food,
+    StarFull,
+    StarHalf,
+    StarEmpty,
+    Person,
+    PersonRemove,
+    PersonAdd,
+    PersonAddDisabled,
+    WavingHand,
+    Task,
+    Inventory,
+    Info,
+}
+
+impl Icon {
+    fn identifier(&self) -> &str {
+        match self {
+            Icon::Coins => "paid",
+            Icon::Food => "restaurant",
+            Icon::StarFull => "star_rate",
+            Icon::StarHalf => "star_rate_half",
+            Icon::StarEmpty => "star_rate",
+            Icon::Person => "person",
+            Icon::PersonRemove => "person_remove",
+            Icon::WavingHand => "waving_hand",
+            Icon::PersonAdd => "person_add",
+            Icon::Task => "task_alt",
+            Icon::Inventory => "inventory_2",
+            Icon::PersonAddDisabled => "person_add_disabled",
+            Icon::Info => "info",
+        }
+    }
+
+    fn filled(&self) -> bool {
+        match self {
+            Icon::StarEmpty => false,
+            Icon::Info => false,
+            _ => true
+        }
+    }
+
+    fn draw(&self) -> Node<Msg> {
+        span![attrs!{At::Alt => format!("{self}")}, C!["material-symbols-outlined", if self.filled() { "filled" } else { "outlined" }], self.identifier()]
+    }
+}
+
 
 #[cfg(not(debug_assertions))]
 const HOST: &str = "dwarfs-in-exile.com";
@@ -553,14 +604,6 @@ fn popup(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                                     } else {
                                         Node::Empty
                                     },
-                                    /*if item.money_value() > 0 {
-                                        span![
-                                            C!["short-info"],
-                                            format!("{} Coins", item.money_value())
-                                        ]
-                                    } else {
-                                        Node::Empty
-                                    },*/
                                 ],
                                 p![
                                     if !item.provides_stats().is_zero() {
@@ -696,7 +739,7 @@ fn tutorial(model: &Model, state: &shared::State, user_id: &shared::UserId) -> N
                                 TutorialReward::Dwarfs(num) if num == 1 => p![format!("A new dwarf")],
                                 TutorialReward::Dwarfs(num) => p![format!("{num} dwarfs")],
                                 TutorialReward::Items(items) => bundle(&items, player, false),
-                                TutorialReward::Money(money) => p![format!("{money} coins")],
+                                TutorialReward::Money(money) => p![format!("{money}"), Icon::Coins.draw()],
                             },
                             button![
                                 attrs! { At::Disabled => (!step.requires().complete(player)).as_at_value() },
@@ -2896,7 +2939,7 @@ fn chat(
                             .get_user_data(&user_id)
                             .map(|data| data.username.clone())
                             .unwrap_or_default();
-                        div![
+                        p![
                             C!["message"],
                             span![C!["time"], format!("{} ago, ", fmt_time(state.time - time))],
                             span![C!["username"], format!("{username}:")],
@@ -2947,8 +2990,23 @@ fn history(
                 div![
                     C!["messages", "togglable"],
                     player.log.msgs.iter().map(|(time, msg)| {
-                        div![
+                        p![
                             C!["message"],
+                            span![C!["icon"], match msg {
+                                LogMsg::DwarfUpgrade(_,_) => Icon::Person,
+                                LogMsg::DwarfIsAdult(_) => Icon::Person,
+                                LogMsg::DwarfDied(_) => Icon::PersonRemove,
+                                LogMsg::NewPlayer(_) => Icon::WavingHand,
+                                LogMsg::NewDwarf(_) => Icon::PersonAdd,
+                                LogMsg::QuestCompletedMoney(_, _) => Icon::Task,
+                                LogMsg::QuestCompletedPrestige(_, _) => Icon::Task,
+                                LogMsg::QuestCompletedKing(_, _) => Icon::Task,
+                                LogMsg::QuestCompletedItems(_, _) => Icon::Task,
+                                LogMsg::QuestCompletedDwarfs(_, _) => Icon::Task,
+                                LogMsg::OpenedLootCrate(_) => Icon::Inventory,
+                                LogMsg::MoneyForKing(_) => Icon::Coins,
+                                LogMsg::NotEnoughSpaceForDwarf => Icon::PersonAddDisabled,
+                            }.draw()],
                             span![C!["time"], format!("{} ago: ", fmt_time(state.time - time))],
                             match msg {
                                 LogMsg::DwarfUpgrade(name, stat) => {
@@ -3188,18 +3246,18 @@ fn stars(stars: i8, padded: bool) -> Node<Msg> {
         s.push(span!["-"]);
     }
     for _ in 0..(stars.abs() / 2) {
-        s.push(icon_filled("star_rate"));
+        s.push(Icon::StarFull.draw());
     }
     if stars.abs() % 2 == 1 {
         s.push(if padded {
-            icon_filled("star_rate_half")
+            Icon::StarHalf.draw()
         } else {
-            icon_filled("star_rate_half")
+            Icon::StarHalf.draw()
         });
     }
     if padded {
         for _ in 0..((10 - stars.abs()) / 2) {
-            s.push(icon_outlined("star_rate"));
+            s.push(Icon::StarEmpty.draw());
         }
     }
     span![C!["symbols"], attrs!{At::Role => "meter", At::AriaValueNow => (stars as f64 / 2.0), At::AriaValueMin => 0.0, At::AriaValueMax => 5.0, At::AriaLabel => "Effectiveness"}, s]
@@ -3320,7 +3378,7 @@ fn nav(model: &Model) -> Node<Msg> {
                     }
                 ],
                 attrs! {At::Href => format!("{}/trading", model.base_path())},
-                "Trading",
+                "Market",
             ],
             a![
                 C![
@@ -3354,7 +3412,7 @@ fn nav(model: &Model) -> Node<Msg> {
 fn tip<T: std::fmt::Display>(text: T) -> Node<Msg> {
     div![
         C!["tooltip"],
-        icon_outlined("info"),
+        Icon::Info.draw(),
         span![C!["tooltiptext"], format!("{}", text)]
     ]
 }
@@ -3366,12 +3424,4 @@ fn tip<T: std::fmt::Display>(text: T) -> Node<Msg> {
 #[wasm_bindgen(start)]
 pub fn start() {
     App::start("app", init, update, view);
-}
-
-fn icon_outlined(name: &str) -> Node<Msg> {
-    span![attrs!{At::Alt => name}, C!["material-symbols-outlined", "outlined"], name]
-}
-
-fn icon_filled(name: &str) -> Node<Msg> {
-    span![attrs!{At::Alt => name}, C!["material-symbols-outlined", "filled"], name]
 }
