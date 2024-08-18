@@ -30,7 +30,7 @@ use tower_http::{
     services::ServeDir,
     trace::{DefaultMakeSpan, TraceLayer},
 };
-use tower_sessions::{Expiry, SessionManagerLayer, ExpiredDeletion};
+use tower_sessions::{cookie::SameSite, ExpiredDeletion, Expiry, SessionManagerLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use tower_sessions_sqlx_store::SqliteStore;
 
@@ -94,6 +94,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let session_layer = SessionManagerLayer::new(session_store)
         .with_secure(false)
+        .with_same_site(SameSite::Lax)
         .with_expiry(Expiry::OnInactivity(time::Duration::days(30)));
 
     let game_state = GameStore::new(pool.clone()).load_all().await?;
