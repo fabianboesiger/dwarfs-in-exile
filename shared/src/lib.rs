@@ -450,8 +450,6 @@ impl engine_shared::State for State {
                                 player.dwarfs.keys().cloned().collect()
                             };
 
-                            println!("optimize equipment for {:?}", dwarf_ids);
-
                             for dwarf_id in &dwarf_ids {
                                 let dwarf = player.dwarfs.get_mut(dwarf_id)?;
                                 if dwarf.can_be_managed() || to_optimize_dwarf_id.is_some() {
@@ -1394,8 +1392,6 @@ impl engine_shared::State for State {
                             while self.trade_deals.len() < num_trades {
                                 self.trade_deals.push(TradeDeal::new(rng));
                             }
-
-                            println!("trade deals: {:?}", self.trade_deals);
 
                         }
                     }
