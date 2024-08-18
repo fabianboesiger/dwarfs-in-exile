@@ -2131,7 +2131,7 @@ impl Base {
     }
 
     pub fn build_time_ticks(&self) -> u64 {
-        self.curr_level * (self.curr_level / 10 + 1) * 30
+        self.curr_level * (self.curr_level / 10 + 1) * 15
     }
 
     pub fn build(&mut self) {
