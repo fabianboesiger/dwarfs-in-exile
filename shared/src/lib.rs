@@ -808,7 +808,7 @@ impl engine_shared::State for State {
                                         dwarf.age_seconds += AGE_SECONDS_PER_TICK;
 
                                         if dwarf.age_years() > 200 {
-                                            if rng.gen_ratio(1, ONE_DAY as u32) {
+                                            if rng.gen_ratio(1, ONE_DAY as u32 * 3) {
                                                 dwarf.health = 0;
                                             }
                                         }
