@@ -12,3 +12,4 @@ strum = { version = "0.25", features = ["derive"] }
 fxhash = "0.2"
 endian-hasher = "0.1"
 engine-shared = { path = "../browsergame-engine/shared" }
+time = "0.3"

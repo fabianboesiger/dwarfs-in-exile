@@ -234,6 +234,7 @@ pub struct UserData {
     pub games_won: i64,
     pub admin: bool,
     pub guest: bool,
+    pub joined: time::PrimitiveDateTime,
 }
 
 impl engine_shared::UserData for UserData {}

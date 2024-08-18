@@ -22,6 +22,7 @@ pub async fn setup() -> Result<SqlitePool, Box<dyn std::error::Error>> {
             referrer INTEGER DEFAULT NULL,
             admin INTEGER NOT NULL DEFAULT 0,
             guest INTEGER NOT NULL DEFAULT 0,
+            joined TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,    
             FOREIGN KEY(referrer) REFERENCES users(user_id) ON DELETE SET NULL
         )
     "#,
