@@ -121,6 +121,7 @@ pub enum TutorialStep {
     SettlementExpansion7,
     SettlementExpansion9,
     Quests,
+    MakeLove,
 }
 
 pub enum TutorialReward {
@@ -172,6 +173,7 @@ impl TutorialStep {
             TutorialStep::SettlementExpansion7 => TutorialRequirement::BaseLevel(7),
             TutorialStep::SettlementExpansion9 => TutorialRequirement::BaseLevel(9),
             TutorialStep::Quests => TutorialRequirement::NumberOfDwarfs(6),
+            TutorialStep::MakeLove => TutorialRequirement::NumberOfDwarfs(7),
         }
     }
 
@@ -192,6 +194,7 @@ impl TutorialStep {
             TutorialStep::SettlementExpansion7 => TutorialReward::Dwarfs(1),
             TutorialStep::SettlementExpansion9 => TutorialReward::Dwarfs(1),
             TutorialStep::Quests => TutorialReward::Money(1000),
+            TutorialStep::MakeLove => TutorialReward::Money(1000),
         }
     }
 }
@@ -212,6 +215,7 @@ impl std::fmt::Display for TutorialStep {
             TutorialStep::Axe => write!(f, "Craft an Axe"),
             TutorialStep::SettlementExpansion7 => write!(f, "Expand Your Settlement"),
             TutorialStep::SettlementExpansion9 => write!(f, "Expand Your Settlement"),
+            TutorialStep::MakeLove => write!(f, "Make Love, Not War"),
         }
     }
 }
@@ -1221,36 +1225,37 @@ impl engine_shared::State for State {
                                             }
                                         }
                                         RewardMode::NewDwarfByChance(num_dwarfs) => {
-                                            if let Some(user_id) = quest.chance_by_score(rng) {
-                                                if let Some(player) = self.players.get_mut(&user_id)
-                                                {
-                                                    player.log.add(
-                                                        self.time,
-                                                        LogMsg::QuestCompletedDwarfs(
-                                                            quest.quest_type,
-                                                            Some(num_dwarfs),
-                                                        ),
-                                                    );
-                                                    for _ in 0..num_dwarfs {
+                                            for _ in 0..num_dwarfs {
+                                                if let Some(user_id) = quest.chance_by_score(rng) {
+                                                    if let Some(player) = self.players.get_mut(&user_id)
+                                                    {
+                                                        player.log.add(
+                                                            self.time,
+                                                            LogMsg::QuestCompletedDwarfs(
+                                                                quest.quest_type,
+                                                                Some(num_dwarfs),
+                                                            ),
+                                                        );
                                                         player.new_dwarf(
                                                             rng,
                                                             &mut self.next_dwarf_id,
                                                             self.time,
                                                             false,
                                                         );
+                                                        
                                                     }
-                                                }
-                                                for contestant_id in quest.contestants.keys() {
-                                                    if *contestant_id != user_id {
-                                                        let player =
-                                                            self.players.get_mut(contestant_id)?;
-                                                        player.log.add(
-                                                            self.time,
-                                                            LogMsg::QuestCompletedDwarfs(
-                                                                quest.quest_type,
-                                                                None,
-                                                            ),
-                                                        );
+                                                    for contestant_id in quest.contestants.keys() {
+                                                        if *contestant_id != user_id {
+                                                            let player =
+                                                                self.players.get_mut(contestant_id)?;
+                                                            player.log.add(
+                                                                self.time,
+                                                                LogMsg::QuestCompletedDwarfs(
+                                                                    quest.quest_type,
+                                                                    None,
+                                                                ),
+                                                            );
+                                                        }
                                                     }
                                                 }
                                             }
@@ -2496,7 +2501,7 @@ impl std::fmt::Display for QuestType {
             QuestType::TheHiddenTreasure => write!(f, "The Hidden Treasure"),
             QuestType::CatStuckOnATree => write!(f, "Cat Stuck on a Tree"),
             QuestType::AttackTheOrks => write!(f, "Attack the Orks"),
-            QuestType::FreeTheDwarf => write!(f, "Free the Dwarf"),
+            QuestType::FreeTheDwarf => write!(f, "Free the Dwarfs"),
             QuestType::FarmersContest => write!(f, "Farmers Contest"),
             QuestType::CrystalsForTheElves => write!(f, "Crystals for the Elves"),
             QuestType::ADarkSecret => write!(f, "A Dark Secret"),
@@ -2521,11 +2526,11 @@ impl QuestType {
             Self::FreeTheVillage => RewardMode::SplitFairly(2000),
             Self::FeastForAGuest => RewardMode::NewDwarf(1),
             Self::ADwarfGotLost => RewardMode::NewDwarfByChance(1),
-            Self::AFishingFriend => RewardMode::NewDwarfByChance(1),
+            Self::AFishingFriend => RewardMode::NewDwarfByChance(3),
             Self::ADwarfInDanger => RewardMode::NewDwarf(1),
             Self::ForTheKing => RewardMode::BecomeKing,
             Self::DrunkFishing => RewardMode::BestGetsAll(2000),
-            Self::CollapsedCave => RewardMode::NewDwarf(1),
+            Self::CollapsedCave => RewardMode::NewDwarf(3),
             Self::TheHiddenTreasure => RewardMode::BestGetsItems(
                 Bundle::new()
                     .add(Item::Diamond, 3)
@@ -2548,7 +2553,7 @@ impl QuestType {
             Self::Concert => RewardMode::SplitFairly(1000),
             Self::MagicalBerries => RewardMode::SplitFairly(1000),
             Self::EatingContest => RewardMode::SplitFairly(1000),
-            Self::Socializing => RewardMode::NewDwarfByChance(1),
+            Self::Socializing => RewardMode::NewDwarfByChance(3),
         }
     }
 
@@ -2564,14 +2569,14 @@ impl QuestType {
             Self::FeastForAGuest => ONE_HOUR * 4,
             Self::ADwarfGotLost => ONE_HOUR * 2,
             Self::AFishingFriend => ONE_HOUR,
-            Self::ADwarfInDanger => ONE_HOUR * 4,
+            Self::ADwarfInDanger => ONE_HOUR * 2,
             Self::ForTheKing => ONE_HOUR * 8,
             Self::DrunkFishing => ONE_HOUR * 4,
             Self::CollapsedCave => ONE_HOUR * 4,
             Self::TheHiddenTreasure => ONE_HOUR * 2,
             Self::CatStuckOnATree => ONE_HOUR,
             Self::AttackTheOrks => ONE_HOUR * 2,
-            Self::FreeTheDwarf => ONE_HOUR * 2,
+            Self::FreeTheDwarf => ONE_HOUR * 4,
             Self::FarmersContest => ONE_HOUR,
             Self::CrystalsForTheElves => ONE_HOUR,
             Self::ADarkSecret => ONE_HOUR * 4,
