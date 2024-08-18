@@ -722,6 +722,9 @@ fn tutorial(model: &Model, state: &shared::State, user_id: &shared::UserId) -> N
                                 TutorialStep::Quests => div![
                                     p!["Quests are a great way to earn money, or get new dwarfs and items. Go to the quest overview and do quests until you get a new dwarf. Make sure that a new dwarf has enough space in your settlement."]
                                 ],
+                                TutorialStep::MakeLove => div![
+                                    p!["If you have both a male and a female adult dwarf, you can let them idle for a while. There is a good chance that they get a child!"]
+                                ],
                             },
                             h4!["Requirements"],
                             match step.requires() {
@@ -1773,11 +1776,11 @@ fn quest(
                                 QuestType::ADwarfInDanger => p!["A dwarf was abducted by the orks. They didn't hurt him yet, but the elves tell you that he is in danger and needs to be freed as soon as possible. If you free him first, he may stay in your settlement!"],
                                 QuestType::ForTheKing => p!["Fight a ruthless battle to become the king over all the dwarfen settlements!"],
                                 QuestType::DrunkFishing => p!["Participate in the drunk fishing contest! The dwarf that is the most successful drunk fisher gets a reward."],
-                                QuestType::CollapsedCave => p!["A cave has collapsed and a dwarf is trapped inside. Be the first to save is life and he will move into your settlement."],
+                                QuestType::CollapsedCave => p!["A cave has collapsed and some dwarfs are trapped inside. Be the first to save is life and they will move into your settlement."],
                                 QuestType::TheHiddenTreasure => p!["The first who finds the hidden treasure can keep it."],
                                 QuestType::CatStuckOnATree => p!["A cat is stuck on a tree. Help her get on the ground an she will gladly follow you home."],
                                 QuestType::AttackTheOrks => p!["The orc camp was sptted near the elven village in preparation for an attak. Attack them first and get a reward from the elves!"],
-                                QuestType::FreeTheDwarf => p!["The dwarfen king was captured by the orks. It seems like they don't want to kill him, but instead persuade him to attack the elves instead. Of course, the dwarfs would never do such a thing! Free him and he will join your settlement."],
+                                QuestType::FreeTheDwarf => p!["Some dwarfs captured by the orks. It seems like they don't want to kill them, but instead persuade them to attack the elves instead. Of course, the dwarfs would never do such a thing! Free them and they will join your settlement."],
                                 QuestType::FarmersContest => p!["Participate in the farmers contest. The best farmer gets a reward."],
                                 QuestType::CrystalsForTheElves => p!["The Elves need special crystals to cast their magic. Although they don't want to tell you what they will use the crystals for, you accept the offer. Bring them some and they will reward you."],
                                 QuestType::ElvenVictory => p!["The elves are winning the war against the orks. They need wood to build large fenced areas where the surviving orks will be captured."],
