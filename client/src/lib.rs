@@ -28,6 +28,7 @@ enum Icon {
     Task,
     Inventory,
     Info,
+    Trade,
 }
 
 impl Icon {
@@ -46,6 +47,7 @@ impl Icon {
             Icon::Inventory => "inventory_2",
             Icon::PersonAddDisabled => "person_add_disabled",
             Icon::Info => "info",
+            Icon::Trade => "storefront",
         }
     }
 
@@ -980,6 +982,7 @@ fn last_received_items(
 
 fn health_bar(curr: Health, max: Health) -> Node<Msg> {
     div![
+        attrs! {At::Role => "progressbar", At::AriaValueMin => 0, At::AriaValueMax => max, At::AriaValueNow => curr, At::AriaLabel => "Health"},
         C!["health-bar-wrapper"],
         div![
             C!["health-bar-curr"],
@@ -996,6 +999,7 @@ fn health_bar(curr: Health, max: Health) -> Node<Msg> {
 
 fn score_bar(curr: u64, max: u64, rank: usize, max_rank: usize, markers: Vec<u64>) -> Node<Msg> {
     div![
+        attrs! {At::Role => "progressbar", At::AriaValueMin => 0, At::AriaValueMax => max, At::AriaValueNow => curr, At::AriaLabel => "Score"},
         C!["score-bar-wrapper"],
         if curr > 0 {
             div![
@@ -3046,9 +3050,65 @@ fn history(
                                 LogMsg::OpenedLootCrate(_) => Icon::Inventory,
                                 LogMsg::MoneyForKing(_) => Icon::Coins,
                                 LogMsg::NotEnoughSpaceForDwarf => Icon::PersonAddDisabled,
+                                LogMsg::Overbid(..) => Icon::Trade,
+                                LogMsg::BidWon(..) => Icon::Trade,
                             }.draw()],
                             span![C!["time"], format!("{} ago: ", fmt_time(state.time - time))],
                             match msg {
+                                LogMsg::Overbid(items, money, trade_type) => {
+                                    if *trade_type == TradeType::Buy {
+                                        span![format!(
+                                            "You have been overbid on {} for {} coins.",
+                                            items
+                                                .clone()
+                                                .sorted_by_rarity()
+                                                .into_iter()
+                                                .map(|(item, n)| format!("{n}x {item}"))
+                                                .collect::<Vec<_>>()
+                                                .join(", "),
+                                            money
+                                        )]
+                                    } else {
+                                        span![format!(
+                                            "Someone has accepted a lower offer on {} for {} coins.",
+                                            items
+                                                .clone()
+                                                .sorted_by_rarity()
+                                                .into_iter()
+                                                .map(|(item, n)| format!("{n}x {item}"))
+                                                .collect::<Vec<_>>()
+                                                .join(", "),
+                                            money
+                                        )]
+                                    }
+                                }
+                                LogMsg::BidWon(items, money, trade_type) => {
+                                    if *trade_type == TradeType::Buy {
+                                        span![format!(
+                                            "You have successfully bought {} for {} coins.",
+                                            items
+                                                .clone()
+                                                .sorted_by_rarity()
+                                                .into_iter()
+                                                .map(|(item, n)| format!("{n}x {item}"))
+                                                .collect::<Vec<_>>()
+                                                .join(", "),
+                                            money
+                                        )]
+                                    } else {
+                                        span![format!(
+                                            "You have successfully sold {} for {} coins.",
+                                            items
+                                                .clone()
+                                                .sorted_by_rarity()
+                                                .into_iter()
+                                                .map(|(item, n)| format!("{n}x {item}"))
+                                                .collect::<Vec<_>>()
+                                                .join(", "),
+                                            money
+                                        )]
+                                    }
+                                }
                                 LogMsg::DwarfUpgrade(name, stat) => {
                                     span![format!(
                                         "Your dwarf {} has improved his {} stat while working.",

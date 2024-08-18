@@ -1588,6 +1588,8 @@ pub enum LogMsg {
     NotEnoughSpaceForDwarf,
     DwarfUpgrade(String, String),
     DwarfIsAdult(String),
+    Overbid(Bundle<Item>, Money, TradeType),
+    BidWon(Bundle<Item>, Money, TradeType),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
@@ -1646,7 +1648,7 @@ impl Player {
 
         player.new_dwarf(rng, next_dwarf_id, time, false);
 
-        /*if cfg!(debug_assertions) {
+        if cfg!(debug_assertions) {
             player.base.curr_level = 15;
             player.money = 100000;
             for _ in 0..4 {
@@ -1660,7 +1662,7 @@ impl Player {
                     .add(Item::Coal, 10000),
                 time,
             )
-        }*/
+        }
 
         player
     }
@@ -2702,12 +2704,13 @@ impl TradeDeal {
             self.time_left -= 1;
             if self.time_left == 0 || self.next_bid <= 1 {
                 if let Some((best_bidder_user_id, best_bidder_money)) = self.highest_bidder {
+                    let p = players.get_mut(&best_bidder_user_id)?;
                     if self.user_trade_type == TradeType::Buy {
-                        players.get_mut(&best_bidder_user_id)?.inventory.add(self.items.clone(), time);
+                        p.inventory.add(self.items.clone(), time);
                     } else {
-                        players.get_mut(&best_bidder_user_id)?.money += best_bidder_money;
+                        p.money += best_bidder_money;
                     }
-                    
+                    p.log.add(time, LogMsg::BidWon(self.items.clone(), best_bidder_money, self.user_trade_type));
                 }
             }
         }
@@ -2722,7 +2725,9 @@ impl TradeDeal {
         if self.user_trade_type == TradeType::Buy {
             if players.get_mut(&user_id)?.money >= self.next_bid {
                 if let Some((best_bidder_user_id, best_bidder_money)) = self.highest_bidder {
-                    players.get_mut(&best_bidder_user_id)?.money += best_bidder_money;
+                    let p = players.get_mut(&best_bidder_user_id)?;
+                    p.money += best_bidder_money;
+                    p.log.add(time, LogMsg::Overbid(self.items.clone(), self.next_bid, self.user_trade_type));
                 }
                 players.get_mut(&user_id)?.money -= self.next_bid;
                 self.highest_bidder = Some((user_id, self.next_bid));
@@ -2734,7 +2739,9 @@ impl TradeDeal {
         } else {
             if players.get(&user_id)?.inventory.items.check_remove(&self.items) {
                 if let Some((best_bidder_user_id, _)) = self.highest_bidder {
-                    players.get_mut(&best_bidder_user_id)?.inventory.add(self.items.clone(), time);
+                    let p = players.get_mut(&best_bidder_user_id)?;
+                    p.inventory.add(self.items.clone(), time);
+                    p.log.add(time, LogMsg::Overbid(self.items.clone(), self.next_bid, self.user_trade_type));
                 }
                 players.get_mut(&user_id)?.inventory.items.remove_checked(self.items.clone());
                 self.highest_bidder = Some((user_id, self.next_bid));
