@@ -35,7 +35,6 @@ pub const MAX_LEVEL: u64 = 100;
 pub const AGE_SECONDS_PER_TICK: u64 = 365 * 6;
 pub const ADULT_AGE: u64 = 20;
 pub const DEATH_AGE: u64 = 200;
-
 pub const EFFECTIVENESS_REDUCTION: u32 = 3;
 pub const IMPROVEMENT_DURATION: u32 = ONE_DAY as u32 * 7;
 pub const APPRENTICE_IMPROVMENT_MULTIPLIER: u32 = 10;
@@ -248,7 +247,7 @@ pub enum HireDwarfType {
 impl HireDwarfType {
     pub fn cost(&self) -> u64 {
         match self {
-            HireDwarfType::Standard => 10000,
+            HireDwarfType::Standard => 5000,
         }
     }
 }
@@ -864,8 +863,9 @@ impl engine_shared::State for State {
                                         let is_adult_before = dwarf.is_adult();
                                         dwarf.age_seconds += AGE_SECONDS_PER_TICK;
 
-                                        if dwarf.age_years() >= DEATH_AGE {
-                                            if rng.gen_ratio(1, ONE_DAY as u32) {
+
+                                        if dwarf.age_years() > 200 {
+                                            if rng.gen_ratio(1, ONE_DAY as u32 * 3) {
                                                 dwarf.health = 0;
                                             }
                                         }
@@ -2243,7 +2243,7 @@ impl Base {
     }
 
     pub fn build_time_ticks(&self) -> u64 {
-        self.curr_level * (self.curr_level / 10 + 1) * 60
+        self.curr_level * (self.curr_level / 10 + 1) * 15
     }
 
     pub fn build(&mut self) {
