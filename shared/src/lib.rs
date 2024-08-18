@@ -32,7 +32,7 @@ pub const FREE_LOOT_CRATE: u64 = ONE_DAY;
 pub const WINNER_NUM_PREMIUM_DAYS: i64 = 30;
 pub const FEMALE_PROBABILITY: f64 = 1.0 / 3.0;
 pub const MAX_LEVEL: u64 = 100;
-pub const AGE_SECONDS_PER_TICK: u64 = 365 * 12;
+pub const AGE_SECONDS_PER_TICK: u64 = 365 * 6;
 
 pub type Money = u64;
 pub type Food = u64;
