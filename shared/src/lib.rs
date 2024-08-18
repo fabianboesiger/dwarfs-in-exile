@@ -229,7 +229,7 @@ pub enum HireDwarfType {
 impl HireDwarfType {
     pub fn cost(&self) -> u64 {
         match self {
-            HireDwarfType::Standard => 10000,
+            HireDwarfType::Standard => 5000,
         }
     }
 }
@@ -807,7 +807,7 @@ impl engine_shared::State for State {
                                         let is_adult_before = dwarf.is_adult();
                                         dwarf.age_seconds += AGE_SECONDS_PER_TICK;
 
-                                        if dwarf.age_years() > 100 {
+                                        if dwarf.age_years() > 200 {
                                             if rng.gen_ratio(1, ONE_DAY as u32) {
                                                 dwarf.health = 0;
                                             }
