@@ -35,7 +35,7 @@ impl GameStore {
         Self { db }
     }
 
-    pub async fn load_all(self) -> Result<GameState, sqlx::Error> {
+    pub async fn load_all(self) -> Result<GameState, ServerError> {
         let open_worlds: Vec<(GameId,)> = sqlx::query_as(
             r#"
                     SELECT id
@@ -58,7 +58,7 @@ impl GameStore {
 
 #[async_trait::async_trait]
 impl engine_server::BackendStore<shared::State> for GameStore {
-    type Error = sqlx::Error;
+    type Error = ServerError;
 
     async fn create_game(&self) -> Result<GameId, Self::Error> {
         let (id,): (i64,) = sqlx::query_as(
@@ -142,8 +142,7 @@ impl engine_server::BackendStore<shared::State> for GameStore {
             .bind(&game_id)
             .bind(&winner.0)
             .execute(&self.db)
-            .await
-            .unwrap();
+            .await?;
 
             tracing::info!("game {} saved, ingame time {}", game_id, state.time);
 
@@ -167,7 +166,7 @@ impl engine_server::BackendStore<shared::State> for GameStore {
                     "#,
             )
             .bind(&game_id)
-            .bind(rmp_serde::to_vec(&state).unwrap())
+            .bind(rmp_serde::to_vec(&state)?)
             .execute(&self.db)
             .await?;
 
