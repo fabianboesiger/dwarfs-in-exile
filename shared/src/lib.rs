@@ -32,11 +32,13 @@ pub const FREE_LOOT_CRATE: u64 = ONE_DAY;
 pub const WINNER_NUM_PREMIUM_DAYS: i64 = 30;
 pub const FEMALE_PROBABILITY: f64 = 1.0 / 3.0;
 pub const MAX_LEVEL: u64 = 100;
-pub const AGE_SECONDS_PER_TICK: u64 = 365 * 12;
-pub const ADULT_AGE: u64 = 18;
-pub const ELDER_AGE: u64 = 100;
+pub const AGE_SECONDS_PER_TICK: u64 = 365 * 6;
+pub const ADULT_AGE: u64 = 20;
 pub const DEATH_AGE: u64 = 200;
+
 pub const EFFECTIVENESS_REDUCTION: u32 = 3;
+pub const IMPROVEMENT_DURATION: u32 = ONE_DAY as u32 * 7;
+pub const APPRENTICE_IMPROVMENT_MULTIPLIER: u32 = 10;
 
 pub type Money = u64;
 pub type Food = u64;
@@ -814,7 +816,7 @@ impl engine_shared::State for State {
                                 // Chance for a new baby dwarf!
                                 if rng.gen_ratio(
                                     male_idle_dwarfs.min(female_idle_dwarfs) as u32,
-                                    ONE_DAY as u32 / 2,
+                                    ONE_DAY as u32 / 4,
                                 ) {
                                     player.new_dwarf(rng, &mut self.next_dwarf_id, self.time, true);
                                 }
@@ -887,15 +889,15 @@ impl engine_shared::State for State {
                                         if let Some(mentor_id) = dwarf.mentor {
                                             if let Some(mentor) = player.dwarfs.get(&mentor_id) {
                                                 if mentor.is_adult() {
-                                                    (mentor.actual_occupation(), 7)
+                                                    (mentor.actual_occupation(), APPRENTICE_IMPROVMENT_MULTIPLIER)
                                                 } else {
-                                                    (Occupation::Idling, 7)
+                                                    (Occupation::Idling, APPRENTICE_IMPROVMENT_MULTIPLIER)
                                                 }
                                             } else {
-                                                (Occupation::Idling, 7)
+                                                (Occupation::Idling, APPRENTICE_IMPROVMENT_MULTIPLIER)
                                             }
                                         } else {
-                                            (Occupation::Idling, 7)
+                                            (Occupation::Idling, APPRENTICE_IMPROVMENT_MULTIPLIER)
                                         }
                                     };
 
@@ -905,7 +907,7 @@ impl engine_shared::State for State {
                                         if rng.gen_ratio(
                                             improvement_occupation.requires_stats().agility
                                                 as u32 * improvement_multiplier,
-                                            ONE_DAY as u32 * 7,
+                                                IMPROVEMENT_DURATION,
                                         ) && dwarf.stats.agility < 10
                                         {
                                             dwarf.stats.agility += 1;
@@ -920,7 +922,7 @@ impl engine_shared::State for State {
                                         if rng.gen_ratio(
                                             improvement_occupation.requires_stats().endurance
                                                 as u32 * improvement_multiplier,
-                                            ONE_DAY as u32 * 7,
+                                                IMPROVEMENT_DURATION,
                                         ) && dwarf.stats.endurance < 10
                                         {
                                             dwarf.stats.endurance += 1;
@@ -935,7 +937,7 @@ impl engine_shared::State for State {
                                         if rng.gen_ratio(
                                             improvement_occupation.requires_stats().strength
                                                 as u32 * improvement_multiplier,
-                                            ONE_DAY as u32 * 7,
+                                                IMPROVEMENT_DURATION,
                                         ) && dwarf.stats.strength < 10
                                         {
                                             dwarf.stats.strength += 1;
@@ -950,7 +952,7 @@ impl engine_shared::State for State {
                                         if rng.gen_ratio(
                                             improvement_occupation.requires_stats().intelligence
                                                 as u32 * improvement_multiplier,
-                                            ONE_DAY as u32 * 7,
+                                                IMPROVEMENT_DURATION,
                                         ) && dwarf.stats.intelligence < 10
                                         {
                                             dwarf.stats.intelligence += 1;
@@ -965,7 +967,7 @@ impl engine_shared::State for State {
                                         if rng.gen_ratio(
                                             improvement_occupation.requires_stats().perception
                                                 as u32 * improvement_multiplier,
-                                            ONE_DAY as u32 * 7,
+                                            IMPROVEMENT_DURATION,
                                         ) && dwarf.stats.perception < 10
                                         {
                                             dwarf.stats.perception += 1;
@@ -981,19 +983,19 @@ impl engine_shared::State for State {
                                         for item in enum_iterator::all::<Item>() {
                                             if let Some(ItemProbability {
                                                 expected_ticks_per_drop,
-                                            }) = item.item_probability(dwarf.actual_occupation())
+                                            }) = item.item_probability(improvement_occupation)
                                             {
                                                 if rng.gen_ratio(
                                                     EFFECTIVENESS_REDUCTION + dwarf
-                                                        .effectiveness(dwarf.actual_occupation())
+                                                        .effectiveness(improvement_occupation)
                                                         as u32,
-                                                        EFFECTIVENESS_REDUCTION * expected_ticks_per_drop as u32
+                                                        improvement_multiplier * EFFECTIVENESS_REDUCTION * expected_ticks_per_drop as u32
                                                         * self
                                                             .event
                                                             .as_ref()
                                                             .map(|f| {
                                                                 f.occupation_divider(
-                                                                    dwarf.actual_occupation(),
+                                                                    improvement_occupation,
                                                                 )
                                                             })
                                                             .unwrap_or(1),
@@ -1996,7 +1998,7 @@ impl Dwarf {
             health: MAX_HEALTH,
             participates_in_quest: None,
             is_female: rng.gen_bool(FEMALE_PROBABILITY),
-            age_seconds: rng.gen_range(ADULT_AGE..ELDER_AGE) * 365 * 24 * 60 * 60,
+            age_seconds: rng.gen_range(ADULT_AGE..DEATH_AGE) * 365 * 24 * 60 * 60,
             custom_name: None,
             manual_management: false,
             mentor: None,
