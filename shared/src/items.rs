@@ -132,6 +132,8 @@ pub enum Item {
     Dolphin,
     BoneHelmet,
     BoneNecklace,
+    HorseCarriage,
+    HotAirBalloon,
 }
 
 impl Craftable for Item {
@@ -264,11 +266,11 @@ impl Craftable for Item {
                 40,
                 Bundle::new()
                     .add(Item::Wheel, 2)
-                    .add(Item::Iron, 10)
-                    .add(Item::Nail, 5)
+                    .add(Item::Iron, 20)
+                    .add(Item::Nail, 20)
+                    .add(Item::Wood, 50)
                     .add(Item::Chain, 5),
             )),
-
             Item::BoneNecklace => Some((42, Bundle::new().add(Item::String, 5).add(Item::Bone, 5))),
             Item::BoneHelmet => Some((44, Bundle::new().add(Item::Helmet, 1).add(Item::Bone, 5))),
 
@@ -337,6 +339,23 @@ impl Craftable for Item {
             Item::RhinoHornHelmet => Some((
                 74,
                 Bundle::new().add(Item::RhinoHorn, 1).add(Item::Helmet, 1),
+            )),
+            Item::HorseCarriage => Some((
+                76,
+                Bundle::new()
+                    .add(Item::Wheel, 4)
+                    .add(Item::Iron, 40)
+                    .add(Item::Nail, 40)
+                    .add(Item::Wood, 100)
+                    .add(Item::Chain, 5),
+            )),
+            Item::HotAirBalloon => Some((
+                78,
+                Bundle::new()
+                    .add(Item::Fabric, 100)
+                    .add(Item::String, 100)
+                    .add(Item::Nail, 10)
+                    .add(Item::Wood, 100)
             )),
             _ => None,
         }
@@ -433,7 +452,9 @@ impl Item {
             | Item::DiamondAxe
             | Item::DiamondPickaxe
             | Item::DiamondSword
-            | Item::DynamiteCrossbow => Some(ItemType::Tool),
+            | Item::DynamiteCrossbow
+            | Item::HotAirBalloon
+            | Item::HorseCarriage => Some(ItemType::Tool),
 
             Item::Parrot
             | Item::Wolf
@@ -629,6 +650,7 @@ impl Item {
             (Item::Musket, Occupation::Fighting) => 6,
             (Item::Dynamite, Occupation::Fighting) => 5,
             (Item::Dynamite, Occupation::Mining) => 10,
+            (Item::HorseCarriage, Occupation::Gathering) => 10,
             (Item::Backpack, Occupation::Gathering) => 7,
             (Item::Bag, Occupation::Gathering) => 5,
             (Item::Helmet, Occupation::Mining | Occupation::Logging | Occupation::Rockhounding) => {
@@ -640,8 +662,9 @@ impl Item {
             (Item::BoneHelmet, Occupation::Fighting) => 8,
             (Item::Horse, Occupation::Fighting | Occupation::Exploring) => 4,
             (Item::Horse, Occupation::Farming | Occupation::Logging) => 7,
-            (Item::Map, Occupation::Exploring) => 8,
-            (Item::Map, Occupation::Gathering) => 6,
+            (Item::HotAirBalloon, Occupation::Exploring) => 10,
+            (Item::Map, Occupation::Exploring) => 6,
+            (Item::Map, Occupation::Gathering) => 4,
             (Item::FishingHat, Occupation::Fishing) => 6,
             (Item::FishingRod, Occupation::Fishing) => 6,
             (Item::FishingNet, Occupation::Fishing) => 10,
