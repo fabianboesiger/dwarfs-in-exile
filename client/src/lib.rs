@@ -1242,6 +1242,12 @@ fn dwarf(
                             ]
                         },
                         p![
+                            button![
+                                ev(Ev::Click, move |_| Msg::send_event(ClientEvent::ReleaseDwarf(dwarf_id))),
+                                "Release Dwarf"
+                            ]
+                        ],
+                        p![
                             input![
                                 id!["manual-management"],
                                 attrs! {At::Type => "checkbox", At::Checked => dwarf.manual_management.as_at_value()},

@@ -329,6 +329,10 @@ impl engine_shared::State for State {
 
                     match event {
                         ClientEvent::Init => {}
+                        ClientEvent::ReleaseDwarf(dwarf_id) => {
+                            let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
+                            dwarf.released = true;
+                        }
                         ClientEvent::ToggleManualManagement(dwarf_id) => {
                             let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
                             dwarf.manual_management = !dwarf.manual_management;
@@ -954,12 +958,12 @@ impl engine_shared::State for State {
                                             !player
                                                 .dwarfs
                                                 .get(&*dwarf_id)
-                                                .map(|d| d.dead())
+                                                .map(|d| d.dead() || d.released)
                                                 .unwrap_or(true)
                                         });
                                     }
                                 }
-                                player.dwarfs.retain(|_, dwarf| !dwarf.dead());
+                                player.dwarfs.retain(|_, dwarf| !(dwarf.dead() || dwarf.released));
                             }
 
                             // Continue the active quests.
@@ -1811,6 +1815,8 @@ pub struct Dwarf {
     pub custom_name: Option<String>,
     #[serde(default)]
     pub manual_management: bool,
+    #[serde(default)]
+    pub released: bool,
 }
 
 impl Dwarf {
@@ -1894,6 +1900,7 @@ impl Dwarf {
             age_seconds: rng.gen_range(18..=80) * 365 * 24 * 60 * 60,
             custom_name: None,
             manual_management: false,
+            released: false,
         }
     }
 
@@ -1916,6 +1923,7 @@ impl Dwarf {
             age_seconds: 0,
             custom_name: None,
             manual_management: false,
+            released: false,
         }
     }
 
@@ -2207,6 +2215,7 @@ pub enum ClientEvent {
     Optimize,
     SetDwarfName(DwarfId, String),
     ToggleManualManagement(DwarfId),
+    ReleaseDwarf(DwarfId),
 }
 
 impl engine_shared::ClientEvent for ClientEvent {
