@@ -1516,6 +1516,10 @@ fn dwarf(
                                 } else {
                                     Node::Empty
                                 }
+                            ],
+                            button![
+                                ev(Ev::Click, move |_| Msg::send_event(ClientEvent::ReleaseDwarf(dwarf_id))),
+                                "Release Dwarf"
                             ]
                         ],
                         p![

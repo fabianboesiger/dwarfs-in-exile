@@ -385,6 +385,10 @@ impl engine_shared::State for State {
                             }
                             player.set_mentor(apprentice_id, mentor_id)?;
                         }
+                        ClientEvent::ReleaseDwarf(dwarf_id) => {
+                            let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
+                            dwarf.released = true;
+                        }
                         ClientEvent::ToggleManualManagement(dwarf_id) => {
                             let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
                             dwarf.manual_management = !dwarf.manual_management;
@@ -1097,13 +1101,14 @@ impl engine_shared::State for State {
                                             !player
                                                 .dwarfs
                                                 .get(&*dwarf_id)
-                                                .map(|d| d.dead())
+                                                .map(|d| d.dead() || d.released)
                                                 .unwrap_or(true)
                                         });
                                     }
                                 }
+                                
                                 // Remove dead dwarfs from the base.
-                                player.dwarfs.retain(|_, dwarf| !dwarf.dead());
+                                player.dwarfs.retain(|_, dwarf| !(dwarf.dead() || dwarf.released));
                             }
 
                             // Continue the active quests.
@@ -2028,6 +2033,8 @@ pub struct Dwarf {
     pub mentor: Option<DwarfId>,
     #[serde(default)]
     pub apprentice: Option<DwarfId>,
+    #[serde(default)]
+    pub released: bool,
 }
 
 impl Dwarf {
@@ -2113,6 +2120,7 @@ impl Dwarf {
             manual_management: false,
             mentor: None,
             apprentice: None,
+            released: false,
         }
     }
 
@@ -2133,6 +2141,7 @@ impl Dwarf {
             manual_management: false,
             mentor: None,
             apprentice: None,
+            released: false,
         }
     }
 
@@ -2458,6 +2467,7 @@ pub enum ClientEvent {
     ToggleManualManagement(DwarfId),
     SetMentor(DwarfId, Option<DwarfId>),
     Bid(usize),
+    ReleaseDwarf(DwarfId),
 }
 
 impl engine_shared::ClientEvent for ClientEvent {
