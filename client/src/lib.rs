@@ -11,6 +11,7 @@ use shared::{
 use strum::Display;
 use std::str::FromStr;
 use web_sys::js_sys::Date;
+use rustrict::CensorStr;
 
 #[derive(Clone, Copy, Display)]
 #[allow(unused)]
@@ -814,7 +815,7 @@ fn ranking(
                 img![attrs! {At::Src => Image::King.as_at_value()}],
                 if let Some(king) = state.king {
                     div![
-                        p![format!("All hail our King {}!", client_state.get_user_data(&king).map(|data| data.username.clone()).unwrap_or_default())],
+                        p![format!("All hail our King {}!", client_state.get_user_data(&king).map(|data| data.username.clone().censor()).unwrap_or_default())],
                         p![format!("Become the new king by being better in the quest {} than the current king.", QuestType::ForTheKing)]
                     ]
                 } else {
@@ -853,7 +854,7 @@ fn ranking(
                             "{}",
                             client_state
                                 .get_user_data(&user_id)
-                                .map(|data| data.username.clone())
+                                .map(|data| data.username.clone().censor())
                                 .unwrap_or_default()
                         ),
                         if is_dev {
@@ -2981,13 +2982,13 @@ fn chat(
                     state.chat.messages.iter().map(|(user_id, message, time)| {
                         let username = &client_state
                             .get_user_data(&user_id)
-                            .map(|data| data.username.clone())
+                            .map(|data| data.username.clone().censor())
                             .unwrap_or_default();
                         p![
                             C!["message"],
                             span![C!["time"], format!("{} ago, ", fmt_time(state.time - time))],
                             span![C!["username"], format!("{username}:")],
-                            span![C!["message"], format!("{message}")]
+                            span![C!["message"], format!("{}", message.censor())]
                         ]
                     }),
                 ],
@@ -3131,7 +3132,7 @@ fn history(
                                         "A new player has joined the game, say hi to {}!",
                                         client_state
                                             .get_user_data(&user_id)
-                                            .map(|data| data.username.clone())
+                                            .map(|data| data.username.clone().censor())
                                             .unwrap_or_default()
                                     )]
                                 }
