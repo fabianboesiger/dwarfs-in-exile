@@ -6,7 +6,7 @@ use images::Image;
 use itertools::Itertools;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, Stats, Time, TradeType, TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS
+    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, Stats, Time, TradeType, TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, MAX_EFFECTIVENESS, MAX_HEALTH, SPEED, WINNER_NUM_PREMIUM_DAYS
 };
 use strum::Display;
 use std::str::FromStr;
@@ -137,6 +137,7 @@ pub enum DwarfsMode {
 pub enum DwarfsSelect {
     Quest(QuestId, usize),
     Mentor(DwarfId),
+    Apprentice(DwarfId),
 }
 
 pub struct InventoryFilter {
@@ -303,6 +304,7 @@ pub enum Msg {
     ChangeEquipment(DwarfId, ItemType, Option<Item>),
     AssignToQuest(QuestId, usize, Option<DwarfId>),
     AssignMentor(DwarfId, Option<DwarfId>),
+    AssignApprentice(DwarfId, Option<DwarfId>),
     InventoryFilterOwned,
     InventoryFilterCraftable,
     InventoryFilterByType(ItemType),
@@ -462,6 +464,16 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
                 dwarf_id, mentor_id
             )));
         }
+        Msg::AssignApprentice(dwarf_id, mentor_id) => {
+            if mentor_id.is_some() {
+                orders.notify(subs::UrlRequested::new(
+                    Url::from_str(&format!("{}/dwarfs/{}", model.base_path(), mentor_id.unwrap())).unwrap(),
+                ));
+            }
+            orders.send_msg(Msg::send_event(ClientEvent::SetMentor(
+                dwarf_id, mentor_id
+            )));
+        }
         Msg::ChangeEquipment(dwarf_id, item_type, item) => {
             if item.is_some() {
                 orders.notify(subs::UrlRequested::new(
@@ -556,20 +568,20 @@ fn popup(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                                         tr![th![], th!["Inherent"]],
                                         tr![
                                             th!["Strength"],
-                                            td![stars(dwarf.stats.strength, true)],
+                                            td![stars(dwarf.stats.strength as u64, true)],
                                         ],
                                         tr![
                                             th!["Endurance"],
-                                            td![stars(dwarf.stats.endurance, true)],
+                                            td![stars(dwarf.stats.endurance as u64, true)],
                                         ],
-                                        tr![th!["Agility"], td![stars(dwarf.stats.agility, true)],],
+                                        tr![th!["Agility"], td![stars(dwarf.stats.agility as u64, true)],],
                                         tr![
                                             th!["Intelligence"],
-                                            td![stars(dwarf.stats.intelligence, true)],
+                                            td![stars(dwarf.stats.intelligence as u64, true)],
                                         ],
                                         tr![
                                             th!["Perception"],
-                                            td![stars(dwarf.stats.perception, true)],
+                                            td![stars(dwarf.stats.perception as u64, true)],
                                         ],
                                     ]]
                                 ],
@@ -633,7 +645,7 @@ fn popup(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                                                         if usefulness > 0 {
                                                             Some(span![
                                                                 format!("{} ", occupation),
-                                                                stars(usefulness, true)
+                                                                stars(usefulness as u64, true)
                                                             ])
                                                         } else {
                                                             None
@@ -1066,7 +1078,7 @@ fn dwarf_occupation(dwarf: &Dwarf, player: &Player) -> Node<Msg> {
                 },
                 br![],
                 if dwarf.occupation != Occupation::Idling {
-                    stars(dwarf.effectiveness(quest_type.occupation()) as i8, true)
+                    stars_occupation(dwarf, dwarf.occupation)
                 } else {
                     Node::Empty
                 }
@@ -1080,14 +1092,13 @@ fn dwarf_occupation(dwarf: &Dwarf, player: &Player) -> Node<Msg> {
                     )
                 } else {
                     format!(
-                        "{} since {}.",
+                        "Currently {}.",
                         dwarf.occupation,
-                        fmt_time(dwarf.occupation_duration)
                     )
                 },
                 br![],
                 if dwarf.occupation != Occupation::Idling {
-                    stars(dwarf.effectiveness(dwarf.occupation) as i8, true)
+                    stars_occupation(dwarf, dwarf.occupation)
                 } else {
                     Node::Empty
                 }
@@ -1104,14 +1115,13 @@ fn dwarf_occupation(dwarf: &Dwarf, player: &Player) -> Node<Msg> {
                 )
             } else {
                 format!(
-                    "{} since {}.",
+                    "Currently {}.",
                     dwarf.occupation,
-                    fmt_time(dwarf.occupation_duration)
                 )
             },
             br![],
             if dwarf.occupation != Occupation::Idling {
-                stars(dwarf.effectiveness(dwarf.occupation) as i8, true)
+                stars_occupation(dwarf, dwarf.occupation)
             } else {
                 Node::Empty
             }
@@ -1137,14 +1147,14 @@ fn dwarfs(
                 }
                 match sort {
                     DwarfsSort::LeastHealth => dwarf.health,
-                    DwarfsSort::BestIn(occupation) => u64::MAX - dwarf.effectiveness(occupation),
+                    DwarfsSort::BestIn(occupation) => u64::MAX - dwarf.effectiveness_not_normalized(occupation),
                     DwarfsSort::WorstAssigned => {
                         if let Some((quest_type, _, _)) = dwarf.participates_in_quest {
-                            dwarf.effectiveness(quest_type.occupation()) + 1
+                            dwarf.effectiveness_not_normalized(quest_type.occupation()) + 1
                         } else if dwarf.occupation == Occupation::Idling {
                             0
                         } else {
-                            dwarf.effectiveness(dwarf.occupation) + 1
+                            dwarf.effectiveness_not_normalized(dwarf.occupation) + 1
                         }
                     }
                 }
@@ -1208,6 +1218,26 @@ fn dwarfs(
                             attrs! {At::Src => Image::from_dwarf(&dwarf).as_at_value()}
                         ]],
                         td![
+                            div![
+                                C!["list-item-image-col"],
+                                dwarf.equipment.iter().map(|(_, item)| {
+                                    img![
+                                        attrs! {At::Src => Image::from(*item).as_at_value()}
+                                    ]
+                                }).chain(dwarf.apprentice.iter().filter_map(|apprentice_id| {
+                                    Some(img![
+                                        attrs! {At::Src => Image::from_dwarf(player.dwarfs.get(apprentice_id)?).as_at_value()}
+                                    ])
+                                })).chain(dwarf.mentor.iter().filter_map(|mentor_id| {
+                                    Some(img![
+                                        attrs! {At::Src => Image::from_dwarf(player.dwarfs.get(mentor_id)?).as_at_value()}
+                                    ])
+                                }))
+                            
+                            ]
+                            
+                        ],
+                        td![
                             C!["list-item-content"],
                             h3![C!["title"], dwarf.actual_name()],
                             p![
@@ -1246,16 +1276,14 @@ fn dwarfs(
                                             state.quests.get(&quest_id).unwrap().quest_type
                                         ),
                                         br![],
-                                        stars(
-                                            dwarf.effectiveness(
-                                                state
-                                                    .quests
-                                                    .get(&quest_id)
-                                                    .unwrap()
-                                                    .quest_type
-                                                    .occupation()
-                                            ) as i8,
-                                            true
+                                        stars_occupation(
+                                            dwarf,
+                                            state
+                                                .quests
+                                                .get(&quest_id)
+                                                .unwrap()
+                                                .quest_type
+                                                .occupation()
                                         )
                                     ]]
                                 }
@@ -1272,6 +1300,22 @@ fn dwarfs(
                                         )),
                                         format!(
                                             "Assign as Mentor",
+                                        ),
+                                    ]]
+                                }
+                                DwarfsMode::Select(DwarfsSelect::Apprentice(mentor_id)) => {
+                                    div![button![
+                                        if dwarf.is_adult() {
+                                            attrs! { At::Disabled => "true" }
+                                        } else {
+                                            attrs! {}
+                                        },
+                                        ev(Ev::Click, move |_| Msg::AssignApprentice(
+                                            id,
+                                            Some(mentor_id)
+                                        )),
+                                        format!(
+                                            "Assign as Apprentice",
                                         ),
                                     ]]
                                 }
@@ -1388,24 +1432,24 @@ fn dwarf(
                             table![tbody![
                                 tr![th![], th!["Inherent"], th!["Effective"]],
                                 tr![th!["Strength"],
-                                    td![stars(dwarf.stats.strength, true)],
-                                    td![stars(dwarf.effective_stats().strength, true)],
+                                    td![stars(dwarf.stats.strength as u64, true)],
+                                    td![stars(dwarf.effective_stats().strength as u64, true)],
                                 ],
                                 tr![th!["Endurance"],
-                                    td![stars(dwarf.stats.endurance, true)],
-                                    td![stars(dwarf.effective_stats().endurance, true)],
+                                    td![stars(dwarf.stats.endurance as u64, true)],
+                                    td![stars(dwarf.effective_stats().endurance as u64, true)],
                                 ],
                                 tr![th!["Agility"],
-                                    td![stars(dwarf.stats.agility, true)],
-                                    td![stars(dwarf.effective_stats().agility, true)],
+                                    td![stars(dwarf.stats.agility as u64, true)],
+                                    td![stars(dwarf.effective_stats().agility as u64, true)],
                                 ],
                                 tr![th!["Intelligence"],
-                                    td![stars(dwarf.stats.intelligence, true)],
-                                    td![stars(dwarf.effective_stats().intelligence, true)],
+                                    td![stars(dwarf.stats.intelligence as u64, true)],
+                                    td![stars(dwarf.effective_stats().intelligence as u64, true)],
                                 ],
                                 tr![th!["Perception"],
-                                    td![stars(dwarf.stats.perception, true)],
-                                    td![stars(dwarf.effective_stats().perception, true)],
+                                    td![stars(dwarf.stats.perception as u64, true)],
+                                    td![stars(dwarf.effective_stats().perception as u64, true)],
                                 ],
                             ]]
                         ],
@@ -1459,7 +1503,7 @@ fn dwarf(
                                                             if usefulness > 0 {
                                                                 Some(span![
                                                                     format!("{} ", occupation),
-                                                                    stars(usefulness, true)
+                                                                    stars(usefulness as u64, true)
                                                                 ])
                                                             } else {
                                                                 None
@@ -1525,7 +1569,7 @@ fn dwarf(
                                                 format!("{}", occupation),
                                             ],
                                             p![
-                                                stars(dwarf.effectiveness(occupation) as i8, true)
+                                                stars_occupation(dwarf, occupation)
                                             ],
                                             p![
                                                 button![
@@ -1567,57 +1611,116 @@ fn dwarf(
                             ]
                         }
                     } else {
-                        div![
-                            p!["This dwarf is too young to work. You can assign a mentor such that this dwarf can learn from the mentors occupation."],
-                            table![C!["list"],
-                                tr![
-                                    C!["list-item-row"],
-                                    if let Some(dwarf) = dwarf.mentor.map(|mentor| player.dwarfs.get(&mentor)).flatten() {
-                                        td![img![C!["list-item-image"], attrs! {At::Src => Image::from_dwarf(&dwarf).as_at_value()}]]
-                                    } else {
-                                        td![div![C!["list-item-image-placeholder"]]]
-                                    },
-                                    td![
-                                        C!["list-item-content"],
-                                        if let Some(dwarf) = dwarf.mentor.map(|mentor| player.dwarfs.get(&mentor)).flatten() {
-                                            vec![
-                                                h3![C!["title"], dwarf.actual_name()],
-                                                stars(dwarf.effectiveness(dwarf.actual_occupation()) as i8, true),
-                                            ]
+                        p!["This dwarf is still a child and can't work."]
+                    },
+                    div![
+                        h3!["Apprenticeship"],
+                        if dwarf.is_adult() {
+                            div![
+                                p!["Assign an apprentice such that they can learn from this dwarfs occupation."],
+                                table![C!["list"],
+                                    tr![
+                                        C!["list-item-row"],
+                                        if let Some(dwarf) = dwarf.apprentice.map(|apprentice| player.dwarfs.get(&apprentice)).flatten() {
+                                            td![img![C!["list-item-image"], attrs! {At::Src => Image::from_dwarf(&dwarf).as_at_value()}]]
                                         } else {
-                                            vec![
-                                                h3![C!["title"], "None"]
-                                            ]
+                                            td![div![C!["list-item-image-placeholder"]]]
                                         },
-                                        button![
-                                            ev(Ev::Click, move |_| Msg::ChangePage(Page::Dwarfs(DwarfsMode::Select(DwarfsSelect::Mentor(dwarf_id))))),
-                                            if dwarf.mentor.map(|mentor| player.dwarfs.get(&mentor)).flatten().is_some() {
-                                                "Change Mentor"
-                                            } else {
-                                                "Select Mentor"
-                                            }
-                                        ],
-                                        if dwarf.mentor.map(|mentor| player.dwarfs.get(&mentor)).flatten().is_some() {
-                                            vec![
-                                                button![
-                                                    ev(Ev::Click, move |_| Msg::AssignMentor(dwarf_id, None)),
-                                                    "Remove Mentor"
-                                                ],
-                                                a![
-                                                    C!["button"],
-                                                    attrs! { At::Href => format!("{}/dwarfs/{}", model.base_path(), dwarf.mentor.unwrap()) },
-                                                    "Dwarf Details"
+                                        td![
+                                            C!["list-item-content"],
+                                            if let Some(dwarf) = dwarf.apprentice.map(|apprentice| player.dwarfs.get(&apprentice)).flatten() {
+                                                vec![
+                                                    h3![C!["title"], dwarf.actual_name()],
+                                                    stars_occupation(dwarf, dwarf.actual_occupation()),
                                                 ]
-                                            ]
-                                        } else {
-                                            Vec::new()
-                                        }
+                                            } else {
+                                                vec![
+                                                    h3![C!["title"], "None"]
+                                                ]
+                                            },
+                                            button![
+                                                ev(Ev::Click, move |_| Msg::ChangePage(Page::Dwarfs(DwarfsMode::Select(DwarfsSelect::Apprentice(dwarf_id))))),
+                                                if dwarf.apprentice.map(|apprentice| player.dwarfs.get(&apprentice)).flatten().is_some() {
+                                                    "Change Apprentice"
+                                                } else {
+                                                    "Select Apprentice"
+                                                }
+                                            ],
+                                            if dwarf.apprentice.map(|apprentice| player.dwarfs.get(&apprentice)).flatten().is_some() {
+                                                let apprentice_id = dwarf.apprentice.unwrap();
+    
+                                                vec![
+                                                    button![
+                                                        ev(Ev::Click, move |_| Msg::AssignApprentice(apprentice_id, None)),
+                                                        "Remove Apprentice"
+                                                    ],
+                                                    a![
+                                                        C!["button"],
+                                                        attrs! { At::Href => format!("{}/dwarfs/{}", model.base_path(), apprentice_id) },
+                                                        "Dwarf Details"
+                                                    ]
+                                                ]
+                                            } else {
+                                                Vec::new()
+                                            }
+                                        ]
                                     ]
                                 ]
                             ]
-                        ]
-                        
-                    }
+                        } else {
+                            div![
+                                p!["You can assign a mentor such that this dwarf can learn from the mentors occupation."],
+                                table![C!["list"],
+                                    tr![
+                                        C!["list-item-row"],
+                                        if let Some(dwarf) = dwarf.mentor.map(|mentor| player.dwarfs.get(&mentor)).flatten() {
+                                            td![img![C!["list-item-image"], attrs! {At::Src => Image::from_dwarf(&dwarf).as_at_value()}]]
+                                        } else {
+                                            td![div![C!["list-item-image-placeholder"]]]
+                                        },
+                                        td![
+                                            C!["list-item-content"],
+                                            if let Some(dwarf) = dwarf.mentor.map(|mentor| player.dwarfs.get(&mentor)).flatten() {
+                                                vec![
+                                                    h3![C!["title"], dwarf.actual_name()],
+                                                    stars_occupation(dwarf, dwarf.actual_occupation()),
+                                                ]
+                                            } else {
+                                                vec![
+                                                    h3![C!["title"], "None"]
+                                                ]
+                                            },
+                                            button![
+                                                ev(Ev::Click, move |_| Msg::ChangePage(Page::Dwarfs(DwarfsMode::Select(DwarfsSelect::Mentor(dwarf_id))))),
+                                                if dwarf.mentor.map(|mentor| player.dwarfs.get(&mentor)).flatten().is_some() {
+                                                    "Change Mentor"
+                                                } else {
+                                                    "Select Mentor"
+                                                }
+                                            ],
+                                            if dwarf.mentor.map(|mentor| player.dwarfs.get(&mentor)).flatten().is_some() {
+                                                vec![
+                                                    button![
+                                                        ev(Ev::Click, move |_| Msg::AssignMentor(dwarf_id, None)),
+                                                        "Remove Mentor"
+                                                    ],
+                                                    a![
+                                                        C!["button"],
+                                                        attrs! { At::Href => format!("{}/dwarfs/{}", model.base_path(), dwarf.mentor.unwrap()) },
+                                                        "Dwarf Details"
+                                                    ]
+                                                ]
+                                            } else {
+                                                Vec::new()
+                                            }
+                                        ]
+                                    ]
+                                ]
+                            ]
+                            
+                        }
+                    ]
+                    
 
                 ]
             ]
@@ -1843,7 +1946,7 @@ fn quest(
                                 if let Some(dwarf) = dwarf {
                                     vec![
                                         h3![C!["title"], dwarf.actual_name()],
-                                        stars(dwarf.effectiveness(state.quests.get(&quest_id).unwrap().quest_type.occupation()) as i8, true),
+                                        stars_occupation(dwarf, state.quests.get(&quest_id).unwrap().quest_type.occupation()),
                                     ]
                                 } else {
                                     vec![
@@ -2467,7 +2570,7 @@ fn inventory(
                                         if usefulness > 0 {
                                             Some(span![
                                                 format!("{} ", occupation),
-                                                stars(usefulness, true)
+                                                stars(usefulness as u64, true)
                                             ])
                                         } else {
                                             None
@@ -3310,7 +3413,7 @@ fn stats(stats: &Stats) -> Node<Msg> {
 
     span![itertools::intersperse(
         v.into_iter()
-            .map(|(num, abv)| span![format!("{abv} "), stars(num, false)]),
+            .map(|(num, abv)| span![format!("{abv} "), stars(num as u64, false)]),
         br![]
     )]
 }
@@ -3341,15 +3444,19 @@ fn stats_simple(stats: &Stats) -> String {
     v.into_iter().join(", ")
 }
 
-fn stars(stars: i8, padded: bool) -> Node<Msg> {
+fn stars_occupation(dwarf: &Dwarf, occupation: Occupation) -> Node<Msg> {
+    let s = dwarf.effectiveness_not_normalized(occupation) * 10 / MAX_EFFECTIVENESS;
+
+    stars(s, true)
+}
+
+fn stars(stars: u64, padded: bool) -> Node<Msg> {
+
     let mut s = Vec::new();
-    if stars < 0 {
-        s.push(span!["-"]);
-    }
-    for _ in 0..(stars.abs() / 2) {
+    for _ in 0..(stars / 2) {
         s.push(Icon::StarFull.draw());
     }
-    if stars.abs() % 2 == 1 {
+    if stars % 2 == 1 {
         s.push(if padded {
             Icon::StarHalf.draw()
         } else {
@@ -3357,7 +3464,7 @@ fn stars(stars: i8, padded: bool) -> Node<Msg> {
         });
     }
     if padded {
-        for _ in 0..((10 - stars.abs()) / 2) {
+        for _ in 0..((10 - stars) / 2) {
             s.push(Icon::StarEmpty.draw());
         }
     }

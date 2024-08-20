@@ -823,3 +823,14 @@ a {
 .formset > *:last-child {
     margin-bottom: 0;
 }
+
+.list-item-image-col {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+}
+
+.list-item-image-col > img {
+    width: 32px;
+    height: 32px;
+}
