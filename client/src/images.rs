@@ -170,6 +170,9 @@ pub enum Image {
     Socializing,
     HotAirBalloon,
     HorseCarriage,
+    Carnival,
+    TheElvenMagician,
+    FullMoon,
 }
 
 impl AsAtValue for Image {
@@ -377,6 +380,7 @@ impl From<QuestType> for Image {
             QuestType::MagicalBerries => Image::MagicalBerries,
             QuestType::EatingContest => Image::EatingContest,
             QuestType::Socializing => Image::Socializing,
+            QuestType::TheElvenMagician => Image::TheElvenMagician,
         }
     }
 }
@@ -423,6 +427,8 @@ impl From<WorldEvent> for Image {
             WorldEvent::Earthquake => Image::Earthquake,
             WorldEvent::Plague => Image::Plague,
             WorldEvent::Tornado => Image::Tornado,
+            WorldEvent::Carnival => Image::Carnival,
+            WorldEvent::FullMoon => Image::FullMoon,
         }
     }
 }

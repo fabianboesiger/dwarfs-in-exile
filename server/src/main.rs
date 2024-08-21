@@ -37,16 +37,20 @@ use tower_sessions_sqlx_store::SqliteStore;
 pub const USER_ID_KEY: &str = "user_id";
 
 async fn set_static_cache_control(request: Request, next: Next) -> Response<Body> {
-    if request.uri().to_string().ends_with(".jpg") {
+    let cache_uri = request.uri().to_string();
+
+    if cache_uri.contains(".jpg")
+        || cache_uri.contains(".png")
+    {
         let mut response = next.run(request).await;
         response.headers_mut().insert(
             header::CACHE_CONTROL,
             HeaderValue::from_static("public, max-age=2592000"),
         );
         response
-    } else if request.uri().to_string().ends_with(".wasm")
-        || request.uri().to_string().ends_with(".js")
-        || request.uri().to_string().ends_with(".css")
+    } else if cache_uri.contains(".wasm")
+        || cache_uri.contains(".js")
+        || cache_uri.contains(".css")
     {
         let mut response = next.run(request).await;
         response.headers_mut().insert(

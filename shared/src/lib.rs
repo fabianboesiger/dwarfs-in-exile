@@ -61,6 +61,8 @@ pub enum WorldEvent {
     Earthquake,
     Plague,
     Tornado,
+    Carnival,
+    FullMoon,
 }
 
 impl WorldEvent {
@@ -82,14 +84,23 @@ impl WorldEvent {
                 WorldEvent::Tornado,
                 Occupation::Logging | Occupation::Farming | Occupation::Gathering,
             ) => 3,
+            (
+                WorldEvent::Carnival,
+                _,
+            ) => 2,
+            (
+                WorldEvent::FullMoon,
+                _,
+            ) => 2,
             _ => 1,
         }
     }
 
     fn new_dwarfs_multiplier(&self) -> u32 {
         match self {
-            WorldEvent::Earthquake => 7,
-            WorldEvent::Tornado => 7,
+            WorldEvent::Earthquake => 5,
+            WorldEvent::Tornado => 5,
+            WorldEvent::Carnival => 7,
             _ => 1,
         }
     }
@@ -103,6 +114,8 @@ impl std::fmt::Display for WorldEvent {
             WorldEvent::Earthquake => write!(f, "Earthquake"),
             WorldEvent::Plague => write!(f, "Plague"),
             WorldEvent::Tornado => write!(f, "Tornado"),
+            WorldEvent::Carnival => write!(f, "Carnival"),
+            WorldEvent::FullMoon => write!(f, "Full Moon"),
         }
     }
 }
@@ -765,11 +778,11 @@ impl engine_shared::State for State {
                             self.time += 1;
 
                             if self.event.is_some() {
-                                if rng.gen_ratio(1, ONE_DAY as u32) {
+                                if rng.gen_ratio(1, ONE_DAY as u32 / 2) {
                                     self.event = None;
                                 }
                             } else {
-                                if rng.gen_ratio(1, ONE_DAY as u32) {
+                                if rng.gen_ratio(1, ONE_DAY as u32  / 2) {
                                     self.event = Some(enum_iterator::all().choose(rng).unwrap());
                                 }
                             }
@@ -819,9 +832,14 @@ impl engine_shared::State for State {
                                     .count();
 
                                 // Chance for a new baby dwarf!
+                                let baby_dwarf_multiplier = if matches!(self.event, Some(WorldEvent::FullMoon)) {
+                                    5
+                                } else {
+                                    1
+                                };
                                 if rng.gen_ratio(
-                                    male_idle_dwarfs.min(female_idle_dwarfs) as u32,
-                                    ONE_DAY as u32 / 4,
+                                    male_idle_dwarfs.min(female_idle_dwarfs) as u32 * baby_dwarf_multiplier,
+                                    ONE_DAY as u32 / 2,
                                 ) {
                                     player.new_dwarf(rng, &mut self.next_dwarf_id, self.time, true);
                                 }
@@ -2560,6 +2578,7 @@ pub enum QuestType {
     MagicalBerries,
     EatingContest,
     Socializing,
+    TheElvenMagician,
 }
 
 impl std::fmt::Display for QuestType {
@@ -2589,6 +2608,7 @@ impl std::fmt::Display for QuestType {
             QuestType::MagicalBerries => write!(f, "Magical Berries"),
             QuestType::EatingContest => write!(f, "Eating Contest"),
             QuestType::Socializing => write!(f, "Socializing in the Tavern"),
+            QuestType::TheElvenMagician => write!(f, "The Elven Magician"),
         }
     }
 }
@@ -2631,6 +2651,7 @@ impl QuestType {
             Self::MagicalBerries => RewardMode::SplitFairly(1000),
             Self::EatingContest => RewardMode::SplitFairly(1000),
             Self::Socializing => RewardMode::NewDwarfByChance(3),
+            Self::TheElvenMagician => RewardMode::SplitFairly(2000),
         }
     }
 
@@ -2664,6 +2685,7 @@ impl QuestType {
             Self::MagicalBerries => ONE_HOUR * 2,
             Self::EatingContest => ONE_HOUR * 2,
             Self::Socializing => ONE_HOUR * 2,
+            Self::TheElvenMagician => ONE_HOUR * 4,
         }
     }
 
@@ -2693,6 +2715,7 @@ impl QuestType {
             Self::MagicalBerries => Occupation::Gathering,
             Self::EatingContest => Occupation::Idling,
             Self::Socializing => Occupation::Idling,
+            Self::TheElvenMagician => Occupation::Gathering,
         }
     }
 
@@ -2722,6 +2745,7 @@ impl QuestType {
             Self::MagicalBerries => 3,
             Self::EatingContest => 1,
             Self::Socializing => 1,
+            Self::TheElvenMagician => 1,
         }
     }
 
@@ -2734,6 +2758,7 @@ impl QuestType {
             Self::FreeTheDwarf => (20..60).contains(&level),
             Self::ADwarfGotLost => (10..70).contains(&level),
             Self::CrystalsForTheElves => (30..60).contains(&level),
+            Self::TheElvenMagician => (30..60).contains(&level),
             Self::ElvenVictory => (50..60).contains(&level),
             Self::ADarkSecret => (70..80).contains(&level),
             Self::TheMassacre => (70..80).contains(&level),
