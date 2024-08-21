@@ -1130,6 +1130,95 @@ fn dwarf_occupation(dwarf: &Dwarf, player: &Player) -> Node<Msg> {
     
 }
 
+fn dwarf_image(dwarf: Option<&Dwarf>, player: &Player) -> Vec<Node<Msg>> {
+    if let Some(dwarf) = dwarf {
+        vec![
+            td![
+                img![
+                    C!["list-item-image"],
+                    attrs! {At::Src => Image::from_dwarf(&dwarf).as_at_value()}
+                ],
+                if let Some(apprentice) = dwarf.apprentice.and_then(|id| player.dwarfs.get(&id)) {
+                    img![
+                        C!["list-item-image-corner"],
+                        attrs! {At::Src => Image::from_dwarf(&apprentice).as_at_value()},
+                    ]
+                } else {
+                    Node::Empty
+                },
+                if let Some(mentor) = dwarf.mentor.and_then(|id| player.dwarfs.get(&id)) {
+                    img![
+                        C!["list-item-image-corner"],
+                        attrs! {At::Src => Image::from_dwarf(&mentor).as_at_value()},
+                    ]
+                } else {
+                    Node::Empty
+                }
+            ],
+            td![
+                div![
+                    C!["list-item-image-col"],
+                    enum_iterator::all::<ItemType>().filter(ItemType::equippable).map(|item_type| {
+                        let equipment = dwarf.equipment.get(&item_type);
+                        if let Some(equipment) = equipment {
+                            img![ attrs! { At::Src => Image::from(*equipment).as_at_value() } ]
+                        } else {
+                            div![C!["placeholder"]]
+                        }
+                    })
+                
+                ]
+                
+            ]
+        ]
+    } else {
+        vec![
+            td![div![C!["list-item-image", "placeholder"]]],
+            td![
+                div![
+                    C!["list-item-image-col"],
+                    enum_iterator::all::<ItemType>().filter(ItemType::equippable).map(|_| {
+                        div![C!["placeholder"]]
+                    })
+                ]    
+            ]
+        ]
+    }
+
+    
+}
+
+fn dwarf_details(dwarf: Option<&Dwarf>, player: &Player) -> Vec<Node<Msg>> {
+    if let Some(dwarf) = dwarf {
+        vec![
+            h3![C!["title"], dwarf.actual_name()],
+            p![
+                C!["subtitle"],
+                format!("{}, {} Years old.", if dwarf.is_female {
+                    "Female"
+                } else {
+                    "Male"
+                }, dwarf.age_years()),
+                if let Some(apprentice) = dwarf.apprentice.and_then(|id| player.dwarfs.get(&id)) {
+                    format!(" Mentor of {}.", apprentice.actual_name())
+                } else {
+                    String::new()
+                },
+                if let Some(mentor) = dwarf.mentor.and_then(|id| player.dwarfs.get(&id)) {
+                    format!(" Apprentice of {}.", mentor.actual_name())
+                } else {
+                    String::new()
+                },
+                br![],
+                dwarf_occupation(dwarf, player),
+                health_bar(dwarf.health, MAX_HEALTH),
+            ]
+        ]
+    } else {
+        vec![h3![C!["title"], "None"]]
+    }
+}
+
 fn dwarfs(
     model: &Model,
     state: &shared::State,
@@ -1138,7 +1227,14 @@ fn dwarfs(
 ) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
         if player.dwarfs.len() > 0 {
-            let mut dwarfs = player.dwarfs.iter().collect::<Vec<_>>();
+            let mut dwarfs = player.dwarfs.iter().filter(|(_, dwarf)| {
+                match mode {
+                    DwarfsMode::Select(DwarfsSelect::Mentor(_)) => dwarf.is_adult(),
+                    DwarfsMode::Select(DwarfsSelect::Apprentice(_)) => !dwarf.is_adult(),
+                    _ => true,
+                }
+            }).collect::<Vec<_>>();
+
             dwarfs.sort_by_key(|(_, dwarf)| {
                 let mut sort = model.dwarfs_filter.sort;
                 if let DwarfsMode::Select(DwarfsSelect::Quest(quest_id, _dwarf_idx)) = mode {
@@ -1213,44 +1309,10 @@ fn dwarfs(
                     }).map(|(&id, dwarf)| tr![
                         C!["dwarf", format!("dwarf-{}", id)],
                         C!["list-item-row"],
-                        td![img![
-                            C!["list-item-image"],
-                            attrs! {At::Src => Image::from_dwarf(&dwarf).as_at_value()}
-                        ]],
+                        dwarf_image(Some(dwarf), player),
                         td![
-                            div![
-                                C!["list-item-image-col"],
-                                dwarf.equipment.iter().map(|(_, item)| {
-                                    img![
-                                        attrs! {At::Src => Image::from(*item).as_at_value()}
-                                    ]
-                                }).chain(dwarf.apprentice.iter().filter_map(|apprentice_id| {
-                                    Some(img![
-                                        attrs! {At::Src => Image::from_dwarf(player.dwarfs.get(apprentice_id)?).as_at_value()}
-                                    ])
-                                })).chain(dwarf.mentor.iter().filter_map(|mentor_id| {
-                                    Some(img![
-                                        attrs! {At::Src => Image::from_dwarf(player.dwarfs.get(mentor_id)?).as_at_value()}
-                                    ])
-                                }))
-                            
-                            ]
-                            
-                        ],
-                        td![
-                            C!["list-item-content"],
-                            h3![C!["title"], dwarf.actual_name()],
-                            p![
-                                C!["subtitle"],
-                                format!("{}, {} Years old.", if dwarf.is_female {
-                                    "Female"
-                                } else {
-                                    "Male"
-                                }, dwarf.age_years()),
-                                br![],
-                                dwarf_occupation(dwarf, player),
-                            ],
-                            health_bar(dwarf.health, MAX_HEALTH),
+                            C!["list-item-content", "grow"],
+                            dwarf_details(Some(dwarf), player),
                             p![match mode {
                                 DwarfsMode::Overview => {
                                     a![
@@ -1465,9 +1527,9 @@ fn dwarf(
                                 if let Some(equipment) = equipment {
                                     td![img![C!["list-item-image"], attrs! { At::Src => Image::from(*equipment).as_at_value() } ]]
                                 } else {
-                                    td![div![C!["list-item-image-placeholder"]]]
+                                    td![div![C!["list-item-image", "placeholder"]]]
                                 },
-                                td![C!["list-item-content", "grow"],
+                                td![C!["list-item-content"],
                                     h3![C!["title"],
                                         equipment.map(|equipment| format!("{equipment}")).unwrap_or("None".to_owned())
                                     ],
@@ -1519,7 +1581,7 @@ fn dwarf(
                                         Vec::new()
                                     }
                                 ],
-                                td![C!["list-item-content", "shrink"],
+                                td![C!["list-item-content"],
                                     button![
                                         ev(Ev::Click, move |_| Msg::ChangePage(Page::Inventory(
                                             InventoryMode::Select(InventorySelect::Equipment(
@@ -1564,7 +1626,7 @@ fn dwarf(
                                     let all_items = enum_iterator::all::<Item>().filter_map(|item| item.item_probability(occupation).map(|_| item)).collect::<Vec<_>>();
                                     tr![C!["list-item-row", if occupation == dwarf.occupation { "selected" } else { "" }],
                                         td![img![C!["list-item-image"], attrs! { At::Src => Image::from(occupation).as_at_value() } ]],
-                                        td![C!["list-item-content", "grow"],
+                                        td![C!["list-item-content"],
                                             h3![C!["title"],
                                                 format!("{}", occupation),
                                             ],
@@ -1596,7 +1658,7 @@ fn dwarf(
                                                 Node::Empty
                                             },*/
                                         ],
-                                        td![C!["list-item-content", "shrink"],
+                                        td![C!["list-item-content"],
                                             h4![C!["title"], "Requires"],
                                             p![C!["subtitle"],stats_simple(&occupation.requires_stats())],
                                             h4![C!["title"], "Provides"],
@@ -1621,23 +1683,10 @@ fn dwarf(
                                 table![C!["list"],
                                     tr![
                                         C!["list-item-row"],
-                                        if let Some(dwarf) = dwarf.apprentice.map(|apprentice| player.dwarfs.get(&apprentice)).flatten() {
-                                            td![img![C!["list-item-image"], attrs! {At::Src => Image::from_dwarf(&dwarf).as_at_value()}]]
-                                        } else {
-                                            td![div![C!["list-item-image-placeholder"]]]
-                                        },
+                                        dwarf_image(dwarf.apprentice.and_then(|apprentice| player.dwarfs.get(&apprentice)), player),
                                         td![
-                                            C!["list-item-content"],
-                                            if let Some(dwarf) = dwarf.apprentice.map(|apprentice| player.dwarfs.get(&apprentice)).flatten() {
-                                                vec![
-                                                    h3![C!["title"], dwarf.actual_name()],
-                                                    stars_occupation(dwarf, dwarf.actual_occupation()),
-                                                ]
-                                            } else {
-                                                vec![
-                                                    h3![C!["title"], "None"]
-                                                ]
-                                            },
+                                            C!["list-item-content", "grow"],
+                                            dwarf_details(dwarf.apprentice.and_then(|apprentice| player.dwarfs.get(&apprentice)), player),
                                             button![
                                                 ev(Ev::Click, move |_| Msg::ChangePage(Page::Dwarfs(DwarfsMode::Select(DwarfsSelect::Apprentice(dwarf_id))))),
                                                 if dwarf.apprentice.map(|apprentice| player.dwarfs.get(&apprentice)).flatten().is_some() {
@@ -1673,23 +1722,10 @@ fn dwarf(
                                 table![C!["list"],
                                     tr![
                                         C!["list-item-row"],
-                                        if let Some(dwarf) = dwarf.mentor.map(|mentor| player.dwarfs.get(&mentor)).flatten() {
-                                            td![img![C!["list-item-image"], attrs! {At::Src => Image::from_dwarf(&dwarf).as_at_value()}]]
-                                        } else {
-                                            td![div![C!["list-item-image-placeholder"]]]
-                                        },
+                                        dwarf_image(dwarf.apprentice.and_then(|apprentice| player.dwarfs.get(&apprentice)), player),
                                         td![
-                                            C!["list-item-content"],
-                                            if let Some(dwarf) = dwarf.mentor.map(|mentor| player.dwarfs.get(&mentor)).flatten() {
-                                                vec![
-                                                    h3![C!["title"], dwarf.actual_name()],
-                                                    stars_occupation(dwarf, dwarf.actual_occupation()),
-                                                ]
-                                            } else {
-                                                vec![
-                                                    h3![C!["title"], "None"]
-                                                ]
-                                            },
+                                            C!["list-item-content", "grow"],
+                                            dwarf_details(dwarf.apprentice.and_then(|apprentice| player.dwarfs.get(&apprentice)), player),
                                             button![
                                                 ev(Ev::Click, move |_| Msg::ChangePage(Page::Dwarfs(DwarfsMode::Select(DwarfsSelect::Mentor(dwarf_id))))),
                                                 if dwarf.mentor.map(|mentor| player.dwarfs.get(&mentor)).flatten().is_some() {
@@ -1789,7 +1825,11 @@ fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                 })
             }).map(|(quest_id, quest)| {
                 tr![
-                    C!["list-item-row"],
+                    C!["list-item-row", match quest.quest_type.reward_mode() {
+                        RewardMode::BestGetsAll(_) | RewardMode::BestGetsItems(_) | RewardMode::NewDwarf(_) | RewardMode::BecomeKing => "reward-mode-best",
+                        RewardMode::SplitFairly(_) => "reward-mode-fair",
+                        RewardMode::ItemsByChance(_) | RewardMode::NewDwarfByChance(_) => "reward-mode-chance",
+                    }],
                     td![img![
                         C!["list-item-image"],
                         attrs! {At::Src => Image::from(quest.quest_type).as_at_value()}
@@ -1936,23 +1976,10 @@ fn quest(
                         let dwarf = dwarf_id.map(|dwarf_id| player.dwarfs.get(&dwarf_id).unwrap());
                         tr![
                             C!["list-item-row"],
-                            if let Some(dwarf) = dwarf {
-                                td![img![C!["list-item-image"], attrs! {At::Src => Image::from_dwarf(&dwarf).as_at_value()}]]
-                            } else {
-                                td![div![C!["list-item-image-placeholder"]]]
-                            },
+                            dwarf_image(dwarf, player),
                             td![
-                                C!["list-item-content"],
-                                if let Some(dwarf) = dwarf {
-                                    vec![
-                                        h3![C!["title"], dwarf.actual_name()],
-                                        stars_occupation(dwarf, state.quests.get(&quest_id).unwrap().quest_type.occupation()),
-                                    ]
-                                } else {
-                                    vec![
-                                        h3![C!["title"], "None"]
-                                    ]
-                                },
+                                C!["list-item-content", "grow"],
+                                dwarf_details(dwarf, player),
                                 button![
                                     ev(Ev::Click, move |_| Msg::ChangePage(Page::Dwarfs(DwarfsMode::Select(DwarfsSelect::Quest(quest_id, dwarf_idx))))),
                                     if dwarf_id.is_some() {
@@ -2365,15 +2392,16 @@ fn inventory(
     mode: InventoryMode,
 ) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
+        log!("is premium");
         let is_premium = model
             .state
             .get_user_data(user_id)
             .map(|user_data| user_data.premium > 0)
             .unwrap_or(false);
 
+        log!("bundle items");
         let items: Bundle<Item> = enum_iterator::all::<Item>()
-            .map(|t| (t, 0))
-            .chain(player.inventory.items.iter().map(|(item, n)| (*item, *n)))
+            .map(|t| (t, player.inventory.items.get(&t).copied().unwrap_or(0)))
             .collect();
 
         div![
@@ -2434,6 +2462,8 @@ fn inventory(
             table![
                 C!["items", "list"],
                 {
+                    log!("filter items");
+
                     let mut sort = model.inventory_filter.sort;
                     if let InventoryMode::Select(InventorySelect::Equipment(dwarf_id, _item_type)) =
                         mode
@@ -2450,6 +2480,8 @@ fn inventory(
                 }
                 .into_iter()
                 .filter(|(item, n)| {
+                    log!("filtering item", item);
+
                     item.to_string()
                         .to_lowercase()
                         .contains(&model.inventory_filter.item_name.to_lowercase().trim())
@@ -2495,7 +2527,10 @@ fn inventory(
                             true
                         }
                 })
-                .map(|(item, n)| tr![
+                .map(|(item, n)| {
+                    log!("rendering item", item);
+
+                    tr![
                     C!["item"],
                     C!["list-item-row"],
                     match item.item_rarity() {
@@ -2510,7 +2545,7 @@ fn inventory(
                         attrs! {At::Src => Image::from(item).as_at_value()}
                     ]],
                     td![
-                        C!["list-item-content", "grow"],
+                        C!["list-item-content"],
                         h3![C!["title"], format!("{} {item}", big_number(n))],
                         p![
                             C!["subtitle"],
@@ -2587,7 +2622,7 @@ fn inventory(
                         mode
                     {
                         td![
-                            C!["list-item-content", "shrink"],
+                            C!["list-item-content"],
                             button![
                                 ev(Ev::Click, move |_| Msg::ChangeEquipment(
                                     dwarf_id,
@@ -2599,7 +2634,7 @@ fn inventory(
                         ]
                     } else {
                         td![
-                            C!["list-item-content", "shrink"],
+                            C!["list-item-content"],
                             if let Some((level, requires)) = item.requires() {
                                 vec![
                                     h4!["Crafting"],
@@ -2854,7 +2889,7 @@ fn inventory(
                             */
                         ]
                     }
-                ]),
+                ]}),
             ]
         ]
     } else {
@@ -3004,22 +3039,14 @@ fn trades(
                         attrs! {At::Src => Image::from(item).as_at_value()}
                     ]],
                     td![
-                        C!["list-item-content", "grow"],
-                        h3![C!["title"], "Offer"],
-                        if trade_deal.user_trade_type == TradeType::Buy {
-                            p![C!["subtitle"], format!("{} {item}", big_number(n))]
-                        } else {
-                            p![C!["subtitle"], format!("{} coins", trade_deal.next_bid)]
-                        },
-                        h4![C!["title"], "Cost"],
-                        if trade_deal.user_trade_type == TradeType::Sell {
-                            p![C!["subtitle"], format!("{} {item}", big_number(n))]
-                        } else {
-                            p![C!["subtitle"], format!("{} coins", trade_deal.next_bid)]
-                        },
+                        C!["list-item-content"],
+                        h3![C!["title"], if trade_deal.user_trade_type == TradeType::Buy { "Buy Offer" } else { "Sell Offer" } ],
+                        p![C!["subtitle"], format!("{} {item}", big_number(n))],
+                        h4![C!["title"], if trade_deal.user_trade_type == TradeType::Buy { "Cost" } else { "Payout" } ],
+                        p![C!["subtitle"], format!("{} coins", trade_deal.next_bid)],
                     ],
                     td![
-                        C!["list-item-content", "shrink"],
+                        C!["list-item-content"],
                         p![format!("Deal ends in {}.", fmt_time(trade_deal.time_left))],
                         if !can_afford && !highest_bidder_is_you {
                             p![format!("You can't afford this deal.")]

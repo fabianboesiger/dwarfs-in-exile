@@ -296,6 +296,7 @@ td {
     border-bottom: 1px solid var(--ui-background-default);
     border-top: 1px solid var(--ui-background-default);
     background: rgba(255, 255, 255, 0.3);
+    position: relative;
 }
 
 nav {
@@ -340,7 +341,7 @@ nav a.button.active {
     padding: 8px;
     box-sizing: border-box;
     box-shadow: 0 8px 8px -8px black;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
 }
 
 .filter > * {
@@ -522,6 +523,10 @@ input[type="checkbox"] {
     vertical-align: top;
 }
 
+.list td.grow {
+    width: 100%;
+}
+
 .list td.list-item-content > *:first-child {
     margin-top: 0;
 }
@@ -536,12 +541,11 @@ input[type="checkbox"] {
 
 .list td .list-item-image {
     width: 128px;
+    height: 128px;
     flex-grow: 0;
 }
 
-.list td .list-item-image-placeholder {
-    width: 128px;
-    height: 128px;
+.list td .placeholder {
     background: rgba(0, 0, 0, 0.3);
     flex-grow: 0;
 }
@@ -601,6 +605,23 @@ h4,
 .item-legendary {
     background: rgba(194, 110, 0, 0.3);
 }
+
+.reward-mode-best {
+    background: rgba(205, 27, 0, 0.3);
+}
+
+.reward-mode-best {
+    background: rgba(205, 0, 0, 0.3);
+}
+
+.reward-mode-chance {
+    background: rgba(205, 205, 0, 0.3);
+}
+
+.reward-mode-fair {
+    background: rgba(0, 205, 0, 0.3);
+}
+
 
 .list-item-row.selected {
     background: rgba(0, 0, 0, 0.3);
@@ -830,7 +851,16 @@ a {
     flex-wrap: nowrap;
 }
 
-.list-item-image-col > img {
+.list-item-image-col > * {
     width: 32px;
     height: 32px;
+    outline: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.list-item-image-corner {
+    width: 48px;
+    height: 48px;
+    position: absolute;
+    top: 80px;
+    left: 80px;
 }

@@ -311,6 +311,8 @@ impl State {
             }
         }
     }
+
+    
 }
 
 impl engine_shared::State for State {
@@ -362,54 +364,17 @@ impl engine_shared::State for State {
                             }
                         }
                         ClientEvent::SetMentor(apprentice_id, mentor_id) => {
-                            println!("Set mentor {:?} for {:?}", mentor_id, apprentice_id);
-
-
-                            if let Some(mentor_id) = mentor_id {
-                                let apprentice = player.dwarfs.get(&apprentice_id)?;
-                                if apprentice.is_adult() {
-                                    return None;
-                                }
-                                let mentor = player.dwarfs.get(&mentor_id)?;
-                                if !mentor.is_adult() {
-                                    return None;
-                                }
+                        if let Some(mentor_id) = mentor_id {
+                            let apprentice = player.dwarfs.get(&apprentice_id)?;
+                            if apprentice.is_adult() {
+                                return None;
                             }
-
-                            println!("ages check ok");
-
-                            let old_apprentice = if let Some(mentor_id) = mentor_id {
-                                let mentor = player.dwarfs.get_mut(&mentor_id)?;
-                                mentor.apprentice.replace(apprentice_id)
-                            } else {
-                                let apprentice = player.dwarfs.get(&apprentice_id)?;
-                                if let Some(mentor_id) = apprentice.mentor {
-                                    let mentor = player.dwarfs.get_mut(&mentor_id)?;
-                                    mentor.apprentice.take()
-                                } else {
-                                    None
-                                }
-                            };
-                            if let Some(old_apprentice) = old_apprentice {
-                                let apprentice = player.dwarfs.get_mut(&old_apprentice)?;
-                                if apprentice.mentor != mentor_id {
-                                    apprentice.mentor = None;
-                                }
+                            let mentor = player.dwarfs.get(&mentor_id)?;
+                            if !mentor.is_adult() {
+                                return None;
                             }
-
-                            let apprentice = player.dwarfs.get_mut(&apprentice_id)?;
-                            let old_mentor = if let Some(mentor_id) = mentor_id {
-                                apprentice.mentor.replace(mentor_id)
-                            } else {
-                                apprentice.mentor.take()
-                            };
-                            if let Some(old_mentor) = old_mentor {
-                                let mentor = player.dwarfs.get_mut(&old_mentor)?;
-                                if mentor.apprentice != Some(apprentice_id) {
-                                    mentor.apprentice = None;
-                                }
-                            }
-
+                        }
+                            player.set_mentor(apprentice_id, mentor_id)?;
                         }
                         ClientEvent::ToggleManualManagement(dwarf_id) => {
                             let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
@@ -861,6 +826,9 @@ impl engine_shared::State for State {
                                     player.new_dwarf(rng, &mut self.next_dwarf_id, self.time, true);
                                 }
 
+                                let mut became_adult = CustomSet::new();
+                                let mut died = CustomSet::new();
+
                                 // Let the dwarfs eat!
                                 let health_cost_multiplier = match self.event {
                                     Some(WorldEvent::Plague) => {
@@ -868,10 +836,9 @@ impl engine_shared::State for State {
                                     }
                                     _ => 1,
                                 };
-                                let mut sorted_by_health =
-                                    player.dwarfs.values_mut().collect::<Vec<_>>();
-                                sorted_by_health.sort_by_key(|dwarf| dwarf.health);
-                                for dwarf in sorted_by_health {
+                                let mut sorted_by_health = player.dwarfs.iter_mut().collect::<Vec<_>>();
+                                sorted_by_health.sort_by_key(|(_, dwarf)| dwarf.health);
+                                for (dwarf_id, dwarf) in sorted_by_health {
                                     dwarf.decr_health(
                                         dwarf.actual_occupation().health_cost_per_second()
                                             * health_cost_multiplier,
@@ -911,12 +878,10 @@ impl engine_shared::State for State {
                                             }
                                         }
                                         if !is_adult_before && dwarf.is_adult() {
-                                            player.log.add(
-                                                self.time,
-                                                LogMsg::DwarfIsAdult(dwarf.actual_name().to_owned()),
-                                            );
-                                            dwarf.mentor = None;
+                                            became_adult.insert(*dwarf_id);
                                         }
+                                    } else {
+                                        died.insert(*dwarf_id);
                                     }
                                 }
 
@@ -1021,19 +986,6 @@ impl engine_shared::State for State {
                                                 ),
                                             );
                                         }
-                                    } else {
-                                        // Send log message that dwarf died.
-                                        player
-                                            .log
-                                            .add(self.time, LogMsg::DwarfDied(dwarf.actual_name().to_owned()));
-
-                                        // Add the equipment to the inventory.
-                                        for (_, item) in dwarf.equipment.drain(..) {
-                                            player
-                                                .inventory
-                                                .items
-                                                .add_checked(Bundle::new().add(item, 1));
-                                        }
                                     }
                                 }
 
@@ -1069,6 +1021,37 @@ impl engine_shared::State for State {
                                 player.inventory.add(added_items, self.time);
 
 
+                                // Handle dwarfs that became adult
+                                for dwarf_id in became_adult {
+                                    player.set_mentor(dwarf_id, None);
+
+                                    let dwarf: &Dwarf = player.dwarfs.get(&dwarf_id)?;
+                                    player.log.add(
+                                        self.time,
+                                        LogMsg::DwarfIsAdult(dwarf.actual_name().to_owned()),
+                                    );
+                                }
+                                for dwarf_id in died {
+                                    let apprentice_id: Option<DwarfId> = player.dwarfs.get(&dwarf_id)?.apprentice;
+
+                                    if let Some(apprentice_id) = apprentice_id {
+                                        player.set_mentor(apprentice_id, None);
+                                    }
+                                    player.set_mentor(dwarf_id, None);
+
+                                    let dwarf: &Dwarf = player.dwarfs.get(&dwarf_id)?;
+                                    // Send log message that dwarf died.
+                                    player
+                                        .log
+                                        .add(self.time, LogMsg::DwarfDied(dwarf.actual_name().to_owned()));
+                                    // Add the equipment to the inventory.
+                                    for (_, item) in &dwarf.equipment {
+                                        player
+                                            .inventory
+                                            .items
+                                            .add_checked(Bundle::new().add(*item, 1));
+                                    }
+                                }
                                 // Remove dead dwarfs from quests.
                                 for quest in self.quests.values_mut() {
                                     if let Some(contestant) = quest.contestants.get_mut(user_id) {
@@ -1081,7 +1064,6 @@ impl engine_shared::State for State {
                                         });
                                     }
                                 }
-
                                 // Remove dead dwarfs from the base.
                                 player.dwarfs.retain(|_, dwarf| !dwarf.dead());
                             }
@@ -1737,6 +1719,43 @@ impl Player {
                 .and_modify(|v| *v += dwarfs_num - manager_num)
                 .or_insert(dwarfs_num - manager_num);
         }
+    }
+
+    fn set_mentor(&mut self, apprentice_id: DwarfId, mentor_id: Option<DwarfId>) -> Option<()> {
+
+        let old_apprentice = if let Some(mentor_id) = mentor_id {
+            let mentor = self.dwarfs.get_mut(&mentor_id)?;
+            mentor.apprentice.replace(apprentice_id)
+        } else {
+            let apprentice = self.dwarfs.get(&apprentice_id)?;
+            if let Some(mentor_id) = apprentice.mentor {
+                let mentor = self.dwarfs.get_mut(&mentor_id)?;
+                mentor.apprentice.take()
+            } else {
+                None
+            }
+        };
+        if let Some(old_apprentice) = old_apprentice {
+            let apprentice = self.dwarfs.get_mut(&old_apprentice)?;
+            if apprentice.mentor != mentor_id {
+                apprentice.mentor = None;
+            }
+        }
+
+        let apprentice = self.dwarfs.get_mut(&apprentice_id)?;
+        let old_mentor = if let Some(mentor_id) = mentor_id {
+            apprentice.mentor.replace(mentor_id)
+        } else {
+            apprentice.mentor.take()
+        };
+        if let Some(old_mentor) = old_mentor {
+            let mentor = self.dwarfs.get_mut(&old_mentor)?;
+            if mentor.apprentice != Some(apprentice_id) {
+                mentor.apprentice = None;
+            }
+        }
+
+        Some(())
     }
 
     pub fn add_popup(&mut self, popup: Popup) {
