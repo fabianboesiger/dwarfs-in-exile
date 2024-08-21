@@ -568,20 +568,20 @@ fn popup(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                                         tr![th![], th!["Inherent"]],
                                         tr![
                                             th!["Strength"],
-                                            td![stars(dwarf.stats.strength as u64, true)],
+                                            td![stars(dwarf.stats.strength, true)],
                                         ],
                                         tr![
                                             th!["Endurance"],
-                                            td![stars(dwarf.stats.endurance as u64, true)],
+                                            td![stars(dwarf.stats.endurance, true)],
                                         ],
-                                        tr![th!["Agility"], td![stars(dwarf.stats.agility as u64, true)],],
+                                        tr![th!["Agility"], td![stars(dwarf.stats.agility, true)],],
                                         tr![
                                             th!["Intelligence"],
-                                            td![stars(dwarf.stats.intelligence as u64, true)],
+                                            td![stars(dwarf.stats.intelligence, true)],
                                         ],
                                         tr![
                                             th!["Perception"],
-                                            td![stars(dwarf.stats.perception as u64, true)],
+                                            td![stars(dwarf.stats.perception, true)],
                                         ],
                                     ]]
                                 ],
@@ -645,7 +645,7 @@ fn popup(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                                                         if usefulness > 0 {
                                                             Some(span![
                                                                 format!("{} ", occupation),
-                                                                stars(usefulness as u64, true)
+                                                                stars(usefulness, true)
                                                             ])
                                                         } else {
                                                             None
@@ -1494,24 +1494,24 @@ fn dwarf(
                             table![tbody![
                                 tr![th![], th!["Inherent"], th!["Effective"]],
                                 tr![th!["Strength"],
-                                    td![stars(dwarf.stats.strength as u64, true)],
-                                    td![stars(dwarf.effective_stats().strength as u64, true)],
+                                    td![stars(dwarf.stats.strength, true)],
+                                    td![stars(dwarf.effective_stats().strength, true)],
                                 ],
                                 tr![th!["Endurance"],
-                                    td![stars(dwarf.stats.endurance as u64, true)],
-                                    td![stars(dwarf.effective_stats().endurance as u64, true)],
+                                    td![stars(dwarf.stats.endurance, true)],
+                                    td![stars(dwarf.effective_stats().endurance, true)],
                                 ],
                                 tr![th!["Agility"],
-                                    td![stars(dwarf.stats.agility as u64, true)],
-                                    td![stars(dwarf.effective_stats().agility as u64, true)],
+                                    td![stars(dwarf.stats.agility, true)],
+                                    td![stars(dwarf.effective_stats().agility, true)],
                                 ],
                                 tr![th!["Intelligence"],
-                                    td![stars(dwarf.stats.intelligence as u64, true)],
-                                    td![stars(dwarf.effective_stats().intelligence as u64, true)],
+                                    td![stars(dwarf.stats.intelligence, true)],
+                                    td![stars(dwarf.effective_stats().intelligence, true)],
                                 ],
                                 tr![th!["Perception"],
-                                    td![stars(dwarf.stats.perception as u64, true)],
-                                    td![stars(dwarf.effective_stats().perception as u64, true)],
+                                    td![stars(dwarf.stats.perception, true)],
+                                    td![stars(dwarf.effective_stats().perception, true)],
                                 ],
                             ]]
                         ],
@@ -1565,7 +1565,7 @@ fn dwarf(
                                                             if usefulness > 0 {
                                                                 Some(span![
                                                                     format!("{} ", occupation),
-                                                                    stars(usefulness as u64, true)
+                                                                    stars(usefulness, true)
                                                                 ])
                                                             } else {
                                                                 None
@@ -2597,7 +2597,7 @@ fn inventory(
                                         if usefulness > 0 {
                                             Some(span![
                                                 format!("{} ", occupation),
-                                                stars(usefulness as u64, true)
+                                                stars(usefulness, true)
                                             ])
                                         } else {
                                             None
@@ -3349,7 +3349,7 @@ fn stats(stats: &Stats) -> Node<Msg> {
 
     span![itertools::intersperse(
         v.into_iter()
-            .map(|(num, abv)| span![format!("{abv} "), stars(num as u64, false)]),
+            .map(|(num, abv)| span![format!("{abv} "), stars(num, false)]),
         br![]
     )]
 }
@@ -3383,11 +3383,10 @@ fn stats_simple(stats: &Stats) -> String {
 fn stars_occupation(dwarf: &Dwarf, occupation: Occupation) -> Node<Msg> {
     let s = dwarf.effectiveness_not_normalized(occupation) * 10 / MAX_EFFECTIVENESS;
 
-    stars(s, true)
+    stars(s as i8, true)
 }
 
-fn stars(stars: u64, padded: bool) -> Node<Msg> {
-
+fn stars(stars: i8, padded: bool) -> Node<Msg> {
     let mut s = Vec::new();
     for _ in 0..(stars / 2) {
         s.push(Icon::StarFull.draw());
