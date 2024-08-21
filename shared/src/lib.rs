@@ -2668,7 +2668,7 @@ impl QuestType {
             Self::ADwarfGotLost => ONE_HOUR * 2,
             Self::AFishingFriend => ONE_HOUR,
             Self::ADwarfInDanger => ONE_HOUR * 2,
-            Self::ForTheKing => ONE_HOUR * 8,
+            Self::ForTheKing => ONE_HOUR * 12,
             Self::DrunkFishing => ONE_HOUR * 4,
             Self::CollapsedCave => ONE_HOUR * 4,
             Self::TheHiddenTreasure => ONE_HOUR * 2,
