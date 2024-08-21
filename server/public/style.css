@@ -863,4 +863,5 @@ a {
     position: absolute;
     top: 80px;
     left: 80px;
+    outline: 1px solid rgba(255, 255, 255, 0.3);
 }

@@ -1722,10 +1722,10 @@ fn dwarf(
                                 table![C!["list"],
                                     tr![
                                         C!["list-item-row"],
-                                        dwarf_image(dwarf.apprentice.and_then(|apprentice| player.dwarfs.get(&apprentice)), player),
+                                        dwarf_image(dwarf.mentor.and_then(|mentor| player.dwarfs.get(&mentor)), player),
                                         td![
                                             C!["list-item-content", "grow"],
-                                            dwarf_details(dwarf.apprentice.and_then(|apprentice| player.dwarfs.get(&apprentice)), player),
+                                            dwarf_details(dwarf.mentor.and_then(|mentor| player.dwarfs.get(&mentor)), player),
                                             button![
                                                 ev(Ev::Click, move |_| Msg::ChangePage(Page::Dwarfs(DwarfsMode::Select(DwarfsSelect::Mentor(dwarf_id))))),
                                                 if dwarf.mentor.map(|mentor| player.dwarfs.get(&mentor)).flatten().is_some() {

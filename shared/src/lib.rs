@@ -22,7 +22,7 @@ use strum::Display;
 #[cfg(not(debug_assertions))]
 pub const SPEED: u64 = 2;
 #[cfg(debug_assertions)]
-pub const SPEED: u64 = 10;
+pub const SPEED: u64 = 20;
 pub const ONE_MINUTE: u64 = 60;
 pub const ONE_HOUR: u64 = ONE_MINUTE * 60;
 pub const ONE_DAY: u64 = ONE_HOUR * 24;
@@ -64,7 +64,7 @@ pub enum WorldEvent {
 }
 
 impl WorldEvent {
-    fn occupation_divider(&self, occupation: Occupation) -> u32 {
+    fn occupation_divider(&self, occupation: Occupation) -> u64 {
         match (self, occupation) {
             (
                 WorldEvent::Drought,
@@ -339,6 +339,8 @@ impl engine_shared::State for State {
         event: Event<Self>,
         user_data: &CustomMap<UserId, UserData>,
     ) {
+        println!("handling event {:?}", event);
+
         move || -> Option<()> {
             match event {
                 Event::ClientEvent(event, user_id) => {
@@ -1000,7 +1002,7 @@ impl engine_shared::State for State {
                                                     expected_ticks_per_drop,
                                                 }) = item.item_probability(dwarf.actual_occupation())
                                                 {
-                                                    if dwarf.gen_ratio_effectiveness(&player.dwarfs, rng, expected_ticks_per_drop as u32
+                                                    if dwarf.gen_ratio_effectiveness(&player.dwarfs, rng, expected_ticks_per_drop
                                                         * self
                                                             .event
                                                             .as_ref()
@@ -1737,9 +1739,7 @@ impl Player {
         };
         if let Some(old_apprentice) = old_apprentice {
             let apprentice = self.dwarfs.get_mut(&old_apprentice)?;
-            if apprentice.mentor != mentor_id {
-                apprentice.mentor = None;
-            }
+            apprentice.mentor = None;
         }
 
         let apprentice = self.dwarfs.get_mut(&apprentice_id)?;
@@ -1750,9 +1750,7 @@ impl Player {
         };
         if let Some(old_mentor) = old_mentor {
             let mentor = self.dwarfs.get_mut(&old_mentor)?;
-            if mentor.apprentice != Some(apprentice_id) {
-                mentor.apprentice = None;
-            }
+            mentor.apprentice = None;
         }
 
         Some(())
@@ -2136,16 +2134,15 @@ impl Dwarf {
         stats
     }
 
-    pub fn numerator_effectiveness(&self, dwarfs: &CustomMap<DwarfId, Dwarf>) -> u32 {
-        self
-            .effectiveness_not_normalized_with_apprentice(self.actual_occupation(), dwarfs)
-            as u32 + (MAX_EFFECTIVENESS / (MIN_MAX_DWARF_DIFFERENCE - 1)) as u32
+    pub fn numerator_effectiveness(&self, dwarfs: &CustomMap<DwarfId, Dwarf>) -> u64 {
+        self.effectiveness_not_normalized_with_apprentice(self.actual_occupation(), dwarfs) + (MAX_EFFECTIVENESS / (MIN_MAX_DWARF_DIFFERENCE - 1))
     }
 
-    pub fn gen_ratio_effectiveness(&self, dwarfs: &CustomMap<DwarfId, Dwarf>, rng: &mut impl Rng, denominator_mul: u32) -> bool {
+    pub fn gen_ratio_effectiveness(&self, dwarfs: &CustomMap<DwarfId, Dwarf>, rng: &mut impl Rng, denominator_mul: u64) -> bool {
+        let denominator = (MAX_EFFECTIVENESS / (MIN_MAX_DWARF_DIFFERENCE - 1)) * denominator_mul;
         rng.gen_ratio(
-            self.numerator_effectiveness(dwarfs),
-            (MAX_EFFECTIVENESS / (MIN_MAX_DWARF_DIFFERENCE - 1)) as u32 * denominator_mul)
+            (self.numerator_effectiveness(dwarfs) / 1000) as u32,
+            (denominator / 1000) as u32)
     }
 
     pub fn effectiveness_not_normalized_with_apprentice(&self, occupation: Occupation, dwarfs: &CustomMap<DwarfId, Dwarf>) -> u64 {
@@ -2508,7 +2505,7 @@ impl Quest {
 
                         }
                         contestant.achieved_score +=
-                            dwarf.numerator_effectiveness(&player.dwarfs) as u64 / (MAX_EFFECTIVENESS / 100);
+                            dwarf.numerator_effectiveness(&player.dwarfs) as u64 / 100;
                     }
                 }
             }
