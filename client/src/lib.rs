@@ -2392,14 +2392,12 @@ fn inventory(
     mode: InventoryMode,
 ) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
-        log!("is premium");
         let is_premium = model
             .state
             .get_user_data(user_id)
             .map(|user_data| user_data.premium > 0)
             .unwrap_or(false);
 
-        log!("bundle items");
         let items: Bundle<Item> = enum_iterator::all::<Item>()
             .map(|t| (t, player.inventory.items.get(&t).copied().unwrap_or(0)))
             .collect();
@@ -2462,8 +2460,6 @@ fn inventory(
             table![
                 C!["items", "list"],
                 {
-                    log!("filter items");
-
                     let mut sort = model.inventory_filter.sort;
                     if let InventoryMode::Select(InventorySelect::Equipment(dwarf_id, _item_type)) =
                         mode
@@ -2480,8 +2476,6 @@ fn inventory(
                 }
                 .into_iter()
                 .filter(|(item, n)| {
-                    log!("filtering item", item);
-
                     item.to_string()
                         .to_lowercase()
                         .contains(&model.inventory_filter.item_name.to_lowercase().trim())
@@ -2528,8 +2522,6 @@ fn inventory(
                         }
                 })
                 .map(|(item, n)| {
-                    log!("rendering item", item);
-
                     tr![
                     C!["item"],
                     C!["list-item-row"],
@@ -2804,92 +2796,9 @@ fn inventory(
                             } else {
                                 Vec::new()
                             },
-                            /*
-                            if item.money_value() > 0 {
-                                vec![
-                                    h4!["Sell Item"],
-                                    if player.auto_functions.auto_sell.contains(&item) && is_premium
-                                    {
-                                        button![
-                                            ev(Ev::Click, move |_| Msg::send_event(
-                                                ClientEvent::ToggleAutoSell(item)
-                                            )),
-                                            "Disable Auto"
-                                        ]
-                                    } else {
-                                        div![
-                                            C!["button-row"],
-                                            button![
-                                                if player
-                                                    .inventory
-                                                    .items
-                                                    .check_remove(&Bundle::new().add(item, 1))
-                                                {
-                                                    attrs! {}
-                                                } else {
-                                                    attrs! {At::Disabled => "true"}
-                                                },
-                                                ev(Ev::Click, move |_| Msg::send_event(
-                                                    ClientEvent::Sell(item, 1)
-                                                )),
-                                                format!("1x"),
-                                            ],
-                                            button![
-                                                if player
-                                                    .inventory
-                                                    .items
-                                                    .check_remove(&Bundle::new().add(item, 10))
-                                                {
-                                                    attrs! {}
-                                                } else {
-                                                    attrs! {At::Disabled => "true"}
-                                                },
-                                                ev(Ev::Click, move |_| Msg::send_event(
-                                                    ClientEvent::Sell(item, 10)
-                                                )),
-                                                format!("10x"),
-                                            ],
-                                            button![
-                                                if player
-                                                    .inventory
-                                                    .items
-                                                    .check_remove(&Bundle::new().add(item, 100))
-                                                {
-                                                    attrs! {}
-                                                } else {
-                                                    attrs! {At::Disabled => "true"}
-                                                },
-                                                ev(Ev::Click, move |_| Msg::send_event(
-                                                    ClientEvent::Sell(item, 100)
-                                                )),
-                                                format!("100x"),
-                                            ],
-                                            button![
-                                                if is_premium {
-                                                    attrs! {}
-                                                } else {
-                                                    attrs! {At::Disabled => "true"}
-                                                },
-                                                ev(Ev::Click, move |_| Msg::send_event(
-                                                    ClientEvent::ToggleAutoSell(item)
-                                                )),
-                                                "Auto",
-                                                if !is_premium {
-                                                    tip(REQUIRES_PREMIUM)
-                                                } else {
-                                                    Node::Empty
-                                                }
-                                            ]
-                                        ]
-                                    },
-                                ]
-                            } else {
-                                Vec::new()
-                            },
-                            */
                         ]
                     }
-                ]}),
+                ]})
             ]
         ]
     } else {

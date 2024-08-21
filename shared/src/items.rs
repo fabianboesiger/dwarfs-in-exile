@@ -583,13 +583,11 @@ impl Item {
             Item::RhinoHornPants => Stats {
                 strength: 8,
                 endurance: 8,
-                intelligence: -4,
                 ..Default::default()
             },
             Item::RhinoHornHelmet => Stats {
                 strength: 2,
                 endurance: 2,
-                intelligence: -4,
                 ..Default::default()
             },
             Item::Dolphin => Stats {
