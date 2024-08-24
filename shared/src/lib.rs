@@ -1077,7 +1077,7 @@ impl engine_shared::State for State {
                                             !player
                                                 .dwarfs
                                                 .get(&*dwarf_id)
-                                                .map(|d| d.dead() || d.released)
+                                                .map(|d| d.dead())
                                                 .unwrap_or(true)
                                         });
                                     }
