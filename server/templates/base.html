@@ -137,6 +137,8 @@
                         }); 
                     } else if (target.classList.contains("message")) {
                         target.parentElement.scrollTop = target.parentElement.scrollHeight;
+                    } else if (target.classList.contains("filter")) {
+                        target.style.top = document.getElementsByTagName("nav").item(0).offsetHeight + "px";
                     }
                 }
             });

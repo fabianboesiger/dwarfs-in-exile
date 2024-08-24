@@ -132,6 +132,8 @@ pub enum Item {
     Dolphin,
     BoneHelmet,
     BoneNecklace,
+    HorseCarriage,
+    HotAirBalloon,
 }
 
 impl Craftable for Item {
@@ -264,11 +266,11 @@ impl Craftable for Item {
                 40,
                 Bundle::new()
                     .add(Item::Wheel, 2)
-                    .add(Item::Iron, 10)
-                    .add(Item::Nail, 5)
+                    .add(Item::Iron, 20)
+                    .add(Item::Nail, 20)
+                    .add(Item::Wood, 50)
                     .add(Item::Chain, 5),
             )),
-
             Item::BoneNecklace => Some((42, Bundle::new().add(Item::String, 5).add(Item::Bone, 5))),
             Item::BoneHelmet => Some((44, Bundle::new().add(Item::Helmet, 1).add(Item::Bone, 5))),
 
@@ -338,6 +340,23 @@ impl Craftable for Item {
                 74,
                 Bundle::new().add(Item::RhinoHorn, 1).add(Item::Helmet, 1),
             )),
+            Item::HorseCarriage => Some((
+                76,
+                Bundle::new()
+                    .add(Item::Wheel, 4)
+                    .add(Item::Iron, 40)
+                    .add(Item::Nail, 40)
+                    .add(Item::Wood, 100)
+                    .add(Item::Chain, 5),
+            )),
+            Item::HotAirBalloon => Some((
+                78,
+                Bundle::new()
+                    .add(Item::Fabric, 100)
+                    .add(Item::String, 100)
+                    .add(Item::Nail, 10)
+                    .add(Item::Wood, 100)
+            )),
             _ => None,
         }
     }
@@ -357,11 +376,12 @@ pub enum ItemType {
     Clothing,
     Pet,
     Food,
+    Jewelry,
 }
 
 impl ItemType {
     pub fn equippable(&self) -> bool {
-        matches!(self, Self::Tool | Self::Clothing | Self::Pet)
+        matches!(self, Self::Tool | Self::Clothing | Self::Pet | Self::Jewelry)
     }
 }
 
@@ -372,6 +392,7 @@ impl std::fmt::Display for ItemType {
             ItemType::Clothing => write!(f, "Clothing"),
             ItemType::Pet => write!(f, "Pet"),
             ItemType::Food => write!(f, "Food"),
+            ItemType::Jewelry => write!(f, "Jewelry"),
         }
     }
 }
@@ -390,21 +411,22 @@ impl Item {
             | Item::FishingHat
             | Item::Overall
             | Item::Boots
-            | Item::RingOfIntelligence
-            | Item::RingOfStrength
-            | Item::RingOfPerception
-            | Item::RingOfEndurance
-            | Item::RingOfAgility
             | Item::RhinoHornHelmet
             | Item::Gloves
             | Item::BearClawGloves
             | Item::Headlamp
             | Item::BearClawBoots
-            | Item::GoldenRing
             | Item::RhinoHornPants
+            | Item::BoneHelmet=> Some(ItemType::Clothing),
+
+            Item::RingOfIntelligence
+            | Item::RingOfStrength
+            | Item::RingOfPerception
+            | Item::RingOfEndurance
+            | Item::RingOfAgility
+            | Item::GoldenRing
             | Item::CrystalNecklace
-            | Item::BoneHelmet
-            | Item::BoneNecklace => Some(ItemType::Clothing),
+            | Item::BoneNecklace => Some(ItemType::Jewelry),
 
             Item::Bow
             | Item::PoisonedBow
@@ -430,7 +452,9 @@ impl Item {
             | Item::DiamondAxe
             | Item::DiamondPickaxe
             | Item::DiamondSword
-            | Item::DynamiteCrossbow => Some(ItemType::Tool),
+            | Item::DynamiteCrossbow
+            | Item::HotAirBalloon
+            | Item::HorseCarriage => Some(ItemType::Tool),
 
             Item::Parrot
             | Item::Wolf
@@ -456,19 +480,7 @@ impl Item {
 
     pub fn provides_stats(self) -> Stats {
         match self {
-            Item::ChainMail => Stats {
-                agility: -2,
-                ..Default::default()
-            },
             Item::LeatherArmor => Stats {
-                ..Default::default()
-            },
-            Item::Backpack => Stats {
-                agility: -2,
-                ..Default::default()
-            },
-            Item::Musket => Stats {
-                agility: -2,
                 ..Default::default()
             },
             Item::Parrot => Stats {
@@ -571,13 +583,11 @@ impl Item {
             Item::RhinoHornPants => Stats {
                 strength: 8,
                 endurance: 8,
-                intelligence: -4,
                 ..Default::default()
             },
             Item::RhinoHornHelmet => Stats {
                 strength: 2,
                 endurance: 2,
-                intelligence: -4,
                 ..Default::default()
             },
             Item::Dolphin => Stats {
@@ -597,8 +607,8 @@ impl Item {
         }
     }
 
-    pub fn money_value(self) -> Money {
-        self.item_rarity_num() / 5000
+    pub fn money_value(self, qty: u64) -> Money {
+        self.item_rarity_num() * qty / 5000
     }
 
     // sefulness from 0 - 10
@@ -638,6 +648,7 @@ impl Item {
             (Item::Musket, Occupation::Fighting) => 6,
             (Item::Dynamite, Occupation::Fighting) => 5,
             (Item::Dynamite, Occupation::Mining) => 10,
+            (Item::HorseCarriage, Occupation::Gathering) => 10,
             (Item::Backpack, Occupation::Gathering) => 7,
             (Item::Bag, Occupation::Gathering) => 5,
             (Item::Helmet, Occupation::Mining | Occupation::Logging | Occupation::Rockhounding) => {
@@ -649,8 +660,9 @@ impl Item {
             (Item::BoneHelmet, Occupation::Fighting) => 8,
             (Item::Horse, Occupation::Fighting | Occupation::Exploring) => 4,
             (Item::Horse, Occupation::Farming | Occupation::Logging) => 7,
-            (Item::Map, Occupation::Exploring) => 8,
-            (Item::Map, Occupation::Gathering) => 6,
+            (Item::HotAirBalloon, Occupation::Exploring) => 10,
+            (Item::Map, Occupation::Exploring) => 6,
+            (Item::Map, Occupation::Gathering) => 4,
             (Item::FishingHat, Occupation::Fishing) => 6,
             (Item::FishingRod, Occupation::Fishing) => 6,
             (Item::FishingNet, Occupation::Fishing) => 10,
@@ -720,11 +732,8 @@ impl Item {
                 Item::Apple => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_MINUTE * 5,
                 }),
-                Item::Parrot => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_DAY,
-                }),
                 Item::Bird => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_DAY,
+                    expected_ticks_per_drop: ONE_DAY * 7,
                 }),
                 _ => None,
             },
@@ -750,6 +759,9 @@ impl Item {
                 Item::Hemp => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_MINUTE * 3,
                 }),
+                Item::Parrot => Some(ItemProbability {
+                    expected_ticks_per_drop: ONE_DAY * 7,
+                }),
                 _ => None,
             },
             Occupation::Fishing => match self {
@@ -769,13 +781,13 @@ impl Item {
                     expected_ticks_per_drop: ONE_HOUR * 6,
                 }),
                 Item::Dolphin => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_DAY * 3,
+                    expected_ticks_per_drop: ONE_DAY * 7,
                 }),
                 _ => None,
             },
             Occupation::Fighting => match self {
                 Item::Wolf => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_DAY,
+                    expected_ticks_per_drop: ONE_DAY * 7,
                 }),
                 Item::TigerFang => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_DAY,
@@ -800,12 +812,6 @@ impl Item {
             Occupation::Exploring => match self {
                 Item::Cat => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_DAY * 7,
-                }),
-                Item::Parrot => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_DAY * 2,
-                }),
-                Item::Bird => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_DAY * 2,
                 }),
                 Item::Donkey => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_DAY * 7,
@@ -910,13 +916,13 @@ pub enum ItemRarity {
 
 impl From<u64> for ItemRarity {
     fn from(value: u64) -> Self {
-        if value < 200 {
+        if value < 500 {
             ItemRarity::Common
-        } else if value < 1000 {
+        } else if value < 2000 {
             ItemRarity::Uncommon
-        } else if value < 5000 {
+        } else if value < 10000 {
             ItemRarity::Rare
-        } else if value < 25000 {
+        } else if value < 40000 {
             ItemRarity::Epic
         } else {
             ItemRarity::Legendary

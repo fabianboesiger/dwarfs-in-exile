@@ -1,0 +1,7 @@
+<h3>Start with a Guest Account</h3>
+<p>Create a guest account to try out the game. If you like it, you can change to a permanent account by setting a username and password anytime!</p>
+<a class="button" id="register-guest">Create Guest Account</a>
+<script>
+    const urlParams = new URLSearchParams(window.location.search);
+    document.getElementById("register-guest").href = "/register-guest?" + urlParams;
+</script>

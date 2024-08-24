@@ -97,9 +97,9 @@ impl engine_server::BackendStore<shared::State> for GameStore {
     }
 
     async fn load_user_data(&self) -> Result<CustomMap<UserId, UserData>, Self::Error> {
-        let users: Vec<(i64, String, i64, i64, i64)> = sqlx::query_as(
+        let users: Vec<(i64, String, i64, i64, i64, i64, time::PrimitiveDateTime)> = sqlx::query_as(
             r#"
-                        SELECT user_id, username, premium, admin, COUNT(winner)
+                        SELECT user_id, username, premium, admin, COUNT(winner), guest, joined
                         FROM users
                         LEFT JOIN games ON winner = user_id
                         GROUP BY user_id, username, premium, admin
@@ -111,7 +111,7 @@ impl engine_server::BackendStore<shared::State> for GameStore {
 
         let users = users
             .into_iter()
-            .map(|(id, username, premium, admin, games_won)| {
+            .map(|(id, username, premium, admin, games_won, guest, joined)| {
                 (
                     id.into(),
                     UserData {
@@ -119,6 +119,8 @@ impl engine_server::BackendStore<shared::State> for GameStore {
                         premium: premium as u64,
                         admin: admin != 0,
                         games_won,
+                        guest: guest != 0,
+                        joined
                     },
                 )
             })
@@ -280,9 +282,9 @@ pub struct ValhallaTemplate {
 }
 
 pub async fn get_valhalla(Extension(pool): Extension<SqlitePool>) -> Result<Response, ServerError> {
-    let users: Vec<(i64, String, i64, i64, i64)> = sqlx::query_as(
+    let users: Vec<(i64, String, i64, i64, i64, i64, time::PrimitiveDateTime)> = sqlx::query_as(
         r#"
-                    SELECT user_id, username, premium, admin, COUNT(winner)
+                    SELECT user_id, username, premium, admin, COUNT(winner), guest, joined
                     FROM users
                     LEFT JOIN games ON winner = user_id
                     GROUP BY user_id, username, premium, admin
@@ -294,11 +296,13 @@ pub async fn get_valhalla(Extension(pool): Extension<SqlitePool>) -> Result<Resp
 
     let mut users = users
         .into_iter()
-        .map(|(_id, username, premium, admin, games_won)| UserData {
+        .map(|(_id, username, premium, admin, games_won, guest, joined)| UserData {
             username,
             premium: premium as u64,
             admin: admin != 0,
             games_won,
+            guest: guest != 0,
+            joined,
         })
         .filter(|user_data| user_data.games_won > 0)
         .collect::<Vec<_>>();

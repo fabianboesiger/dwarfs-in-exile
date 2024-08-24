@@ -69,7 +69,6 @@
             <li>Automatic idling for dwarfs</li>
             <li>Automatic item crafting</li>
             <li>Automatic food management</li>
-            <li>Automatic item selling</li>
             <li>Dwarfen Manager</li>
         </ul>
 
@@ -85,19 +84,26 @@
         </p>
 
         {% if let Some(user_id) = user_id %}
-            <p>You are logged in as {{ username.as_ref().unwrap() }}.</p>
+            {% if !guest %}
+                <p>You are logged in as {{ username.as_ref().unwrap() }}.</p>
 
-            <script async src="https://js.stripe.com/v3/buy-button.js"></script>
+                <script async src="https://js.stripe.com/v3/buy-button.js"></script>
 
-            <div class="store-items">
-                {% for store_entry in store_entries %}
-                <stripe-buy-button
-                    buy-button-id="{{ store_entry.buy_button_id }}"
-                    publishable-key="{{ store_entry.publishable_key }}"
-                    client-reference-id="{{ user_id }}"
-                ></stripe-buy-button>
-                {% endfor %}
-            </div>
+                <div class="store-items">
+                    {% for store_entry in store_entries %}
+                    <stripe-buy-button
+                        buy-button-id="{{ store_entry.buy_button_id }}"
+                        publishable-key="{{ store_entry.publishable_key }}"
+                        client-reference-id="{{ user_id }}"
+                    ></stripe-buy-button>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p>
+                    You need to set a password for your account before you can buy a premium account.
+                </p>
+                <a href="/change-password" class="button">Set Password</a>
+            {% endif %}
         {% else %}
             <p>
                 You need to be logged in to buy a premium account.

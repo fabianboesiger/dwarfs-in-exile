@@ -163,7 +163,7 @@ pub async fn post_manage_user(
                 "#,
         )
         .bind(&manage_user.user_id)
-        .execute(&mut tx)
+        .execute(&mut *tx)
         .await?;
     } else {
         if let Some(password) = manage_user.password {
@@ -181,7 +181,7 @@ pub async fn post_manage_user(
                 )
                 .bind(&manage_user.user_id)
                 .bind(&hashed)
-                .execute(&mut tx)
+                .execute(&mut *tx)
                 .await?;
             }
         }
@@ -197,7 +197,7 @@ pub async fn post_manage_user(
                 )
                 .bind(&manage_user.user_id)
                 .bind(&add_premium)
-                .execute(&mut tx)
+                .execute(&mut *tx)
                 .await?;
             }
         }

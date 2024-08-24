@@ -144,8 +144,6 @@ pub enum Image {
     DiamondSword,
     TheHiddenTreasure,
     CatStuckOnATree,
-    LootCrate,
-    HireDwarf,
     AttackTheOrks,
     FreeTheDwarf,
     FarmersContest,
@@ -167,6 +165,14 @@ pub enum Image {
     Manager,
     Tornado,
     Concert,
+    MagicalBerries,
+    EatingContest,
+    Socializing,
+    HotAirBalloon,
+    HorseCarriage,
+    Carnival,
+    TheElvenMagician,
+    FullMoon,
 }
 
 impl AsAtValue for Image {
@@ -341,6 +347,8 @@ impl From<Item> for Image {
             Item::Dolphin => Image::Dolphin,
             Item::BoneNecklace => Image::BoneNecklace,
             Item::BoneHelmet => Image::BoneHelmet,
+            Item::HorseCarriage => Image::HorseCarriage,
+            Item::HotAirBalloon => Image::HotAirBalloon,
         }
     }
 }
@@ -369,6 +377,10 @@ impl From<QuestType> for Image {
             QuestType::TheMassacre => Image::TheMassacre,
             QuestType::TheElvenWar => Image::TheElvenWar,
             QuestType::Concert => Image::Concert,
+            QuestType::MagicalBerries => Image::MagicalBerries,
+            QuestType::EatingContest => Image::EatingContest,
+            QuestType::Socializing => Image::Socializing,
+            QuestType::TheElvenMagician => Image::TheElvenMagician,
         }
     }
 }
@@ -415,6 +427,8 @@ impl From<WorldEvent> for Image {
             WorldEvent::Earthquake => Image::Earthquake,
             WorldEvent::Plague => Image::Plague,
             WorldEvent::Tornado => Image::Tornado,
+            WorldEvent::Carnival => Image::Carnival,
+            WorldEvent::FullMoon => Image::FullMoon,
         }
     }
 }

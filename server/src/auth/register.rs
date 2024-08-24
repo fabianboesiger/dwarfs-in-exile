@@ -7,6 +7,7 @@ use axum::{
     Extension,
 };
 use bcrypt::hash;
+use rand::{distributions::Alphanumeric, Rng};
 use serde::Deserialize;
 use sqlx::SqlitePool;
 use tower_sessions::Session;
@@ -132,4 +133,67 @@ pub async fn post_register(
             "This username is already taken",
         )),
     }
+}
+
+
+pub async fn get_register_guest(
+    referrer: Query<RegisterQuery>,
+    session: Session,
+    Extension(pool): Extension<SqlitePool>,
+    Extension(game_state): Extension<GameState>,
+) -> Result<Response, ServerError> {
+    let password = rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(32)
+        .map(char::from)
+        .collect::<String>();
+
+
+    let hashed = tokio::task::spawn_blocking(move || hash(&password, 4).unwrap())
+        .await
+        .unwrap();
+
+    for _ in 0..16 {
+        let username = shared::Dwarf::name(&mut rand::thread_rng());
+
+        let result: Result<(i64,), _> = sqlx::query_as(
+            r#"
+                INSERT INTO users (username, password, premium, admin, referrer, guest)
+                VALUES ($1, $2, (
+                    SELECT free_premium
+                    FROM settings
+                    LIMIT 1
+                ), (
+                    SELECT count(*)
+                    FROM users
+                ) = 0,
+                (
+                    SELECT user_id
+                    FROM users
+                    WHERE user_id = $3
+                    LIMIT 1
+                ), 1)
+                RETURNING user_id
+            "#,
+        )
+        .bind(&username)
+        .bind(&hashed)
+        .bind(referrer.referrer)
+        .fetch_one(&pool)
+        .await;
+    
+        match result {
+            Ok((user_id,)) => {
+                game_state.new_server_connection().await.updated_user_data();
+    
+                session.insert(crate::USER_ID_KEY, user_id).await?;
+    
+                return Ok(Redirect::to("/game").into_response());
+            }
+            Err(_err) => {}
+        }
+    }
+
+    Err(ServerError::GuestAccountError)
+    
 }

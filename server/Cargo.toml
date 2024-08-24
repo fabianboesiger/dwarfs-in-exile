@@ -20,7 +20,7 @@ validator = { version = "0.18.0", features = ["derive"] }
 async-trait = "0.1"
 http-body = "1.0"
 thiserror = "1.0"
-sqlx = { version = "0.6", default-features = false, features = ["runtime-tokio-rustls", "sqlite"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "sqlite", "time"] }
 dotenv = "0.15"
 askama_axum = { version = "0.4" }
 askama = { version = "0.12", features = ["with-axum"] }
@@ -30,3 +30,5 @@ engine-server = { path = "../browsergame-engine/server" }
 engine-shared = { path = "../browsergame-engine/shared" }
 async-stripe = { version = "0.37", default-features = false, features = ["runtime-tokio-hyper", "webhook-events", "checkout", "connect"] }
 uuid = { version = "1.10", features = ["v4"] }
+tower-sessions-sqlx-store = { version = "0.13", features = ["sqlite"] }
+time = "0.3"
