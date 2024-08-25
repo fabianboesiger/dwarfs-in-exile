@@ -135,7 +135,6 @@ pub async fn post_register(
     }
 }
 
-
 pub async fn get_register_guest(
     referrer: Query<RegisterQuery>,
     session: Session,
@@ -147,7 +146,6 @@ pub async fn get_register_guest(
         .take(32)
         .map(char::from)
         .collect::<String>();
-
 
     let hashed = tokio::task::spawn_blocking(move || hash(&password, 4).unwrap())
         .await
@@ -181,13 +179,13 @@ pub async fn get_register_guest(
         .bind(referrer.referrer)
         .fetch_one(&pool)
         .await;
-    
+
         match result {
             Ok((user_id,)) => {
                 game_state.new_server_connection().await.updated_user_data();
-    
+
                 session.insert(crate::USER_ID_KEY, user_id).await?;
-    
+
                 return Ok(Redirect::to("/game").into_response());
             }
             Err(_err) => {}
@@ -195,5 +193,4 @@ pub async fn get_register_guest(
     }
 
     Err(ServerError::GuestAccountError)
-    
 }

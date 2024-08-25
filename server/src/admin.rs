@@ -210,7 +210,6 @@ pub async fn post_manage_user(
     Ok(Redirect::to("/admin").into_response())
 }
 
-
 pub async fn post_add_premium(
     session: Session,
     Extension(pool): Extension<SqlitePool>,
@@ -255,7 +254,6 @@ pub async fn post_add_premium(
 
     Ok(Redirect::to("/admin").into_response())
 }
-
 
 pub async fn post_create_world(
     session: Session,

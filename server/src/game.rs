@@ -97,17 +97,18 @@ impl engine_server::BackendStore<shared::State> for GameStore {
     }
 
     async fn load_user_data(&self) -> Result<CustomMap<UserId, UserData>, Self::Error> {
-        let users: Vec<(i64, String, i64, i64, i64, i64, time::PrimitiveDateTime)> = sqlx::query_as(
-            r#"
+        let users: Vec<(i64, String, i64, i64, i64, i64, time::PrimitiveDateTime)> =
+            sqlx::query_as(
+                r#"
                         SELECT user_id, username, premium, admin, COUNT(winner), guest, joined
                         FROM users
                         LEFT JOIN games ON winner = user_id
                         GROUP BY user_id, username, premium, admin
                     "#,
-        )
-        .fetch_all(&self.db)
-        .await
-        .unwrap();
+            )
+            .fetch_all(&self.db)
+            .await
+            .unwrap();
 
         let users = users
             .into_iter()
@@ -120,7 +121,7 @@ impl engine_server::BackendStore<shared::State> for GameStore {
                         admin: admin != 0,
                         games_won,
                         guest: guest != 0,
-                        joined
+                        joined,
                     },
                 )
             })
@@ -130,7 +131,6 @@ impl engine_server::BackendStore<shared::State> for GameStore {
     }
 
     async fn save_game(&self, game_id: GameId, state: &shared::State) -> Result<(), Self::Error> {
-
         if let Some(winner) = state.has_winner() {
             sqlx::query(
                 r#"
@@ -296,14 +296,16 @@ pub async fn get_valhalla(Extension(pool): Extension<SqlitePool>) -> Result<Resp
 
     let mut users = users
         .into_iter()
-        .map(|(_id, username, premium, admin, games_won, guest, joined)| UserData {
-            username,
-            premium: premium as u64,
-            admin: admin != 0,
-            games_won,
-            guest: guest != 0,
-            joined,
-        })
+        .map(
+            |(_id, username, premium, admin, games_won, guest, joined)| UserData {
+                username,
+                premium: premium as u64,
+                admin: admin != 0,
+                games_won,
+                guest: guest != 0,
+                joined,
+            },
+        )
         .filter(|user_data| user_data.games_won > 0)
         .collect::<Vec<_>>();
 

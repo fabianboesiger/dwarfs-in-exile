@@ -31,26 +31,22 @@ use tower_http::{
     trace::{DefaultMakeSpan, TraceLayer},
 };
 use tower_sessions::{cookie::SameSite, ExpiredDeletion, Expiry, SessionManagerLayer};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use tower_sessions_sqlx_store::SqliteStore;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 pub const USER_ID_KEY: &str = "user_id";
 
 async fn set_static_cache_control(request: Request, next: Next) -> Response<Body> {
     let cache_uri = request.uri().to_string();
 
-    if cache_uri.contains(".jpg")
-        || cache_uri.contains(".png")
-    {
+    if cache_uri.contains(".jpg") || cache_uri.contains(".png") {
         let mut response = next.run(request).await;
         response.headers_mut().insert(
             header::CACHE_CONTROL,
             HeaderValue::from_static("public, max-age=2592000"),
         );
         response
-    } else if cache_uri.contains(".wasm")
-        || cache_uri.contains(".js")
-        || cache_uri.contains(".css")
+    } else if cache_uri.contains(".wasm") || cache_uri.contains(".js") || cache_uri.contains(".css")
     {
         let mut response = next.run(request).await;
         response.headers_mut().insert(
@@ -78,7 +74,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let pool = db::setup().await?;
 
-    /* 
+    /*
     let store = MemoryStore::default();
     let session_layer = SessionManagerLayer::new(store)
         .with_http_only(false)
@@ -153,7 +149,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap();
             }
 
-
             if num_active_games == 0 {
                 //game_state_clone.create().await.unwrap();
             }
@@ -186,10 +181,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/register",
             get(auth::register::get_register).post(auth::register::post_register),
         )
-        .route(
-            "/register-guest",
-            get(auth::register::get_register_guest),
-        )
+        .route("/register-guest", get(auth::register::get_register_guest))
         .route(
             "/login",
             get(auth::login::get_login).post(auth::login::post_login),

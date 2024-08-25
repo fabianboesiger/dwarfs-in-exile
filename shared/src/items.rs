@@ -355,7 +355,7 @@ impl Craftable for Item {
                     .add(Item::Fabric, 100)
                     .add(Item::String, 100)
                     .add(Item::Nail, 10)
-                    .add(Item::Wood, 100)
+                    .add(Item::Wood, 100),
             )),
             _ => None,
         }
@@ -381,7 +381,10 @@ pub enum ItemType {
 
 impl ItemType {
     pub fn equippable(&self) -> bool {
-        matches!(self, Self::Tool | Self::Clothing | Self::Pet | Self::Jewelry)
+        matches!(
+            self,
+            Self::Tool | Self::Clothing | Self::Pet | Self::Jewelry
+        )
     }
 }
 
@@ -417,7 +420,7 @@ impl Item {
             | Item::Headlamp
             | Item::BearClawBoots
             | Item::RhinoHornPants
-            | Item::BoneHelmet=> Some(ItemType::Clothing),
+            | Item::BoneHelmet => Some(ItemType::Clothing),
 
             Item::RingOfIntelligence
             | Item::RingOfStrength
