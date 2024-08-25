@@ -188,11 +188,11 @@ impl TutorialStep {
     pub fn reward(&self) -> TutorialReward {
         match self {
             TutorialStep::Welcome => TutorialReward::Money(1000),
-            TutorialStep::Logging => TutorialReward::Items(Bundle::new().add(Item::Wood, 50)),
+            TutorialStep::Logging => TutorialReward::Items(Bundle::new().add(Item::Wood, 100)),
             TutorialStep::SettlementExpansion2 => {
                 TutorialReward::Items(Bundle::new().add(Item::Iron, 10).add(Item::Wood, 10))
             }
-            TutorialStep::Axe => TutorialReward::Items(Bundle::new().add(Item::Wood, 50)),
+            TutorialStep::Axe => TutorialReward::Items(Bundle::new().add(Item::Wood, 100)),
             TutorialStep::SettlementExpansion3 => TutorialReward::Dwarfs(1),
             TutorialStep::Hunting => TutorialReward::Items(Bundle::new().add(Item::Coal, 50)),
             TutorialStep::FoodPreparation => {
@@ -2809,8 +2809,9 @@ pub enum TradeType {
 impl TradeDeal {
     pub fn new(rng: &mut impl Rng) -> Self {
         let item = enum_iterator::all::<Item>().choose(rng).unwrap();
-        let time_left = rng.gen_range(ONE_MINUTE * 10..ONE_HOUR * 2);
+        let time_left = rng.gen_range(ONE_MINUTE * 20..ONE_HOUR * 2);
         let qty = ((time_left * 20) / item.item_rarity_num()).max(1);
+
         let user_trade_type = if rng.gen_bool(0.5) {
             TradeType::Buy
         } else {
@@ -2875,8 +2876,8 @@ impl TradeDeal {
                 players.get_mut(&user_id)?.money -= self.next_bid;
                 self.highest_bidder = Some((user_id, self.next_bid));
                 self.next_bid += (self.next_bid / 10).max(1);
-                if self.time_left < ONE_MINUTE {
-                    self.time_left += ONE_MINUTE;
+                if self.time_left < ONE_MINUTE * SPEED {
+                    self.time_left += ONE_MINUTE * SPEED;
                 }
             }
         } else {
@@ -2901,8 +2902,8 @@ impl TradeDeal {
                     .remove_checked(self.items.clone());
                 self.highest_bidder = Some((user_id, self.next_bid));
                 self.next_bid -= (self.next_bid / 10).max(1);
-                if self.time_left < ONE_MINUTE {
-                    self.time_left += ONE_MINUTE;
+                if self.time_left < ONE_MINUTE * SPEED {
+                    self.time_left += ONE_MINUTE * SPEED;
                 }
             }
         }

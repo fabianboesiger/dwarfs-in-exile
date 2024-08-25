@@ -75,14 +75,14 @@ impl Icon {
     }
 }
 
-#[cfg(not(debug_assertions))]
-const HOST: &str = "dwarfs-in-exile.com";
-#[cfg(debug_assertions)]
+//#[cfg(not(debug_assertions))]
+//const HOST: &str = "dwarfs-in-exile.com";
+//#[cfg(debug_assertions)]
 const HOST: &str = "localhost:3000";
 
-#[cfg(not(debug_assertions))]
-const WS_PROTOCOL: &str = "wss";
-#[cfg(debug_assertions)]
+//#[cfg(not(debug_assertions))]
+//const WS_PROTOCOL: &str = "wss";
+//#[cfg(debug_assertions)]
 const WS_PROTOCOL: &str = "ws";
 
 const REQUIRES_PREMIUM: &str = "This feature requires a premium account.";
@@ -246,6 +246,7 @@ pub struct Model {
     game_id: GameId,
     show_tutorial: bool,
     custom_name: Option<String>,
+    ad_loaded: bool,
 }
 
 impl Model {
@@ -298,6 +299,7 @@ fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
         game_id,
         show_tutorial: false,
         custom_name: None,
+        ad_loaded: false,
     }
 }
 
@@ -334,6 +336,7 @@ pub enum Msg {
     GoToItem(Item),
     ToggleTutorial,
     UpdateName(Option<String>),
+    AdLoaded,
 }
 
 impl EngineMsg<shared::State> for Msg {}
@@ -346,6 +349,9 @@ impl From<EventWrapper<shared::State>> for Msg {
 
 fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
     match msg {
+        Msg::AdLoaded => {
+            model.ad_loaded = true;
+        },
         Msg::UpdateName(name) => {
             model.custom_name = name;
         }
@@ -353,6 +359,27 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
             model.state.update(ev.clone(), orders);
 
             if let Some(state) = model.state.get_state() {
+                if !model.ad_loaded {
+                    let is_premium = model
+                        .state
+                        .get_user_data(model.state.get_user_id().unwrap())
+                        .map(|user_data| user_data.premium > 0)
+                        .unwrap_or(false);
+
+                    if !is_premium {
+                        js_sys::eval(r#"
+                            if (window.isMobile()) {
+                                (function(d,z,s){s.src='https://'+d+'/401/'+z;try{(document.body||document.documentElement).appendChild(s)}catch(e){}})('aistekso.net',7962474,document.createElement('script'));
+                            } else {
+                                (function(d,z,s){s.src='https://'+d+'/400/'+z;try{(document.body||document.documentElement).appendChild(s)}catch(e){}})('dicouksa.com',7962656,document.createElement('script'));
+                            }
+                        "#).ok();
+                    }
+
+                    orders.send_msg(Msg::AdLoaded);
+                }
+                
+
                 if engine_shared::State::has_winner(state).is_some() {
                     orders.notify(subs::UrlRequested::new(Url::from_str("/game").unwrap()));
                 }
@@ -516,6 +543,7 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
 // ------ ------
 //     View
 // ------ ------
+
 
 fn view(model: &Model) -> Vec<Node<Msg>> {
     if let (Some(state), Some(user_id), client_state) = (

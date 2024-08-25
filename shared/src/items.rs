@@ -691,7 +691,7 @@ impl Item {
         match occupation {
             Occupation::Mining => match self {
                 Item::Stone => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_MINUTE,
+                    expected_ticks_per_drop: ONE_MINUTE / 2,
                 }),
                 Item::IronOre => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_MINUTE * 5,
@@ -730,7 +730,7 @@ impl Item {
             },
             Occupation::Logging => match self {
                 Item::Wood => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_MINUTE,
+                    expected_ticks_per_drop: ONE_MINUTE / 2,
                 }),
                 Item::Apple => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_MINUTE * 5,
