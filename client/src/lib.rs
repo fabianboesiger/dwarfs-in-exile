@@ -75,14 +75,14 @@ impl Icon {
     }
 }
 
-//#[cfg(not(debug_assertions))]
-//const HOST: &str = "dwarfs-in-exile.com";
-//#[cfg(debug_assertions)]
+#[cfg(not(debug_assertions))]
+const HOST: &str = "dwarfs-in-exile.com";
+#[cfg(debug_assertions)]
 const HOST: &str = "localhost:3000";
 
-//#[cfg(not(debug_assertions))]
-//const WS_PROTOCOL: &str = "wss";
-//#[cfg(debug_assertions)]
+#[cfg(not(debug_assertions))]
+const WS_PROTOCOL: &str = "wss";
+#[cfg(debug_assertions)]
 const WS_PROTOCOL: &str = "ws";
 
 const REQUIRES_PREMIUM: &str = "This feature requires a premium account.";
