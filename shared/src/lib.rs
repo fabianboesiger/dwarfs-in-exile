@@ -860,7 +860,7 @@ impl engine_shared::State for State {
                                 sorted_by_health.sort_by_key(|(_, dwarf)| dwarf.health);
                                 for (dwarf_id, dwarf) in sorted_by_health {
                                     dwarf.decr_health(
-                                        dwarf.actual_occupation().health_cost_per_second()
+                                        dwarf.actual_occupation().health_cost_per_tick()
                                             * health_cost_multiplier,
                                     );
                                     if dwarf.actual_occupation() == Occupation::Idling {
@@ -1721,6 +1721,18 @@ impl Player {
         player
     }
 
+    pub fn remaining_time_until_starvation(&self) -> Time {
+        let mut health_available = self.base.food * (MAX_HEALTH / 1000);
+        let mut health_cost_per_tick = 0;
+
+        for dwarf in self.dwarfs.values() {
+            health_available += dwarf.health;
+            health_cost_per_tick += dwarf.actual_occupation().health_cost_per_tick();
+        }
+
+        health_available / health_cost_per_tick
+    }
+
     pub fn average_efficiency(&self) -> Option<u64> {
         self.dwarfs
             .values()
@@ -2236,17 +2248,17 @@ pub enum Occupation {
 }
 
 impl Occupation {
-    pub fn health_cost_per_second(self) -> u64 {
+    pub fn health_cost_per_tick(self) -> u64 {
         match self {
             Occupation::Idling => 1,
-            Occupation::Mining => 3,
-            Occupation::Logging => 3,
-            Occupation::Hunting => 3,
-            Occupation::Gathering => 2,
-            Occupation::Fishing => 2,
+            Occupation::Mining => 2,
+            Occupation::Logging => 2,
+            Occupation::Hunting => 2,
+            Occupation::Gathering => 1,
+            Occupation::Fishing => 1,
             Occupation::Fighting => 5,
             Occupation::Exploring => 3,
-            Occupation::Farming => 3,
+            Occupation::Farming => 2,
             Occupation::Rockhounding => 3,
         }
     }

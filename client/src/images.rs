@@ -173,6 +173,7 @@ pub enum Image {
     Carnival,
     TheElvenMagician,
     FullMoon,
+    Starvation,
 }
 
 impl AsAtValue for Image {
