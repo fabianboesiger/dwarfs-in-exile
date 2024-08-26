@@ -870,7 +870,7 @@ fn ranking(
                     ]
                 } else {
                     div![
-                        p![format!("At the moment, there is no King in this world. Be the first to become the new King by completing the quest {}!", QuestType::ForTheKing)]
+                        p![format!("At the moment, there is no King in this world. Be the first to become the new King by completing the quest {}", QuestType::ForTheKing)]
                     ]
                 },
             ]
@@ -2052,7 +2052,7 @@ fn quest(
                                 QuestType::TheMassacre => p!["The elves have unleased their dark magic in a final attempt to eliminate all orks. Realizing that you have helped in this terrible act by providing the elves with the crystals needed for their dark magic, you attempt to fight the elven magicians to stop the massacre."],
                                 QuestType::TheElvenWar => p!["All of the dwarfen settlements have realized their mistake and have united to fight the elves. The united dwarfen armies have to fight the elven magicians in order to restore peace in the forbidden lands. Send the best fighters that you have, or the forbidden lands will be lost forever to the elven dark magic."],
                                 QuestType::Concert => p!["The dwarfen bards have organized a concert in the tavern. Make sure to participate!"],
-                                QuestType::MagicalBerries => p!["The magical berries are ripe and ready to be picked. Pick them gets a reward."],
+                                QuestType::MagicalBerries => p!["The magical berries are ripe and ready to be picked. Everyone that helps picking them gets a reward."],
                                 QuestType::EatingContest => p!["Participate in the eating contest and earn a reward."],
                                 QuestType::Socializing => p!["Socialize with the other dwarfs in the tavern. You may find a new friend."],
                                 QuestType::TheElvenMagician => p!["The elven magician is working tirelessly on a big projects. Get him some of his favorite berries so that he can focus better."],
