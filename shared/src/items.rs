@@ -878,7 +878,7 @@ impl Item {
             )
         }
 
-        rarity.unwrap_or(25000)
+        rarity.unwrap_or(100000)
     }
 
     pub fn crafting_depth(self) -> u64 {
