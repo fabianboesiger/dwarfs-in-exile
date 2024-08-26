@@ -1457,10 +1457,10 @@ impl engine_shared::State for State {
                             let num_trades = if cfg!(debug_assertions) {
                                 15
                             } else {
-                                (active_players / 5)
-                                    .max(active_not_new_players / 3)
+                                (active_players / 10)
+                                    .max(active_not_new_players / 6)
                                     .max(3)
-                                    .min(30) / 2
+                                    .min(15)
                             };
 
                             while self.trade_deals.iter().filter(|trade_deal| trade_deal.creator.is_none()).count() < num_trades {
