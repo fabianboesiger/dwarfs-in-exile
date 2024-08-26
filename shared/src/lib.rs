@@ -39,6 +39,7 @@ pub const IMPROVEMENT_DURATION: u32 = ONE_DAY as u32 * 7;
 pub const APPRENTICE_EFFECTIVENESS_DIVIDER: u64 = 5;
 pub const MAX_EFFECTIVENESS: u64 = 6000;
 pub const MIN_MAX_DWARF_DIFFERENCE: u64 = 3;
+pub const TRADE_MONEY_MULTIPLIER: u64 = 10;
 
 pub type Money = u64;
 pub type Food = u64;
@@ -776,8 +777,7 @@ impl engine_shared::State for State {
                         }
                         ClientEvent::Sell(item, qty) => { 
                             if qty > 0 {
-                                let trade_deal = TradeDeal::from_player(player, item, qty);
-                                if trade_deal.next_bid > 0 {
+                                if let Some(trade_deal) = TradeDeal::from_player(user_id, player, item, qty) {
                                     self.trade_deals.push(trade_deal);
                                 }
                             }
@@ -1656,8 +1656,8 @@ pub enum LogMsg {
     NotEnoughSpaceForDwarf,
     DwarfUpgrade(String, String),
     DwarfIsAdult(String),
-    Overbid(Bundle<Item>, Money),
-    BidWon(Bundle<Item>, Money),
+    Overbid(Bundle<Item>, Money, TradeType),
+    BidWon(Bundle<Item>, Money, TradeType),
     ItemSold(Bundle<Item>, Money),
     ItemNotSold(Bundle<Item>, Money),
 }
@@ -2831,8 +2831,15 @@ pub struct TradeDeal {
     pub next_bid: Money,
     pub highest_bidder: Option<(UserId, Money)>,
     pub time_left: Time,
+    pub user_trade_type: TradeType,
     #[serde(default)]
-    pub creator: Option<UserId>
+    pub creator: Option<UserId>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash, PartialEq, Eq)]
+pub enum TradeType {
+    Buy,
+    Sell,
 }
 
 impl TradeDeal {
@@ -2851,27 +2858,40 @@ impl TradeDeal {
 
         TradeDeal {
             items: Bundle::new().add(item, qty),
-            next_bid: 10,
+            next_bid: item.money_value(qty) as u64 * TRADE_MONEY_MULTIPLIER,
             time_left,
             highest_bidder: None,
-            creator: None
+            creator: None,
+            user_trade_type: TradeType::Buy,
         }
     }
 
-    pub fn from_player(player: &mut Player, item: Item, qty: u64) -> Self {
+    pub fn from_player(user_id: UserId, player: &mut Player, item: Item, qty: u64) -> Option<Self> {
         let qty = qty.min(player.inventory.items.get(&item).copied().unwrap_or(0));
         let time_left = ((qty * item.item_rarity_num()) / 20).max(ONE_MINUTE * 20).min(ONE_HOUR * 2);
         let items = Bundle::new().add(item, qty);
+        let next_bid = item.money_value(qty) as u64 * TRADE_MONEY_MULTIPLIER;
 
-        player.inventory.items.check_remove(&items);
+        if qty == 0 {
+            return None;
+        }
 
-        TradeDeal {
+        if next_bid == 0 {
+            return None;
+        }
+
+        if !player.inventory.items.remove_checked(items.clone()) {
+            return None;
+        }
+
+        Some(TradeDeal {
             items,
-            next_bid: item.money_value(qty) as u64 * 10,
+            next_bid,
             time_left,
             highest_bidder: None,
-            creator: None
-        }
+            creator: Some(user_id),
+            user_trade_type: TradeType::Buy,
+        })
     }
 
     pub fn update(&mut self, players: &mut CustomMap<UserId, Player>, time: Time) -> Option<()> {
@@ -2883,7 +2903,7 @@ impl TradeDeal {
                     p.inventory.add(self.items.clone(), time);      
                     p.log.add(
                         time,
-                        LogMsg::BidWon(self.items.clone(), best_bidder_money),
+                        LogMsg::BidWon(self.items.clone(), best_bidder_money, self.user_trade_type),
                     );
 
                     if let Some(creator) = self.creator {
@@ -2904,7 +2924,6 @@ impl TradeDeal {
                         );
                     }
                 }
-
             }
         }
         Some(())
@@ -2920,24 +2939,25 @@ impl TradeDeal {
         user_id: UserId,
         time: Time,
     ) -> Option<()> {
-        if players.get_mut(&user_id)?.money >= self.next_bid {
-            if let Some((best_bidder_user_id, best_bidder_money)) = self.highest_bidder {
-                let p = players.get_mut(&best_bidder_user_id)?;
-                p.money += best_bidder_money;
-                p.log.add(
-                    time,
-                    LogMsg::Overbid(self.items.clone(), self.next_bid),
-                );
-            }
-            players.get_mut(&user_id)?.money -= self.next_bid;
-            self.highest_bidder = Some((user_id, self.next_bid));
-            self.next_bid += (self.next_bid / 10).max(1);
-            if self.time_left < ONE_MINUTE * SPEED {
-                self.time_left += ONE_MINUTE * SPEED;
+        if self.user_trade_type == TradeType::Buy {
+            if players.get_mut(&user_id)?.money >= self.next_bid {
+                if let Some((best_bidder_user_id, best_bidder_money)) = self.highest_bidder {
+                    let p = players.get_mut(&best_bidder_user_id)?;
+                    p.money += best_bidder_money;
+                    p.log.add(
+                        time,
+                        LogMsg::Overbid(self.items.clone(), self.next_bid, self.user_trade_type),
+                    );
+                }
+                players.get_mut(&user_id)?.money -= self.next_bid;
+                self.highest_bidder = Some((user_id, self.next_bid));
+                self.next_bid += (self.next_bid / 10).max(1);
+                if self.time_left < ONE_MINUTE * SPEED {
+                    self.time_left += ONE_MINUTE * SPEED;
+                }
             }
         }
         
-
         Some(())
     }
 }

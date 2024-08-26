@@ -7,10 +7,7 @@ use itertools::Itertools;
 use rustrict::CensorStr;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg,
-    Occupation, Player, Popup, QuestId, QuestType, RewardMode, Stats, Time,
-    TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, MAX_EFFECTIVENESS, MAX_HEALTH,
-    SPEED, WINNER_NUM_PREMIUM_DAYS,
+    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, Stats, Time, TradeType, TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, MAX_EFFECTIVENESS, MAX_HEALTH, SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS
 };
 use std::str::FromStr;
 use strum::Display;
@@ -1244,6 +1241,90 @@ fn dwarf_details(dwarf: Option<&Dwarf>, player: &Player) -> Vec<Node<Msg>> {
     } else {
         vec![h3![C!["title"], "None"]]
     }
+}
+
+
+fn item_details(item: Item, n: u64) -> Vec<Node<Msg>> {
+    vec![
+        td![img![
+            C!["list-item-image"],
+            attrs! {At::Src => Image::from(item).as_at_value()}
+        ]],
+        td![
+            C!["list-item-content"],
+            h3![C!["title"], format!("{} {item}", big_number(n))],
+            p![
+                C!["subtitle"],
+                if let Some(item_type) = item.item_type() {
+                    span![C!["short-info"], format!("{item_type}")]
+                } else {
+                    span![C!["short-info"], "Item"]
+                },
+                span![C!["short-info"], format!("{}", item.item_rarity())],
+                if let Some(nutrition) = item.nutritional_value() {
+                    span![C!["short-info"], format!("{} Food", nutrition)]
+                } else {
+                    Node::Empty
+                },
+                /*if item.money_value() > 0 {
+                    span![C!["short-info"], format!("{} Coins", item.money_value())]
+                } else {
+                    Node::Empty
+                },*/
+                if cfg!(debug_assertions) {
+                    vec![
+                        span![
+                            C!["short-info"],
+                            format!("Rarity: {}", item.item_rarity_num())
+                        ],
+                        span![
+                            C!["short-info"],
+                            format!(
+                                "Loot Crate QTY: {}",
+                                (10000 / item.item_rarity_num()).max(1).min(100)
+                            )
+                        ],
+                    ]
+                } else {
+                    Vec::new()
+                },
+            ],
+            // Show stats
+            if !item.provides_stats().is_zero() {
+                div![h4!["Provides"], stats(&item.provides_stats()),]
+            } else {
+                Node::Empty
+            },
+            if enum_iterator::all::<Occupation>()
+                .filter(|occupation| {
+                    let usefulness = item.usefulness_for(*occupation);
+                    usefulness > 0
+                })
+                .count()
+                > 0
+            {
+                div![
+                    h4!["Utility"],
+                    itertools::intersperse(
+                        enum_iterator::all::<Occupation>().filter_map(|occupation| {
+                            let usefulness = item.usefulness_for(occupation) as i8;
+                            if usefulness > 0 {
+                                Some(span![
+                                    format!("{} ", occupation),
+                                    stars(usefulness, true)
+                                ])
+                            } else {
+                                None
+                            }
+                        }),
+                        br![]
+                    )
+                ]
+            } else {
+                Node::Empty
+            },
+        ],
+    ]
 }
 
 fn dwarfs(
@@ -2586,84 +2667,7 @@ fn inventory(
                         ItemRarity::Epic => C!["item-epic"],
                         ItemRarity::Legendary => C!["item-legendary"],
                     },
-                    td![img![
-                        C!["list-item-image"],
-                        attrs! {At::Src => Image::from(item).as_at_value()}
-                    ]],
-                    td![
-                        C!["list-item-content"],
-                        h3![C!["title"], format!("{} {item}", big_number(n))],
-                        p![
-                            C!["subtitle"],
-                            if let Some(item_type) = item.item_type() {
-                                span![C!["short-info"], format!("{item_type}")]
-                            } else {
-                                span![C!["short-info"], "Item"]
-                            },
-                            span![C!["short-info"], format!("{}", item.item_rarity())],
-                            if let Some(nutrition) = item.nutritional_value() {
-                                span![C!["short-info"], format!("{} Food", nutrition)]
-                            } else {
-                                Node::Empty
-                            },
-                            /*if item.money_value() > 0 {
-                                span![C!["short-info"], format!("{} Coins", item.money_value())]
-                            } else {
-                                Node::Empty
-                            },*/
-                            if cfg!(debug_assertions) {
-                                vec![
-                                    span![
-                                        C!["short-info"],
-                                        format!("Rarity: {}", item.item_rarity_num())
-                                    ],
-                                    span![
-                                        C!["short-info"],
-                                        format!(
-                                            "Loot Crate QTY: {}",
-                                            (10000 / item.item_rarity_num()).max(1).min(100)
-                                        )
-                                    ],
-                                ]
-                            } else {
-                                Vec::new()
-                            },
-                        ],
-                        // Show stats
-                        if !item.provides_stats().is_zero() {
-                            div![h4!["Provides"], stats(&item.provides_stats()),]
-                        } else {
-                            Node::Empty
-                        },
-                        if enum_iterator::all::<Occupation>()
-                            .filter(|occupation| {
-                                let usefulness = item.usefulness_for(*occupation);
-                                usefulness > 0
-                            })
-                            .count()
-                            > 0
-                        {
-                            div![
-                                h4!["Utility"],
-                                itertools::intersperse(
-                                    enum_iterator::all::<Occupation>().filter_map(|occupation| {
-                                        let usefulness = item.usefulness_for(occupation) as i8;
-                                        if usefulness > 0 {
-                                            Some(span![
-                                                format!("{} ", occupation),
-                                                stars(usefulness, true)
-                                            ])
-                                        } else {
-                                            None
-                                        }
-                                    }),
-                                    br![]
-                                )
-                            ]
-                        } else {
-                            Node::Empty
-                        },
-                    ],
+                    item_details(item, n),
                     if let InventoryMode::Select(InventorySelect::Equipment(dwarf_id, item_type)) =
                         mode
                     {
@@ -2850,73 +2854,77 @@ fn inventory(
                             } else {
                                 Vec::new()
                             },
-                            if let Some(_) = item.nutritional_value() {
-                                vec![
-                                    h4!["Sell Item"],      
-                                    div![
-                                        C!["button-row"],
-                                        button![
-                                            if player
-                                                .inventory
-                                                .items
-                                                .check_remove(&Bundle::new().add(item, 1))
-                                            {
-                                                attrs! {}
-                                            } else {
-                                                attrs! {At::Disabled => "true"}
-                                            },
-                                            ev(Ev::Click, move |_| Msg::send_event(
-                                                ClientEvent::Sell(item, 1)
-                                            )),
-                                            format!("1x"),
-                                        ],
-                                        button![
-                                            if player
-                                                .inventory
-                                                .items
-                                                .check_remove(&Bundle::new().add(item, 10))
-                                            {
-                                                attrs! {}
-                                            } else {
-                                                attrs! {At::Disabled => "true"}
-                                            },
-                                            ev(Ev::Click, move |_| Msg::send_event(
-                                                ClientEvent::Sell(item, 10)
-                                            )),
-                                            format!("10x"),
-                                        ],
-                                        button![
-                                            if player
-                                                .inventory
-                                                .items
-                                                .check_remove(&Bundle::new().add(item, 100))
-                                            {
-                                                attrs! {}
-                                            } else {
-                                                attrs! {At::Disabled => "true"}
-                                            },
-                                            ev(Ev::Click, move |_| Msg::send_event(
-                                                ClientEvent::Sell(item, 100)
-                                            )),
-                                            format!("100x"),
-                                        ],
-                                        button![
-                                            if n > 0
-                                            {
-                                                attrs! {}
-                                            } else {
-                                                attrs! {At::Disabled => "true"}
-                                            },
-                                            ev(Ev::Click, move |_| Msg::send_event(
-                                                ClientEvent::Sell(item, n)
-                                            )),
-                                            "All",
-                                        ]
+
+                            vec![
+                                h4!["Sell Item"],      
+                                div![
+                                    C!["button-row"],
+                                    /*
+                                    button![
+                                        if player
+                                            .inventory
+                                            .items
+                                            .check_remove(&Bundle::new().add(item, 1))
+                                            && item.money_value(1) * TRADE_MONEY_MULTIPLIER > 0
+                                        {
+                                            attrs! {}
+                                        } else {
+                                            attrs! {At::Disabled => "true"}
+                                        },
+                                        ev(Ev::Click, move |_| Msg::send_event(
+                                            ClientEvent::Sell(item, 1)
+                                        )),
+                                        format!("1x"),
+                                    ],
+                                    button![
+                                        if player
+                                            .inventory
+                                            .items
+                                            .check_remove(&Bundle::new().add(item, 10))
+                                            && item.money_value(10) * TRADE_MONEY_MULTIPLIER > 0
+                                        {
+                                            attrs! {}
+                                        } else {
+                                            attrs! {At::Disabled => "true"}
+                                        },
+                                        ev(Ev::Click, move |_| Msg::send_event(
+                                            ClientEvent::Sell(item, 10)
+                                        )),
+                                        format!("10x"),
+                                    ],
+                                    button![
+                                        if player
+                                            .inventory
+                                            .items
+                                            .check_remove(&Bundle::new().add(item, 100))
+                                            && item.money_value(100) * TRADE_MONEY_MULTIPLIER > 0
+                                        {
+                                            attrs! {}
+                                        } else {
+                                            attrs! {At::Disabled => "true"}
+                                        },
+                                        ev(Ev::Click, move |_| Msg::send_event(
+                                            ClientEvent::Sell(item, 100)
+                                        )),
+                                        format!("100x"),
+                                    ],
+                                    */
+                                    button![
+                                        if n > 0
+                                        && item.money_value(n) * TRADE_MONEY_MULTIPLIER > 0
+                                        {
+                                            attrs! {}
+                                        } else {
+                                            attrs! {At::Disabled => "true"}
+                                        },
+                                        ev(Ev::Click, move |_| Msg::send_event(
+                                            ClientEvent::Sell(item, n)
+                                        )),
+                                        format!("Sell all on Market ({} coins)", item.money_value(n) * TRADE_MONEY_MULTIPLIER),
                                     ]
                                 ]
-                            } else {
-                                Vec::new()
-                            },
+                            ]
+
                         ]
                     }
                 ]})
@@ -2980,7 +2988,8 @@ fn trades(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                 C!["items", "list"],
                 trades 
                 .into_iter()
-                .filter(|(_, trade_deal)| {                    
+                .filter(|(_, trade_deal)| {
+                        trade_deal.user_trade_type == TradeType::Buy &&
                         ((if model.trade_filter.can_afford {
                             player.money >= trade_deal.next_bid
                         } else {
@@ -3025,19 +3034,11 @@ fn trades(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                         ItemRarity::Epic => C!["item-epic"],
                         ItemRarity::Legendary => C!["item-legendary"],
                     },
-                    td![img![
-                        C!["list-item-image"],
-                        attrs! {At::Src => Image::from(item).as_at_value()}
-                    ]],
+                    item_details(item, n),
                     td![
                         C!["list-item-content"],
-                        h3![C!["title"], "Offer"],
-                        p![C!["subtitle"], format!("{} {item}", big_number(n))],
                         h4![C!["title"], "Cost" ],
                         p![C!["subtitle"], format!("{} coins", trade_deal.next_bid)],
-                    ],
-                    td![
-                        C!["list-item-content"],
                         p![format!("Deal ends in {}.", fmt_time(trade_deal.time_left))],
                         if !can_afford && !highest_bidder_is_you {
                             p![format!("You can't afford this deal.")]
@@ -3166,7 +3167,7 @@ fn history(
                             }.draw()],
                             span![C!["time"], format!("{} ago: ", fmt_time(state.time - time))],
                             match msg {
-                                LogMsg::Overbid(items, money) => {
+                                LogMsg::Overbid(items, money, _) => {
                                     span![format!(
                                         "You have been overbid on {} for {} coins.",
                                         items
@@ -3179,7 +3180,7 @@ fn history(
                                         money
                                     )]
                                 }
-                                LogMsg::BidWon(items, money) => {
+                                LogMsg::BidWon(items, money, _) => {
                                     span![format!(
                                         "You have successfully bought {} for {} coins.",
                                         items
