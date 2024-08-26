@@ -46,16 +46,30 @@ impl GameStore {
         .fetch_all(&self.db)
         .await?;
 
+        let pool = self.db.clone();
         let game_state = GameState::new(self);
-
 
         for (id,) in open_worlds {
             let game_finished = game_state.load(id).await?;
             let game_state_clone = game_state.clone();
-            
+            let pool_clone = pool.clone();
+
             tokio::task::spawn(async move {
                 game_finished.notified().await;
-                game_state_clone.create().await.unwrap();
+
+                let result: Result<(i64,), _> = sqlx::query_as(
+                    r#"
+                        SELECT auto_start_world
+                        FROM settings
+                        LIMIT 1
+                    "#,
+                )
+                .fetch_one(&pool_clone)
+                .await;
+
+                if result.map(|result| result.0 != 0).unwrap_or(false) {
+                    game_state_clone.create().await.unwrap();
+                }
             });
         }
 
