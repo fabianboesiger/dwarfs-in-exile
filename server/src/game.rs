@@ -48,8 +48,15 @@ impl GameStore {
 
         let game_state = GameState::new(self);
 
+
         for (id,) in open_worlds {
-            game_state.load(id).await?;
+            let game_finished = game_state.load(id).await?;
+            let game_state_clone = game_state.clone();
+            
+            tokio::task::spawn(async move {
+                game_finished.notified().await;
+                game_state_clone.create().await.unwrap();
+            });
         }
 
         Ok(game_state)

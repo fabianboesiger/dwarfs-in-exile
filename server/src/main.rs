@@ -173,9 +173,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap();
             }
 
-            if num_active_games == 0 {
-                //game_state_clone.create().await.unwrap();
-            }
+            /*if num_active_games == 0 {
+                game_state_clone.create().await.unwrap();
+            }*/
         }
     });
 
