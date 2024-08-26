@@ -89,13 +89,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _deletion_task = tokio::task::spawn(
         session_store
             .clone()
-            .continuously_delete_expired(tokio::time::Duration::from_secs(60)),
+            .continuously_delete_expired(tokio::time::Duration::from_secs(60 * 60)),
     );
+
+    /*let _guest_deletion_task = task::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(60 * 60));
+        interval.tick().await;
+
+        loop {
+            interval.tick().await;
+
+            sqlx::query(
+                r#"
+                        SELECT users
+                        SET premium = premium - 1
+                        WHERE premium > 0
+                        AND user_id = $1
+                    "#,
+            )
+            .bind(user_id.0)
+            .execute(&pool_clone)
+            .await
+            .unwrap();
+        }
+    });*/
 
     let session_layer = SessionManagerLayer::new(session_store)
         .with_secure(false)
         .with_same_site(SameSite::Lax)
         .with_expiry(Expiry::OnInactivity(time::Duration::days(30)));
+
+
 
     let game_state = GameStore::new(pool.clone()).load_all().await?;
 
