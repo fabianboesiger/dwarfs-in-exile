@@ -25,19 +25,6 @@ jobs:
       run: cargo install cargo-make
     - name: Build
       run: ./build-release
-    - name: Compress Files
-      uses: stefh/ghaction-CompressFiles@v2
-      with:
-        path: server/public
-        extensions: '.jpg,.png,.js,.css,.html,.wasm'
-        tools: 'brotli,gzip'
-    - name: Stop Server
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: dwarfs-in-exile.com
-        username: ${{ secrets.SSH_USERNAME }}
-        password: ${{ secrets.SSH_PASSWORD }}
-        script: "echo ${{ secrets.SSH_PASSWORD }} | sudo -S systemctl stop dwarfs-in-exile.service"
     - name: Make Backup
       uses: appleboy/ssh-action@v1.0.3
       with:
@@ -45,6 +32,12 @@ jobs:
         username: ${{ secrets.SSH_USERNAME }}
         password: ${{ secrets.SSH_PASSWORD }}
         script: "cp /home/fabian/projects/dwarfs-in-exile/data.db /home/fabian/projects/dwarfs-in-exile/backups/data-$(date +'%Y-%m-%d-%H-%M-%S').db"
+    - name: Compress Files
+      uses: stefh/ghaction-CompressFiles@v2
+      with:
+        path: server/public
+        extensions: '.jpg,.png,.js,.css,.html,.wasm'
+        tools: 'brotli,gzip'
     - name: Copy Public Files
       uses: appleboy/scp-action@v0.1.7
       with:
@@ -54,6 +47,13 @@ jobs:
         source: "server/public/*"
         target: "/home/fabian/projects/dwarfs-in-exile/public"
         strip_components: 2
+    - name: Stop Server
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: dwarfs-in-exile.com
+        username: ${{ secrets.SSH_USERNAME }}
+        password: ${{ secrets.SSH_PASSWORD }}
+        script: "echo ${{ secrets.SSH_PASSWORD }} | sudo -S systemctl stop dwarfs-in-exile.service"
     - name: Copy Server Binary
       uses: appleboy/scp-action@v0.1.7
       with:
