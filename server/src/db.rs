@@ -47,17 +47,9 @@ pub async fn setup() -> Result<SqlitePool, Box<dyn std::error::Error>> {
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS settings (
-            free_premium INTEGER NOT NULL
+            free_premium INTEGER NOT NULL,
+            auto_start_world INTEGER NOT NULL
         )
-    "#,
-    )
-    .execute(&mut *transaction)
-    .await?;
-
-    sqlx::query(
-        r#"
-        INSERT INTO settings (free_premium)
-        VALUES (0)
     "#,
     )
     .execute(&mut *transaction)

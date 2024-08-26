@@ -627,6 +627,7 @@ impl engine_shared::State for State {
                                     player.auto_functions.auto_craft.swap_remove(&item);
                                 } else {
                                     player.auto_functions.auto_craft.insert(item);
+                                    player.auto_craft(self.time, is_premium);
                                 }
                             }
                         }
@@ -636,17 +637,18 @@ impl engine_shared::State for State {
                                     player.auto_functions.auto_store.swap_remove(&item);
                                 } else {
                                     player.auto_functions.auto_store.insert(item);
+                                    player.auto_store(is_premium);
                                 }
                             }
                         }
-                        ClientEvent::ToggleAutoSell(item) => {
-                            if is_premium {
+                        ClientEvent::ToggleAutoSell(_item) => {
+                            /*if is_premium {
                                 if player.auto_functions.auto_sell.contains(&item) {
                                     player.auto_functions.auto_sell.swap_remove(&item);
                                 } else {
                                     player.auto_functions.auto_sell.insert(item);
                                 }
-                            }
+                            }*/
                         }
                         ClientEvent::ToggleAutoIdle => {
                             if is_premium {
@@ -1053,7 +1055,7 @@ impl engine_shared::State for State {
                                         }
                                     }
                                 }
-                                player.inventory.add(added_items, self.time);
+                                player.add_items(added_items, self.time, is_premium);
 
                                 // Handle dwarfs that became adult
                                 for dwarf_id in became_adult {
@@ -1856,6 +1858,7 @@ impl Player {
     }
 
     pub fn auto_craft(&mut self, time: Time, is_premium: bool) {
+
         if is_premium {
             let mut items_added = false;
             // Auto-craft!

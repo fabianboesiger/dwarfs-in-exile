@@ -1113,13 +1113,13 @@ fn dwarf_occupation(dwarf: &Dwarf, player: &Player) -> Node<Msg> {
         if let Some((quest_type, _, _)) = dwarf.participates_in_quest {
             div![
                 if dwarf.auto_idle {
-                    format!("Auto-idling, resuming quest {} shortly.", quest_type,)
+                    span![format!("Auto-idling, resuming quest {} shortly.", quest_type,)]
                 } else {
-                    format!("Participating in quest {}.", quest_type,)
+                    span![format!("Participating in quest {}.", quest_type,)]
                 },
                 br![],
                 if dwarf.occupation != Occupation::Idling {
-                    stars_occupation(dwarf, dwarf.occupation)
+                    stars_occupation(dwarf, quest_type.occupation())
                 } else {
                     Node::Empty
                 }
@@ -1127,12 +1127,12 @@ fn dwarf_occupation(dwarf: &Dwarf, player: &Player) -> Node<Msg> {
         } else {
             div![
                 if dwarf.auto_idle {
-                    format!(
+                    span![format!(
                         "Auto-idling, resuming occupation {} shortly.",
                         dwarf.occupation,
-                    )
+                    )]
                 } else {
-                    format!("Currently {}.", dwarf.occupation,)
+                    span![format!("Currently {}.", dwarf.occupation)]
                 },
                 br![],
                 if dwarf.occupation != Occupation::Idling {
@@ -1146,20 +1146,25 @@ fn dwarf_occupation(dwarf: &Dwarf, player: &Player) -> Node<Msg> {
         div![
             if let Some(mentor) = dwarf.mentor {
                 let mentor = player.dwarfs.get(&mentor).unwrap();
-                format!(
-                    "Doing an apprenticeship with {} in {}.",
-                    mentor.custom_name.as_ref().unwrap_or(&mentor.name),
-                    mentor.actual_occupation(),
-                )
+
+                vec![
+                    span![format!(
+                        "Doing an apprenticeship with {} in {}.",
+                        mentor.custom_name.as_ref().unwrap_or(&mentor.name),
+                        mentor.actual_occupation(),
+                    )],
+                    br![],
+                    if dwarf.occupation != Occupation::Idling {
+                        stars_occupation(dwarf, mentor.occupation)
+                    } else {
+                        Node::Empty
+                    }
+                ]
+                
             } else {
-                format!("Currently {}.", dwarf.occupation,)
+                vec![span![format!("Currently {}.", dwarf.occupation)]]
             },
-            br![],
-            if dwarf.occupation != Occupation::Idling {
-                stars_occupation(dwarf, dwarf.occupation)
-            } else {
-                Node::Empty
-            }
+            
         ]
     }
 }
