@@ -2254,7 +2254,7 @@ impl Occupation {
             Occupation::Mining => 2,
             Occupation::Logging => 2,
             Occupation::Hunting => 2,
-            Occupation::Gathering => 1,
+            Occupation::Gathering => 2,
             Occupation::Fishing => 1,
             Occupation::Fighting => 5,
             Occupation::Exploring => 3,
