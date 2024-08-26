@@ -774,7 +774,14 @@ impl engine_shared::State for State {
                         ClientEvent::AddToFoodStorage(item, qty) => {
                             Self::add_to_food_storage(player, item, qty);
                         }
-                        ClientEvent::Sell(_item, _qty) => { /*Self::sell(player, item, qty);*/ }
+                        ClientEvent::Sell(item, qty) => { 
+                            if qty > 0 {
+                                let trade_deal = TradeDeal::from_player(player, item, qty);
+                                if trade_deal.next_bid > 0 {
+                                    self.trade_deals.push(trade_deal);
+                                }
+                            }
+                        }
                     }
                 }
                 Event::ServerEvent(event) => {
@@ -1106,7 +1113,7 @@ impl engine_shared::State for State {
                                         });
                                     }
                                 }
-                                
+
                                 // Remove dead dwarfs from the base.
                                 player.dwarfs.retain(|_, dwarf| !(dwarf.dead() || dwarf.released));
                             }
@@ -1456,7 +1463,7 @@ impl engine_shared::State for State {
                                     .min(30)
                             };
 
-                            while self.trade_deals.len() < num_trades {
+                            while self.trade_deals.iter().filter(|trade_deal| trade_deal.creator.is_none()).count() < num_trades {
                                 self.trade_deals.push(TradeDeal::new(rng));
                             }
                         }
@@ -1649,8 +1656,10 @@ pub enum LogMsg {
     NotEnoughSpaceForDwarf,
     DwarfUpgrade(String, String),
     DwarfIsAdult(String),
-    Overbid(Bundle<Item>, Money, TradeType),
-    BidWon(Bundle<Item>, Money, TradeType),
+    Overbid(Bundle<Item>, Money),
+    BidWon(Bundle<Item>, Money),
+    ItemSold(Bundle<Item>, Money),
+    ItemNotSold(Bundle<Item>, Money),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
@@ -2822,13 +2831,8 @@ pub struct TradeDeal {
     pub next_bid: Money,
     pub highest_bidder: Option<(UserId, Money)>,
     pub time_left: Time,
-    pub user_trade_type: TradeType,
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash, PartialEq, Eq)]
-pub enum TradeType {
-    Buy,
-    Sell,
+    #[serde(default)]
+    pub creator: Option<UserId>
 }
 
 impl TradeDeal {
@@ -2837,23 +2841,36 @@ impl TradeDeal {
         let time_left = rng.gen_range(ONE_MINUTE * 20..ONE_HOUR * 2);
         let qty = ((time_left * 20) / item.item_rarity_num()).max(1);
 
+        /*
         let user_trade_type = if rng.gen_bool(0.5) {
             TradeType::Buy
         } else {
             TradeType::Sell
         };
+        */
 
         TradeDeal {
             items: Bundle::new().add(item, qty),
-            next_bid: item.money_value(qty) as u64
-                * if user_trade_type == TradeType::Buy {
-                    10
-                } else {
-                    1
-                },
+            next_bid: 10,
             time_left,
             highest_bidder: None,
-            user_trade_type,
+            creator: None
+        }
+    }
+
+    pub fn from_player(player: &mut Player, item: Item, qty: u64) -> Self {
+        let qty = qty.min(player.inventory.items.get(&item).copied().unwrap_or(0));
+        let time_left = ((qty * item.item_rarity_num()) / 20).max(ONE_MINUTE * 20).min(ONE_HOUR * 2);
+        let items = Bundle::new().add(item, qty);
+
+        player.inventory.items.check_remove(&items);
+
+        TradeDeal {
+            items,
+            next_bid: item.money_value(qty) as u64 * 10,
+            time_left,
+            highest_bidder: None,
+            creator: None
         }
     }
 
@@ -2863,16 +2880,31 @@ impl TradeDeal {
             if self.time_left == 0 || self.next_bid <= 1 {
                 if let Some((best_bidder_user_id, best_bidder_money)) = self.highest_bidder {
                     let p = players.get_mut(&best_bidder_user_id)?;
-                    if self.user_trade_type == TradeType::Buy {
-                        p.inventory.add(self.items.clone(), time);
-                    } else {
-                        p.money += best_bidder_money;
-                    }
+                    p.inventory.add(self.items.clone(), time);      
                     p.log.add(
                         time,
-                        LogMsg::BidWon(self.items.clone(), best_bidder_money, self.user_trade_type),
+                        LogMsg::BidWon(self.items.clone(), best_bidder_money),
                     );
+
+                    if let Some(creator) = self.creator {
+                        let c = players.get_mut(&creator)?;
+                        c.money += best_bidder_money;
+                        c.log.add(
+                            time,
+                            LogMsg::ItemSold(self.items.clone(), best_bidder_money),
+                        );
+                    }
+                } else {
+                    if let Some(creator) = self.creator {
+                        let c = players.get_mut(&creator)?;
+                        c.inventory.add(self.items.clone(), time);
+                        c.log.add(
+                            time,
+                            LogMsg::ItemNotSold(self.items.clone(), self.next_bid),
+                        );
+                    }
                 }
+
             }
         }
         Some(())
@@ -2888,50 +2920,23 @@ impl TradeDeal {
         user_id: UserId,
         time: Time,
     ) -> Option<()> {
-        if self.user_trade_type == TradeType::Buy {
-            if players.get_mut(&user_id)?.money >= self.next_bid {
-                if let Some((best_bidder_user_id, best_bidder_money)) = self.highest_bidder {
-                    let p = players.get_mut(&best_bidder_user_id)?;
-                    p.money += best_bidder_money;
-                    p.log.add(
-                        time,
-                        LogMsg::Overbid(self.items.clone(), self.next_bid, self.user_trade_type),
-                    );
-                }
-                players.get_mut(&user_id)?.money -= self.next_bid;
-                self.highest_bidder = Some((user_id, self.next_bid));
-                self.next_bid += (self.next_bid / 10).max(1);
-                if self.time_left < ONE_MINUTE * SPEED {
-                    self.time_left += ONE_MINUTE * SPEED;
-                }
+        if players.get_mut(&user_id)?.money >= self.next_bid {
+            if let Some((best_bidder_user_id, best_bidder_money)) = self.highest_bidder {
+                let p = players.get_mut(&best_bidder_user_id)?;
+                p.money += best_bidder_money;
+                p.log.add(
+                    time,
+                    LogMsg::Overbid(self.items.clone(), self.next_bid),
+                );
             }
-        } else {
-            if players
-                .get(&user_id)?
-                .inventory
-                .items
-                .check_remove(&self.items)
-            {
-                if let Some((best_bidder_user_id, _)) = self.highest_bidder {
-                    let p = players.get_mut(&best_bidder_user_id)?;
-                    p.inventory.add(self.items.clone(), time);
-                    p.log.add(
-                        time,
-                        LogMsg::Overbid(self.items.clone(), self.next_bid, self.user_trade_type),
-                    );
-                }
-                players
-                    .get_mut(&user_id)?
-                    .inventory
-                    .items
-                    .remove_checked(self.items.clone());
-                self.highest_bidder = Some((user_id, self.next_bid));
-                self.next_bid -= (self.next_bid / 10).max(1);
-                if self.time_left < ONE_MINUTE * SPEED {
-                    self.time_left += ONE_MINUTE * SPEED;
-                }
+            players.get_mut(&user_id)?.money -= self.next_bid;
+            self.highest_bidder = Some((user_id, self.next_bid));
+            self.next_bid += (self.next_bid / 10).max(1);
+            if self.time_left < ONE_MINUTE * SPEED {
+                self.time_left += ONE_MINUTE * SPEED;
             }
         }
+        
 
         Some(())
     }

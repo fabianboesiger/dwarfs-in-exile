@@ -8,7 +8,7 @@ use rustrict::CensorStr;
 use seed::{prelude::*, *};
 use shared::{
     Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg,
-    Occupation, Player, Popup, QuestId, QuestType, RewardMode, Stats, Time, TradeType,
+    Occupation, Player, Popup, QuestId, QuestType, RewardMode, Stats, Time,
     TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, MAX_EFFECTIVENESS, MAX_HEALTH,
     SPEED, WINNER_NUM_PREMIUM_DAYS,
 };
@@ -163,7 +163,6 @@ pub struct TradeFilter {
     craftable: bool,
     my_bids: bool,
     by_type: CustomMap<ItemType, bool>,
-    trade_type: Option<TradeType>,
 }
 
 impl Default for TradeFilter {
@@ -173,7 +172,6 @@ impl Default for TradeFilter {
             my_bids: true,
             craftable: false,
             by_type: CustomMap::new(),
-            trade_type: None,
         }
     }
 }
@@ -325,7 +323,6 @@ pub enum Msg {
     TradeFilterMyBids,
     TradeFilterCraftable,
     TradeFilterReset,
-    TradeFilterTradeType(Option<TradeType>),
     TradeFilterByType(ItemType),
     DwarfsFilterReset,
     DwarfsFilterOccupation(Option<Occupation>),
@@ -458,9 +455,6 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
         }
         Msg::TradeFilterReset => {
             model.trade_filter = TradeFilter::default();
-        }
-        Msg::TradeFilterTradeType(trade_type) => {
-            model.trade_filter.trade_type = trade_type;
         }
         Msg::DwarfsFilterReset => {
             model.dwarfs_filter = DwarfsFilter::default();
@@ -2856,6 +2850,73 @@ fn inventory(
                             } else {
                                 Vec::new()
                             },
+                            if let Some(_) = item.nutritional_value() {
+                                vec![
+                                    h4!["Sell Item"],      
+                                    div![
+                                        C!["button-row"],
+                                        button![
+                                            if player
+                                                .inventory
+                                                .items
+                                                .check_remove(&Bundle::new().add(item, 1))
+                                            {
+                                                attrs! {}
+                                            } else {
+                                                attrs! {At::Disabled => "true"}
+                                            },
+                                            ev(Ev::Click, move |_| Msg::send_event(
+                                                ClientEvent::Sell(item, 1)
+                                            )),
+                                            format!("1x"),
+                                        ],
+                                        button![
+                                            if player
+                                                .inventory
+                                                .items
+                                                .check_remove(&Bundle::new().add(item, 10))
+                                            {
+                                                attrs! {}
+                                            } else {
+                                                attrs! {At::Disabled => "true"}
+                                            },
+                                            ev(Ev::Click, move |_| Msg::send_event(
+                                                ClientEvent::Sell(item, 10)
+                                            )),
+                                            format!("10x"),
+                                        ],
+                                        button![
+                                            if player
+                                                .inventory
+                                                .items
+                                                .check_remove(&Bundle::new().add(item, 100))
+                                            {
+                                                attrs! {}
+                                            } else {
+                                                attrs! {At::Disabled => "true"}
+                                            },
+                                            ev(Ev::Click, move |_| Msg::send_event(
+                                                ClientEvent::Sell(item, 100)
+                                            )),
+                                            format!("100x"),
+                                        ],
+                                        button![
+                                            if n > 0
+                                            {
+                                                attrs! {}
+                                            } else {
+                                                attrs! {At::Disabled => "true"}
+                                            },
+                                            ev(Ev::Click, move |_| Msg::send_event(
+                                                ClientEvent::Sell(item, n)
+                                            )),
+                                            "All",
+                                        ]
+                                    ]
+                                ]
+                            } else {
+                                Vec::new()
+                            },
                         ]
                     }
                 ]})
@@ -2868,7 +2929,6 @@ fn inventory(
 
 fn trades(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
-        let trade_type = model.trade_filter.trade_type;
         let mut trades = state.trade_deals.iter().enumerate().collect::<Vec<_>>();
 
         trades.sort_by_key(|(_, trade_deal)| trade_deal.time_left);
@@ -2910,22 +2970,6 @@ fn trades(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                         })
                 ],
                 div![
-                    div![
-                        input![
-                            id!["buy"],
-                            attrs! {At::Type => "checkbox", At::Checked => matches!(trade_type, Some(TradeType::Buy) | None).as_at_value()},
-                            ev(Ev::Click, move |_| Msg::TradeFilterTradeType(if matches!(trade_type, Some(_)) { None } else { Some(TradeType::Sell) })),
-                        ],
-                        label![attrs! {At::For => "buy"}, "Buy Items"]
-                    ],
-                    div![
-                        input![
-                            id!["sell"],
-                            attrs! {At::Type => "checkbox", At::Checked => matches!(trade_type, Some(TradeType::Sell) | None).as_at_value()},
-                            ev(Ev::Click, move |_| Msg::TradeFilterTradeType(if matches!(trade_type, Some(_)) { None } else { Some(TradeType::Buy) })),
-                        ],
-                        label![attrs! {At::For => "sell"}, "Sell Items"]
-                    ],
                     button![
                         ev(Ev::Click, move |_| Msg::TradeFilterReset),
                         "Reset Filter",
@@ -2938,11 +2982,7 @@ fn trades(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                 .into_iter()
                 .filter(|(_, trade_deal)| {                    
                         ((if model.trade_filter.can_afford {
-                            if trade_deal.user_trade_type == TradeType::Buy {
-                                player.money >= trade_deal.next_bid
-                            } else {
-                                player.inventory.items.check_remove(&trade_deal.items)
-                            }
+                            player.money >= trade_deal.next_bid
                         } else {
                             false
                         }) || (if model.trade_filter.my_bids {
@@ -2963,11 +3003,6 @@ fn trades(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                             }
                             
                         )
-                        && if let Some(trade_type) = trade_type {
-                            trade_deal.user_trade_type == trade_type
-                        } else {
-                            true
-                        }
                 })
                 .map(|(idx, trade_deal)| {
                     let item = *trade_deal.items.iter().next().unwrap().0;
@@ -2977,11 +3012,7 @@ fn trades(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                     } else {
                         false
                     };
-                    let can_afford = if trade_deal.user_trade_type == TradeType::Buy {
-                        player.money >= trade_deal.next_bid
-                    } else {
-                        player.inventory.items.check_remove(&trade_deal.items)
-                    };
+                    let can_afford = player.money >= trade_deal.next_bid;
 
                     tr![
 
@@ -3000,9 +3031,9 @@ fn trades(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                     ]],
                     td![
                         C!["list-item-content"],
-                        h3![C!["title"], if trade_deal.user_trade_type == TradeType::Buy { "Buy Offer" } else { "Sell Offer" } ],
+                        h3![C!["title"], "Offer"],
                         p![C!["subtitle"], format!("{} {item}", big_number(n))],
-                        h4![C!["title"], if trade_deal.user_trade_type == TradeType::Buy { "Cost" } else { "Payout" } ],
+                        h4![C!["title"], "Cost" ],
                         p![C!["subtitle"], format!("{} coins", trade_deal.next_bid)],
                     ],
                     td![
@@ -3014,18 +3045,10 @@ fn trades(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                             Node::Empty
                         },
                         if let Some((highest_bidder_user_id, highest_bidder_money)) = trade_deal.highest_bidder {
-                            if trade_deal.user_trade_type == TradeType::Buy {
-                                if highest_bidder_user_id == *user_id {
-                                    p![format!("You are the highest bidder with {} coins.", highest_bidder_money)]
-                                } else {
-                                    p![format!("Highest bidder has offered {} coins.", highest_bidder_money)]
-                                }
+                            if highest_bidder_user_id == *user_id {
+                                p![format!("You are the highest bidder with {} coins.", highest_bidder_money)]
                             } else {
-                                if highest_bidder_user_id == *user_id {
-                                    p![format!("You have accepted the lowest offer at {} coins.", highest_bidder_money)]
-                                } else {
-                                    p![format!("Lowest accepted offer is at {} coins.", highest_bidder_money)]
-                                }
+                                p![format!("Highest bidder has offered {} coins.", highest_bidder_money)]
                             }
                         } else {
                             Node::Empty
@@ -3033,11 +3056,7 @@ fn trades(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                         button![
                             attrs! { At::Disabled => (highest_bidder_is_you || !can_afford).as_at_value() },
                             ev(Ev::Click, move |_| Msg::send_event(ClientEvent::Bid(idx))),
-                            if trade_deal.user_trade_type == TradeType::Buy {
-                                format!("Bid {} coins", trade_deal.next_bid)
-                            } else {
-                                format!("Accept {} coins", trade_deal.next_bid)
-                            }
+                            format!("Bid {} coins", trade_deal.next_bid)
                         ]
                     ]
                 ]
@@ -3142,62 +3161,62 @@ fn history(
                                 LogMsg::NotEnoughSpaceForDwarf => Icon::PersonAddDisabled,
                                 LogMsg::Overbid(..) => Icon::Trade,
                                 LogMsg::BidWon(..) => Icon::Trade,
+                                LogMsg::ItemSold(..) => Icon::Trade,
+                                LogMsg::ItemNotSold(..) => Icon::Trade,
                             }.draw()],
                             span![C!["time"], format!("{} ago: ", fmt_time(state.time - time))],
                             match msg {
-                                LogMsg::Overbid(items, money, trade_type) => {
-                                    if *trade_type == TradeType::Buy {
-                                        span![format!(
-                                            "You have been overbid on {} for {} coins.",
-                                            items
-                                                .clone()
-                                                .sorted_by_rarity()
-                                                .into_iter()
-                                                .map(|(item, n)| format!("{n}x {item}"))
-                                                .collect::<Vec<_>>()
-                                                .join(", "),
-                                            money
-                                        )]
-                                    } else {
-                                        span![format!(
-                                            "Someone has accepted a lower offer on {} for {} coins.",
-                                            items
-                                                .clone()
-                                                .sorted_by_rarity()
-                                                .into_iter()
-                                                .map(|(item, n)| format!("{n}x {item}"))
-                                                .collect::<Vec<_>>()
-                                                .join(", "),
-                                            money
-                                        )]
-                                    }
+                                LogMsg::Overbid(items, money) => {
+                                    span![format!(
+                                        "You have been overbid on {} for {} coins.",
+                                        items
+                                            .clone()
+                                            .sorted_by_rarity()
+                                            .into_iter()
+                                            .map(|(item, n)| format!("{n}x {item}"))
+                                            .collect::<Vec<_>>()
+                                            .join(", "),
+                                        money
+                                    )]
                                 }
-                                LogMsg::BidWon(items, money, trade_type) => {
-                                    if *trade_type == TradeType::Buy {
-                                        span![format!(
-                                            "You have successfully bought {} for {} coins.",
-                                            items
-                                                .clone()
-                                                .sorted_by_rarity()
-                                                .into_iter()
-                                                .map(|(item, n)| format!("{n}x {item}"))
-                                                .collect::<Vec<_>>()
-                                                .join(", "),
-                                            money
-                                        )]
-                                    } else {
-                                        span![format!(
-                                            "You have successfully sold {} for {} coins.",
-                                            items
-                                                .clone()
-                                                .sorted_by_rarity()
-                                                .into_iter()
-                                                .map(|(item, n)| format!("{n}x {item}"))
-                                                .collect::<Vec<_>>()
-                                                .join(", "),
-                                            money
-                                        )]
-                                    }
+                                LogMsg::BidWon(items, money) => {
+                                    span![format!(
+                                        "You have successfully bought {} for {} coins.",
+                                        items
+                                            .clone()
+                                            .sorted_by_rarity()
+                                            .into_iter()
+                                            .map(|(item, n)| format!("{n}x {item}"))
+                                            .collect::<Vec<_>>()
+                                            .join(", "),
+                                        money
+                                    )]
+                                }
+                                LogMsg::ItemSold(items, money) => {
+                                    span![format!(
+                                        "You sold {} for {} coins.",
+                                        items
+                                            .clone()
+                                            .sorted_by_rarity()
+                                            .into_iter()
+                                            .map(|(item, n)| format!("{n}x {item}"))
+                                            .collect::<Vec<_>>()
+                                            .join(", "),
+                                        money
+                                    )]
+                                }
+                                LogMsg::ItemNotSold(items, money) => {
+                                    span![format!(
+                                        "You weren't able to sell {} for {} coins.",
+                                        items
+                                            .clone()
+                                            .sorted_by_rarity()
+                                            .into_iter()
+                                            .map(|(item, n)| format!("{n}x {item}"))
+                                            .collect::<Vec<_>>()
+                                            .join(", "),
+                                        money
+                                    )]
                                 }
                                 LogMsg::DwarfUpgrade(name, stat) => {
                                     span![format!(
