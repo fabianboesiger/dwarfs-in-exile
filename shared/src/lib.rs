@@ -39,6 +39,7 @@ pub const IMPROVEMENT_DURATION: u32 = ONE_DAY as u32 * 7;
 pub const APPRENTICE_EFFECTIVENESS_DIVIDER: u64 = 5;
 pub const MAX_EFFECTIVENESS: u64 = 6000;
 pub const MIN_MAX_DWARF_DIFFERENCE: u64 = 3;
+pub const TRADE_MONEY_MULTIPLIER: u64 = 10;
 
 pub type Money = u64;
 pub type Food = u64;
@@ -384,6 +385,10 @@ impl engine_shared::State for State {
                                 }
                             }
                             player.set_mentor(apprentice_id, mentor_id)?;
+                        }
+                        ClientEvent::ReleaseDwarf(dwarf_id) => {
+                            let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
+                            dwarf.released = true;
                         }
                         ClientEvent::ToggleManualManagement(dwarf_id) => {
                             let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
@@ -770,7 +775,13 @@ impl engine_shared::State for State {
                         ClientEvent::AddToFoodStorage(item, qty) => {
                             Self::add_to_food_storage(player, item, qty);
                         }
-                        ClientEvent::Sell(_item, _qty) => { /*Self::sell(player, item, qty);*/ }
+                        ClientEvent::Sell(item, qty) => { 
+                            if qty > 0 {
+                                if let Some(trade_deal) = TradeDeal::from_player(user_id, player, item, qty) {
+                                    self.trade_deals.push(trade_deal);
+                                }
+                            }
+                        }
                     }
                 }
                 Event::ServerEvent(event) => {
@@ -1097,13 +1108,14 @@ impl engine_shared::State for State {
                                             !player
                                                 .dwarfs
                                                 .get(&*dwarf_id)
-                                                .map(|d| d.dead())
+                                                .map(|d| d.dead() || d.released)
                                                 .unwrap_or(true)
                                         });
                                     }
                                 }
+
                                 // Remove dead dwarfs from the base.
-                                player.dwarfs.retain(|_, dwarf| !dwarf.dead());
+                                player.dwarfs.retain(|_, dwarf| !(dwarf.dead() || dwarf.released));
                             }
 
                             // Continue the active quests.
@@ -1443,15 +1455,15 @@ impl engine_shared::State for State {
                             self.trade_deals.retain(|trade| !trade.done());
 
                             let num_trades = if cfg!(debug_assertions) {
-                                30
+                                15
                             } else {
-                                (active_players / 5)
-                                    .max(active_not_new_players / 3)
+                                (active_players / 10)
+                                    .max(active_not_new_players / 6)
                                     .max(3)
-                                    .min(30)
+                                    .min(15)
                             };
 
-                            while self.trade_deals.len() < num_trades {
+                            while self.trade_deals.iter().filter(|trade_deal| trade_deal.creator.is_none()).count() < num_trades {
                                 self.trade_deals.push(TradeDeal::new(rng));
                             }
                         }
@@ -1646,6 +1658,8 @@ pub enum LogMsg {
     DwarfIsAdult(String),
     Overbid(Bundle<Item>, Money, TradeType),
     BidWon(Bundle<Item>, Money, TradeType),
+    ItemSold(Bundle<Item>, Money),
+    ItemNotSold(Bundle<Item>, Money),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
@@ -2028,6 +2042,8 @@ pub struct Dwarf {
     pub mentor: Option<DwarfId>,
     #[serde(default)]
     pub apprentice: Option<DwarfId>,
+    #[serde(default)]
+    pub released: bool,
 }
 
 impl Dwarf {
@@ -2113,6 +2129,7 @@ impl Dwarf {
             manual_management: false,
             mentor: None,
             apprentice: None,
+            released: false,
         }
     }
 
@@ -2133,6 +2150,7 @@ impl Dwarf {
             manual_management: false,
             mentor: None,
             apprentice: None,
+            released: false,
         }
     }
 
@@ -2257,7 +2275,7 @@ impl Occupation {
             Occupation::Mining => 2,
             Occupation::Logging => 2,
             Occupation::Hunting => 2,
-            Occupation::Gathering => 1,
+            Occupation::Gathering => 2,
             Occupation::Fishing => 1,
             Occupation::Fighting => 5,
             Occupation::Exploring => 3,
@@ -2458,6 +2476,7 @@ pub enum ClientEvent {
     ToggleManualManagement(DwarfId),
     SetMentor(DwarfId, Option<DwarfId>),
     Bid(usize),
+    ReleaseDwarf(DwarfId),
 }
 
 impl engine_shared::ClientEvent for ClientEvent {
@@ -2813,6 +2832,8 @@ pub struct TradeDeal {
     pub highest_bidder: Option<(UserId, Money)>,
     pub time_left: Time,
     pub user_trade_type: TradeType,
+    #[serde(default)]
+    pub creator: Option<UserId>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -2827,24 +2848,50 @@ impl TradeDeal {
         let time_left = rng.gen_range(ONE_MINUTE * 20..ONE_HOUR * 2);
         let qty = ((time_left * 20) / item.item_rarity_num()).max(1);
 
+        /*
         let user_trade_type = if rng.gen_bool(0.5) {
             TradeType::Buy
         } else {
             TradeType::Sell
         };
+        */
 
         TradeDeal {
             items: Bundle::new().add(item, qty),
-            next_bid: item.money_value(qty) as u64
-                * if user_trade_type == TradeType::Buy {
-                    10
-                } else {
-                    1
-                },
+            next_bid: item.money_value(qty) as u64 * TRADE_MONEY_MULTIPLIER,
             time_left,
             highest_bidder: None,
-            user_trade_type,
+            creator: None,
+            user_trade_type: TradeType::Buy,
         }
+    }
+
+    pub fn from_player(user_id: UserId, player: &mut Player, item: Item, qty: u64) -> Option<Self> {
+        let qty = qty.min(player.inventory.items.get(&item).copied().unwrap_or(0));
+        let time_left = ((qty * item.item_rarity_num()) / 20).max(ONE_MINUTE * 20).min(ONE_HOUR * 2);
+        let items = Bundle::new().add(item, qty);
+        let next_bid = item.money_value(qty) as u64 * TRADE_MONEY_MULTIPLIER;
+
+        if qty == 0 {
+            return None;
+        }
+
+        if next_bid == 0 {
+            return None;
+        }
+
+        if !player.inventory.items.remove_checked(items.clone()) {
+            return None;
+        }
+
+        Some(TradeDeal {
+            items,
+            next_bid,
+            time_left,
+            highest_bidder: None,
+            creator: Some(user_id),
+            user_trade_type: TradeType::Buy,
+        })
     }
 
     pub fn update(&mut self, players: &mut CustomMap<UserId, Player>, time: Time) -> Option<()> {
@@ -2853,15 +2900,29 @@ impl TradeDeal {
             if self.time_left == 0 || self.next_bid <= 1 {
                 if let Some((best_bidder_user_id, best_bidder_money)) = self.highest_bidder {
                     let p = players.get_mut(&best_bidder_user_id)?;
-                    if self.user_trade_type == TradeType::Buy {
-                        p.inventory.add(self.items.clone(), time);
-                    } else {
-                        p.money += best_bidder_money;
-                    }
+                    p.inventory.add(self.items.clone(), time);      
                     p.log.add(
                         time,
                         LogMsg::BidWon(self.items.clone(), best_bidder_money, self.user_trade_type),
                     );
+
+                    if let Some(creator) = self.creator {
+                        let c = players.get_mut(&creator)?;
+                        c.money += best_bidder_money;
+                        c.log.add(
+                            time,
+                            LogMsg::ItemSold(self.items.clone(), best_bidder_money),
+                        );
+                    }
+                } else {
+                    if let Some(creator) = self.creator {
+                        let c = players.get_mut(&creator)?;
+                        c.inventory.add(self.items.clone(), time);
+                        c.log.add(
+                            time,
+                            LogMsg::ItemNotSold(self.items.clone(), self.next_bid),
+                        );
+                    }
                 }
             }
         }
@@ -2895,34 +2956,8 @@ impl TradeDeal {
                     self.time_left += ONE_MINUTE * SPEED;
                 }
             }
-        } else {
-            if players
-                .get(&user_id)?
-                .inventory
-                .items
-                .check_remove(&self.items)
-            {
-                if let Some((best_bidder_user_id, _)) = self.highest_bidder {
-                    let p = players.get_mut(&best_bidder_user_id)?;
-                    p.inventory.add(self.items.clone(), time);
-                    p.log.add(
-                        time,
-                        LogMsg::Overbid(self.items.clone(), self.next_bid, self.user_trade_type),
-                    );
-                }
-                players
-                    .get_mut(&user_id)?
-                    .inventory
-                    .items
-                    .remove_checked(self.items.clone());
-                self.highest_bidder = Some((user_id, self.next_bid));
-                self.next_bid -= (self.next_bid / 10).max(1);
-                if self.time_left < ONE_MINUTE * SPEED {
-                    self.time_left += ONE_MINUTE * SPEED;
-                }
-            }
         }
-
+        
         Some(())
     }
 }
