@@ -2445,7 +2445,7 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                         p!["The dwarfen manager can optimally assign dwarfs to carry out the occupations that are best suited for them. Furthermore, the manager can also assign the optimal equipment to each dwarf to further increase their effectiveness in their occupation."],
                         p!["The dwarfen manager ignores children and dwarfs that are on quests, as well as dwarfs that have manual magement enabled."],
                         p![
-                            strong![if player.auto_functions.auto_idle && is_premium {
+                            strong![if player.auto_functions.auto_idle {
                                 "Auto-Idling is enabled."
                             } else {
                                 "Auto-Idling is disabled."
@@ -2453,20 +2453,10 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                         ],
                         p![
                             button![
-                                if is_premium {
-                                    attrs! {}
-                                } else {
-                                    attrs! {At::Disabled => "true"}
-                                },
                                 ev(Ev::Click, move |_| Msg::send_event(
                                     ClientEvent::ToggleAutoIdle
                                 )),
                                 if player.auto_functions.auto_idle && is_premium { "Disable Auto Idling for all Dwarfs" } else { "Enable Auto Idling for all Dwarfs" },
-                                if !is_premium {
-                                    tip(REQUIRES_PREMIUM)
-                                } else {
-                                    Node::Empty
-                                }
                             ]
                         ],
                         p![

@@ -656,9 +656,9 @@ impl engine_shared::State for State {
                             }*/
                         }
                         ClientEvent::ToggleAutoIdle => {
-                            if is_premium {
-                                player.auto_functions.auto_idle = !player.auto_functions.auto_idle;
-                            }
+                            //if is_premium {
+                            player.auto_functions.auto_idle = !player.auto_functions.auto_idle;
+                            //}
                         }
                         ClientEvent::Restart => {
                             if player.dwarfs.len() == 0 {
@@ -890,9 +890,8 @@ impl engine_shared::State for State {
                                             dwarf.auto_idle = false;
                                         }
                                     } else {
-                                        if is_premium
-                                            && player.auto_functions.auto_idle
-                                            && dwarf.health <= MAX_HEALTH / 10
+                                        if player.auto_functions.auto_idle
+                                            && dwarf.health <= MAX_HEALTH / 5
                                             && dwarf.occupation != Occupation::Idling
                                             && player.base.food > 0
                                         {
@@ -1691,7 +1690,7 @@ pub struct AutoFunctions {
 impl Default for AutoFunctions {
     fn default() -> Self {
         Self {
-            auto_idle: false,
+            auto_idle: true,
             auto_craft: CustomSet::new(),
             auto_store: CustomSet::new(),
             auto_sell: CustomSet::new(),
