@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.fabianboesiger.dwarfsinexile",
+        "sha256_cert_fingerprints": ["AC:85:29:58:B0:05:AA:C5:E7:0C:AE:AC:96:E2:3C:EC:3A:BE:54:CB:5F:25:24:38:E3:FE:37:F9:EE:9D:1D:C4"]
+      }
+    }]
