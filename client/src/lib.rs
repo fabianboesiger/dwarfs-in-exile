@@ -7,7 +7,7 @@ use itertools::Itertools;
 use rustrict::CensorStr;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, Stats, Time, TradeType, TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, MAX_EFFECTIVENESS, MAX_HEALTH, SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS
+    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, RewardType, Stats, Time, TradeType, TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, MAX_EFFECTIVENESS, MAX_HEALTH, SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS
 };
 use std::str::FromStr;
 use strum::Display;
@@ -1941,10 +1941,10 @@ fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                 }) && player.base.curr_level <= quest.quest_type.max_level()
             }).map(|(quest_id, quest)| {
                 tr![
-                    C!["list-item-row", match quest.quest_type.reward_mode() {
-                        RewardMode::BestGetsAll(_) | RewardMode::BestGetsItems(_) | RewardMode::NewDwarf(_) | RewardMode::BecomeKing => "reward-mode-best",
-                        RewardMode::SplitFairly(_) => "reward-mode-fair",
-                        RewardMode::ItemsByChance(_) | RewardMode::NewDwarfByChance(_) => "reward-mode-chance",
+                    C!["list-item-row", match quest.quest_type.reward_mode().reward_type() {
+                        RewardType::Fair => "reward-mode-fair",
+                        RewardType::Best => "reward-mode-best",
+                        RewardType::Chance => "reward-mode-chance",
                     }],
                     td![img![
                         C!["list-item-image"],

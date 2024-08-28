@@ -1464,12 +1464,12 @@ impl engine_shared::State for State {
                             self.trade_deals.retain(|trade| !trade.done());
 
                             let num_trades = if cfg!(debug_assertions) {
-                                10
+                                15
                             } else {
-                                (active_players / 15)
-                                    .max(active_not_new_players / 9)
+                                (active_players / 10)
+                                    .max(active_not_new_players / 6)
                                     .max(3)
-                                    .min(10)
+                                    .min(15)
                             };
 
                             while self.trade_deals.iter().filter(|trade_deal| trade_deal.creator.is_none()).count() < num_trades {
@@ -2612,6 +2612,23 @@ pub enum RewardMode {
     BecomeKing,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RewardType {
+    Fair,
+    Chance, 
+    Best,
+}
+
+impl RewardMode {
+    pub fn reward_type(&self) -> RewardType {
+        match self {
+            RewardMode::BestGetsAll(_) | RewardMode::BestGetsItems(_) | RewardMode::NewDwarf(_) | RewardMode::BecomeKing => RewardType::Best,
+            RewardMode::SplitFairly(_) => RewardType::Fair,
+            RewardMode::ItemsByChance(_) | RewardMode::NewDwarfByChance(_) => RewardType::Chance
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default, Hash)]
 pub struct Contestant {
     pub dwarfs: CustomMap<usize, DwarfId>,
@@ -2817,20 +2834,22 @@ impl QuestType {
 
     pub fn max_level(self) -> u64 {
         match self {
+            //s if s.reward_mode().reward_type() == RewardType::Fair => 100,
+
             QuestType::ForTheKing => 100,
 
-            QuestType::EatingContest => 10,
             QuestType::KillTheDragon => 20,
             QuestType::DrunkFishing => 20,
-            QuestType::AFishingFriend => 30,
-            QuestType::CollapsedCave => 30,
-            QuestType::CatStuckOnATree => 30,
-            QuestType::FarmersContest => 40,  
-            QuestType::Concert => 50,
-            QuestType::TheHiddenTreasure => 60,
-            QuestType::MagicalBerries => 20,
-            QuestType::Socializing => 70,
-            QuestType::ArenaFight => 80,
+            QuestType::AFishingFriend => 40,
+            QuestType::CollapsedCave => 40,
+            QuestType::CatStuckOnATree => 60,
+            QuestType::FarmersContest => 60,  
+            QuestType::Concert => 80,
+            QuestType::EatingContest => 80,
+            QuestType::MagicalBerries => 80,
+            QuestType::TheHiddenTreasure => 100,
+            QuestType::Socializing => 100,
+            QuestType::ArenaFight => 100,
 
 
             QuestType::FeastForAGuest => 10,
@@ -2888,8 +2907,8 @@ pub enum TradeType {
 impl TradeDeal {
     pub fn new(rng: &mut impl Rng) -> Self {
         let item = enum_iterator::all::<Item>().choose(rng).unwrap();
-        let time_left = rng.gen_range(ONE_MINUTE * 20..ONE_HOUR * 2);
-        let qty = ((time_left * 20) / item.item_rarity_num()).max(1);
+        let time_left = rng.gen_range(ONE_MINUTE * 20..ONE_HOUR * 4);
+        let qty = ((time_left * 10) / item.item_rarity_num()).max(1);
 
         /*
         let user_trade_type = if rng.gen_bool(0.5) {
@@ -2911,7 +2930,7 @@ impl TradeDeal {
 
     pub fn from_player(user_id: UserId, player: &mut Player, item: Item, qty: u64) -> Option<Self> {
         let qty = qty.min(player.inventory.items.get(&item).copied().unwrap_or(0));
-        let time_left = ((qty * item.item_rarity_num()) / 20).max(ONE_MINUTE * 20).min(ONE_HOUR * 2);
+        let time_left = ((qty * item.item_rarity_num()) / 10).max(ONE_MINUTE * 20).min(ONE_HOUR * 4);
         let items = Bundle::new().add(item, qty);
         let next_bid = item.money_value(qty) as u64 * TRADE_MONEY_MULTIPLIER;
 
