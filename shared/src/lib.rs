@@ -733,6 +733,12 @@ impl engine_shared::State for State {
                         }
                         ClientEvent::AssignToQuest(quest_id, dwarf_idx, dwarf_id) => {
                             if let Some(dwarf_id) = dwarf_id {
+
+                                let quest = self.quests.get(&quest_id)?;
+                                if !quest.quest_type.max_level() <= player.base.curr_level {
+                                    return None;
+                                }
+
                                 let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
 
                                 if dwarf.is_adult() {
@@ -1420,7 +1426,7 @@ impl engine_shared::State for State {
                                 .unwrap_or(1);
 
                             let available_quests = enum_iterator::all::<QuestType>()
-                                .filter(|quest_type| quest_type.is_available(max_level))
+                                .filter(|quest_type| !quest_type.is_story() || (max_level > quest_type.max_level() - 10 && max_level <= quest_type.max_level()))
                                 .collect::<HashSet<_>>();
 
                             while self.quests.len() < num_quests {
@@ -2809,21 +2815,55 @@ impl QuestType {
         }
     }
 
-    pub fn is_available(self, level: u64) -> bool {
+    pub fn max_level(self) -> u64 {
         match self {
-            Self::FreeTheVillage => (1..40).contains(&level),
-            Self::FeastForAGuest => (1..40).contains(&level),
-            Self::ADwarfInDanger => (1..40).contains(&level),
-            Self::AttackTheOrks => (1..60).contains(&level),
-            Self::FreeTheDwarf => (20..60).contains(&level),
-            Self::ADwarfGotLost => (10..70).contains(&level),
-            Self::CrystalsForTheElves => (30..60).contains(&level),
-            Self::TheElvenMagician => (30..60).contains(&level),
-            Self::ElvenVictory => (50..60).contains(&level),
-            Self::ADarkSecret => (70..80).contains(&level),
-            Self::TheMassacre => (70..80).contains(&level),
-            Self::TheElvenWar => (90..=100).contains(&level),
-            _ => true,
+            QuestType::ForTheKing => 100,
+
+            QuestType::EatingContest => 10,
+            QuestType::KillTheDragon => 20,
+            QuestType::DrunkFishing => 20,
+            QuestType::AFishingFriend => 30,
+            QuestType::CollapsedCave => 30,
+            QuestType::CatStuckOnATree => 30,
+            QuestType::FarmersContest => 40,  
+            QuestType::Concert => 50,
+            QuestType::TheHiddenTreasure => 60,
+            QuestType::MagicalBerries => 20,
+            QuestType::Socializing => 70,
+            QuestType::ArenaFight => 80,
+
+
+            QuestType::FeastForAGuest => 10,
+            QuestType::FreeTheVillage => 15,
+            QuestType::ADwarfGotLost => 20,
+            QuestType::ADwarfInDanger => 25,
+            QuestType::AttackTheOrks => 30,
+            QuestType::FreeTheDwarf => 40,
+            QuestType::CrystalsForTheElves => 50,
+            QuestType::TheElvenMagician => 60,
+            QuestType::ADarkSecret => 70,
+            QuestType::ElvenVictory => 80,
+            QuestType::TheMassacre => 90,
+            QuestType::TheElvenWar => 100,
+
+        }
+    }
+
+    pub fn is_story(self) -> bool {
+        match self {
+            QuestType::FeastForAGuest |
+            QuestType::FreeTheVillage |
+            QuestType::ADwarfGotLost |
+            QuestType::ADwarfInDanger |
+            QuestType::AttackTheOrks |
+            QuestType::FreeTheDwarf |
+            QuestType::CrystalsForTheElves |
+            QuestType::TheElvenMagician |
+            QuestType::ADarkSecret |
+            QuestType::ElvenVictory |
+            QuestType::TheMassacre |
+            QuestType::TheElvenWar => true,
+            _ => false
         }
     }
 }

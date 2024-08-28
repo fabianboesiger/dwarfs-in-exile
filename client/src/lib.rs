@@ -1893,7 +1893,7 @@ fn dwarf(
 }
 
 fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
-    //let _player = state.players.get(user_id).unwrap();
+    let player = state.players.get(user_id).unwrap();
 
     let mut quests = state.quests.iter().collect::<Vec<_>>();
     quests.sort_by_key(|(_, quest)| quest.time_left);
@@ -1938,7 +1938,7 @@ fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                     quest.contestants.is_empty()
                 } else {
                     true
-                })
+                }) && quest.quest_type.max_level() <= player.base.curr_level
             }).map(|(quest_id, quest)| {
                 tr![
                     C!["list-item-row", match quest.quest_type.reward_mode() {
@@ -1955,7 +1955,7 @@ fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                         h3![C!["title"], format!("{}", quest.quest_type)],
                         p![
                             C!["subtitle"],
-                            format!("{} remaining.", fmt_time(quest.time_left))
+                            format!("{} remaining |  Requires {} | Level {}", fmt_time(quest.time_left), quest.quest_type.occupation(), quest.quest_type.max_level())
                         ],
                         if let Some(contestant) = quest.contestants.get(user_id) {
                             let rank = quest
