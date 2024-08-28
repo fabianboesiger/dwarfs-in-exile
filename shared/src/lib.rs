@@ -656,9 +656,9 @@ impl engine_shared::State for State {
                             }*/
                         }
                         ClientEvent::ToggleAutoIdle => {
-                            if is_premium {
-                                player.auto_functions.auto_idle = !player.auto_functions.auto_idle;
-                            }
+                            //if is_premium {
+                            player.auto_functions.auto_idle = !player.auto_functions.auto_idle;
+                            //}
                         }
                         ClientEvent::Restart => {
                             if player.dwarfs.len() == 0 {
@@ -859,7 +859,6 @@ impl engine_shared::State for State {
                                 }
 
                                 let mut became_adult = CustomSet::new();
-                                let mut died = CustomSet::new();
 
                                 // Let the dwarfs eat!
                                 let health_cost_multiplier = match self.event {
@@ -890,9 +889,8 @@ impl engine_shared::State for State {
                                             dwarf.auto_idle = false;
                                         }
                                     } else {
-                                        if is_premium
-                                            && player.auto_functions.auto_idle
-                                            && dwarf.health <= MAX_HEALTH / 10
+                                        if player.auto_functions.auto_idle
+                                            && dwarf.health <= MAX_HEALTH / 5
                                             && dwarf.occupation != Occupation::Idling
                                             && player.base.food > 0
                                         {
@@ -912,8 +910,6 @@ impl engine_shared::State for State {
                                         if !is_adult_before && dwarf.is_adult() {
                                             became_adult.insert(*dwarf_id);
                                         }
-                                    } else {
-                                        died.insert(*dwarf_id);
                                     }
                                 }
 
@@ -1078,7 +1074,14 @@ impl engine_shared::State for State {
                                         LogMsg::DwarfIsAdult(dwarf.actual_name().to_owned()),
                                     );
                                 }
-                                for dwarf_id in died {
+
+                                // Handle removed dwarfs
+                                let removed_dwarfs = player.dwarfs.iter()
+                                    .filter(|(_, dwarf)| dwarf.dead() || dwarf.released)
+                                    .map(|(id, _)| id)
+                                    .copied()
+                                    .collect::<CustomSet<DwarfId>>();
+                                for dwarf_id in removed_dwarfs {
                                     let apprentice_id: Option<DwarfId> =
                                         player.dwarfs.get(&dwarf_id)?.apprentice;
 
@@ -1691,7 +1694,7 @@ pub struct AutoFunctions {
 impl Default for AutoFunctions {
     fn default() -> Self {
         Self {
-            auto_idle: false,
+            auto_idle: true,
             auto_craft: CustomSet::new(),
             auto_store: CustomSet::new(),
             auto_sell: CustomSet::new(),
