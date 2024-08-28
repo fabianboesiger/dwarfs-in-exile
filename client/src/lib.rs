@@ -1938,7 +1938,7 @@ fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                     quest.contestants.is_empty()
                 } else {
                     true
-                }) && quest.quest_type.max_level() <= player.base.curr_level
+                }) && player.base.curr_level <= quest.quest_type.max_level()
             }).map(|(quest_id, quest)| {
                 tr![
                     C!["list-item-row", match quest.quest_type.reward_mode() {
@@ -3030,25 +3030,33 @@ fn trades(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                         h4![C!["title"], "Cost" ],
                         p![C!["subtitle"], format!("{} coins", trade_deal.next_bid)],
                         p![format!("Deal ends in {}.", fmt_time(trade_deal.time_left))],
-                        if !can_afford && !highest_bidder_is_you {
-                            p![format!("You can't afford this deal.")]
+                        if trade_deal.creator == Some(*user_id) {
+                            vec![p![format!("You created this deal.")]]
                         } else {
-                            Node::Empty
+                            vec![
+                                if !can_afford && !highest_bidder_is_you {
+                                    p![format!("You can't afford this deal.")]
+                                } else {
+                                    Node::Empty
+                                },
+                                if let Some((highest_bidder_user_id, highest_bidder_money)) = trade_deal.highest_bidder {
+                                    if highest_bidder_user_id == *user_id {
+                                        p![format!("You are the highest bidder with {} coins.", highest_bidder_money)]
+                                    } else {
+                                        p![format!("Highest bidder has offered {} coins.", highest_bidder_money)]
+                                    }
+                                } else {
+                                    Node::Empty
+                                },                                                 
+                                button![
+                                    attrs! { At::Disabled => (highest_bidder_is_you || !can_afford).as_at_value() },
+                                    ev(Ev::Click, move |_| Msg::send_event(ClientEvent::Bid(idx))),
+                                    format!("Bid {} coins", trade_deal.next_bid)
+                                ]
+                            ]
+                            
                         },
-                        if let Some((highest_bidder_user_id, highest_bidder_money)) = trade_deal.highest_bidder {
-                            if highest_bidder_user_id == *user_id {
-                                p![format!("You are the highest bidder with {} coins.", highest_bidder_money)]
-                            } else {
-                                p![format!("Highest bidder has offered {} coins.", highest_bidder_money)]
-                            }
-                        } else {
-                            Node::Empty
-                        },
-                        button![
-                            attrs! { At::Disabled => (highest_bidder_is_you || !can_afford).as_at_value() },
-                            ev(Ev::Click, move |_| Msg::send_event(ClientEvent::Bid(idx))),
-                            format!("Bid {} coins", trade_deal.next_bid)
-                        ]
+ 
                     ]
                 ]
             }),

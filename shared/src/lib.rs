@@ -735,7 +735,7 @@ impl engine_shared::State for State {
                             if let Some(dwarf_id) = dwarf_id {
 
                                 let quest = self.quests.get(&quest_id)?;
-                                if !quest.quest_type.max_level() <= player.base.curr_level {
+                                if player.base.curr_level > quest.quest_type.max_level() {
                                     return None;
                                 }
 
@@ -2983,6 +2983,9 @@ impl TradeDeal {
         time: Time,
     ) -> Option<()> {
         if self.user_trade_type == TradeType::Buy {
+            if self.creator == Some(user_id) {
+                return None;
+            }
             if players.get_mut(&user_id)?.money >= self.next_bid {
                 if let Some((best_bidder_user_id, best_bidder_money)) = self.highest_bidder {
                     let p = players.get_mut(&best_bidder_user_id)?;
