@@ -859,7 +859,6 @@ impl engine_shared::State for State {
                                 }
 
                                 let mut became_adult = CustomSet::new();
-                                let mut died = CustomSet::new();
 
                                 // Let the dwarfs eat!
                                 let health_cost_multiplier = match self.event {
@@ -911,8 +910,6 @@ impl engine_shared::State for State {
                                         if !is_adult_before && dwarf.is_adult() {
                                             became_adult.insert(*dwarf_id);
                                         }
-                                    } else {
-                                        died.insert(*dwarf_id);
                                     }
                                 }
 
@@ -1077,7 +1074,14 @@ impl engine_shared::State for State {
                                         LogMsg::DwarfIsAdult(dwarf.actual_name().to_owned()),
                                     );
                                 }
-                                for dwarf_id in died {
+
+                                // Handle removed dwarfs
+                                let removed_dwarfs = player.dwarfs.iter()
+                                    .filter(|(_, dwarf)| dwarf.dead() || dwarf.released)
+                                    .map(|(id, _)| id)
+                                    .copied()
+                                    .collect::<CustomSet<DwarfId>>();
+                                for dwarf_id in removed_dwarfs {
                                     let apprentice_id: Option<DwarfId> =
                                         player.dwarfs.get(&dwarf_id)?.apprentice;
 
