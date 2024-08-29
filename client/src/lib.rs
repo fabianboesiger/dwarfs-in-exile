@@ -13,6 +13,9 @@ use std::str::FromStr;
 use strum::Display;
 use web_sys::js_sys::Date;
 
+//const ENTER_KEY: u32 = 13;
+const ESC_KEY: u32 = 27;
+
 #[derive(Clone, Copy, Display)]
 #[allow(unused)]
 enum Icon {
@@ -536,13 +539,15 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
 // ------ ------
 
 
-fn view(model: &Model) -> Vec<Node<Msg>> {
+fn view(model: &Model) -> Node<Msg> {
     if let (Some(state), Some(user_id), client_state) = (
         model.state.get_state(),
         model.state.get_user_id(),
         &model.state,
     ) {
-        vec![
+        let inert = state.players.get(user_id).map(|player| !player.popups.is_empty()).unwrap_or(false) || model.show_tutorial;
+
+        div![ attrs!{ "inert" => "false" },
             div![id!["background"]],
             header![
                 h1![a![attrs! { At::Href => "/" }, "Dwarfs in Exile"]],
@@ -566,7 +571,7 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
             last_received_items(model, state, user_id),
         ]
     } else {
-        vec![
+        div![
             div![id!["background"]],
             header![h1![a![attrs! { At::Href => "/" }, "Dwarfs in Exile"]]],
             div![C!["loading"], "Loading ..."],
@@ -578,8 +583,11 @@ fn popup(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
     if let Some(player) = state.players.get(user_id) {
         if let Some(popup) = player.popups.front() {
             div![
-                attrs!{ At::Role => "dialog" },
+                attrs!{ At::Role => "dialog", At::AriaLabelledBy => "popup-title", "aria-modal" => "true", "inert" => "false" },
                 C!["panel-wrapper"],
+                keyboard_ev(Ev::KeyDown, |keyboard_event| {
+                    IF!(keyboard_event.key_code() == ESC_KEY => Msg::send_event(ClientEvent::ConfirmPopup))
+                }),
                 match popup {
                     Popup::NewDwarf(dwarf) => {
                         div![
@@ -591,7 +599,7 @@ fn popup(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                             ],
                             div![
                                 C!["panel-content"],
-                                h3!["A New Dwarf has Arrived"],
+                                h3![id!["popup-title"], "A New Dwarf has Arrived"],
                                 h4![C!["title"], dwarf.actual_name()],
                                 p![
                                     C!["subtitle"],
@@ -723,13 +731,16 @@ fn tutorial(model: &Model, state: &shared::State, user_id: &shared::UserId) -> N
             if model.show_tutorial && player.popups.is_empty() {
                 div![
                     C!["panel-wrapper"],
-                    attrs!{ At::Role => "dialog" },
+                    attrs!{ At::Role => "dialog", At::AriaLabelledBy => "popup-title", "aria-modal" => "true", "inert" => "false" },
+                    keyboard_ev(Ev::KeyDown, |keyboard_event| {
+                        IF!(keyboard_event.key_code() == ESC_KEY => Msg::ToggleTutorial)
+                    }),
                     div![
                         id!["tutorial-panel"],
                         C!["panel"],
                         img![C!["panel-image"], attrs! { At::Src => "/logo.jpg" } ],
                         div![C!["panel-content"],
-                            h3![format!("{}", step)],
+                            h3![id!["popup-title"], format!("{}", step)],
                             match step {
                                 TutorialStep::Welcome => div![
                                     p!["Hey, you, welcome to the forbidden lands! You just arrived here? Oh well, seems like I'm your new best friend now! No worries, I'll show you around!"]
@@ -3480,8 +3491,8 @@ fn stars(stars: i8, padded: bool) -> Node<Msg> {
     }
     span![
         C!["symbols"],
-        attrs! {At::Role => "meter", At::AriaValueNow => (stars as f64 / 2.0), At::AriaValueMin => 0.0, At::AriaValueMax => 5.0, At::AriaLabel => "Effectiveness"},
-        s
+        attrs!{ At::Role => "meter", At::AriaValueNow => (stars as f64 / 2.0), At::AriaValueMin => 0.0, At::AriaValueMax => 5.0, At::AriaLabel => format!("Effectiveness: {}/{}", stars as f64 / 2.0, 5.0)},
+        span![attrs!{ At::AriaHidden => "true" }, s]
     ]
 }
 

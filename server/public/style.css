@@ -2,6 +2,7 @@
     --max-content-width: 768px;
     --ui-background-default: #ffffff;
     --ui-background-highlight: #dddddd;
+    --ui-highlight-color: #07f;
 }
 
 #background {
@@ -126,6 +127,16 @@ a.button:active,
 summary:active {
     background: #ddd;
 }
+
+input:not([type="checkbox"]):not([type="radio"]):focus,
+button:focus,
+select:focus,
+a.button:focus,
+summary:focus {
+    outline: 1px solid var(--ui-highlight-color);
+    z-index: 10000;
+}
+
 
 button,
 a.button,
