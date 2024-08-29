@@ -578,6 +578,7 @@ fn popup(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
     if let Some(player) = state.players.get(user_id) {
         if let Some(popup) = player.popups.front() {
             div![
+                attrs!{ At::Role => "dialog" },
                 C!["panel-wrapper"],
                 match popup {
                     Popup::NewDwarf(dwarf) => {
@@ -722,6 +723,7 @@ fn tutorial(model: &Model, state: &shared::State, user_id: &shared::UserId) -> N
             if model.show_tutorial && player.popups.is_empty() {
                 div![
                     C!["panel-wrapper"],
+                    attrs!{ At::Role => "dialog" },
                     div![
                         id!["tutorial-panel"],
                         C!["panel"],
@@ -822,6 +824,11 @@ fn tutorial(model: &Model, state: &shared::State, user_id: &shared::UserId) -> N
                 ]
             } else {
                 button![
+                    attrs!{ At::TabIndex => "0", At::AriaLabel => if step.requires().complete(player) {
+                        "Tutorial Quest (complete)"
+                    } else {
+                        "Tutorial Quest (incomplete)"
+                    }, At::AriaLive => "assertive" },
                     id!["tutorial-button"],
                     C![if step.requires().complete(player) {
                         "complete"
@@ -2339,7 +2346,7 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                 img![attrs! {At::Src => Image::from(player.base.village_type()).as_at_value()}],
                 if let Some(requires) = player.base.upgrade_cost() {
                     div![
-                        p!["Upgrade your settlement to increase the maximum population and unlock new occupations for your dwarfs. New dwarfs can be collected by doing quests, or they can simply wander into to your settlement from time to time. Dwarfs can also be hired by using coins."],
+                        p!["Upgrade your settlement to increase the maximum population and unlock new occupations for your dwarfs. New dwarfs can be collected by doing quests, or they can simply wander into to your settlement from time to time."],
                         h4!["Next Unlocks"],
                         div![
                             C!["next-unlocks"],

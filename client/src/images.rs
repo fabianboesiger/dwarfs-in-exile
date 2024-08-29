@@ -174,6 +174,8 @@ pub enum Image {
     TheElvenMagician,
     FullMoon,
     Starvation,
+    Vest,
+    Boat,
 }
 
 impl AsAtValue for Image {
@@ -350,6 +352,8 @@ impl From<Item> for Image {
             Item::BoneHelmet => Image::BoneHelmet,
             Item::HorseCarriage => Image::HorseCarriage,
             Item::HotAirBalloon => Image::HotAirBalloon,
+            Item::Vest => Image::Vest,
+            Item::Boat => Image::Boat,
         }
     }
 }

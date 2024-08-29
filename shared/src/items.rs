@@ -134,6 +134,8 @@ pub enum Item {
     BoneNecklace,
     HorseCarriage,
     HotAirBalloon,
+    Vest,
+    Boat,
 }
 
 impl Craftable for Item {
@@ -357,6 +359,20 @@ impl Craftable for Item {
                     .add(Item::Nail, 10)
                     .add(Item::Wood, 100),
             )),
+            Item::Vest => Some((
+                47,
+                Bundle::new()
+                    .add(Item::Fabric, 10)
+                    .add(Item::String, 10)
+                    .add(Item::Leather, 5)
+            )),
+            Item::Boat => Some((
+                80,
+                Bundle::new()
+                    .add(Item::Wood, 200)
+                    .add(Item::Fabric, 50)
+                    .add(Item::Nail, 100)
+            )),
             _ => None,
         }
     }
@@ -420,7 +436,8 @@ impl Item {
             | Item::Headlamp
             | Item::BearClawBoots
             | Item::RhinoHornPants
-            | Item::BoneHelmet => Some(ItemType::Clothing),
+            | Item::BoneHelmet 
+            | Item::Vest => Some(ItemType::Clothing),
 
             Item::RingOfIntelligence
             | Item::RingOfStrength
@@ -457,7 +474,8 @@ impl Item {
             | Item::DiamondSword
             | Item::DynamiteCrossbow
             | Item::HotAirBalloon
-            | Item::HorseCarriage => Some(ItemType::Tool),
+            | Item::HorseCarriage
+            | Item::Boat => Some(ItemType::Tool),
 
             Item::Parrot
             | Item::Wolf
@@ -550,31 +568,31 @@ impl Item {
                 ..Default::default()
             },
             Item::RingOfIntelligence => Stats {
-                intelligence: 8,
+                intelligence: 6,
                 ..Default::default()
             },
             Item::RingOfStrength => Stats {
-                strength: 8,
+                strength: 6,
                 ..Default::default()
             },
             Item::RingOfPerception => Stats {
-                perception: 8,
+                perception: 6,
                 ..Default::default()
             },
             Item::RingOfEndurance => Stats {
-                endurance: 8,
+                endurance: 6,
                 ..Default::default()
             },
             Item::RingOfAgility => Stats {
-                agility: 8,
+                agility: 6,
                 ..Default::default()
             },
             Item::CrystalNecklace => Stats {
-                strength: 6,
-                endurance: 6,
-                agility: 6,
-                intelligence: 6,
-                perception: 6,
+                strength: 4,
+                endurance: 4,
+                agility: 4,
+                intelligence: 4,
+                perception: 4,
             },
             Item::BoneNecklace => Stats {
                 strength: 2,
@@ -584,8 +602,8 @@ impl Item {
                 perception: 2,
             },
             Item::RhinoHornPants => Stats {
-                strength: 8,
-                endurance: 8,
+                strength: 4,
+                endurance: 4,
                 ..Default::default()
             },
             Item::RhinoHornHelmet => Stats {
@@ -667,6 +685,8 @@ impl Item {
             (Item::Map, Occupation::Exploring) => 6,
             (Item::Map, Occupation::Gathering) => 4,
             (Item::FishingHat, Occupation::Fishing) => 6,
+            (Item::Vest, Occupation::Fishing) => 8,
+            (Item::Vest, Occupation::Gathering | Occupation::Hunting) => 4,
             (Item::FishingRod, Occupation::Fishing) => 6,
             (Item::FishingNet, Occupation::Fishing) => 10,
             (Item::Overall, Occupation::Farming | Occupation::Logging) => 8,
@@ -683,6 +703,8 @@ impl Item {
             (Item::Plough, Occupation::Farming) => 10,
             (Item::Lantern, Occupation::Mining | Occupation::Rockhounding) => 4,
             (Item::Dolphin, Occupation::Fishing) => 10,
+            (Item::Boat, Occupation::Fishing) => 10,
+            (Item::Boat, Occupation::Exploring) => 8,
             _ => 0,
         }
     }
