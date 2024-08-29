@@ -20,7 +20,7 @@ use std::{
 use strum::Display;
 
 #[cfg(not(debug_assertions))]
-pub const SPEED: u64 = 2;
+pub const SPEED: u64 = 1;
 #[cfg(debug_assertions)]
 pub const SPEED: u64 = 20;
 pub const ONE_MINUTE: u64 = 60;
@@ -32,10 +32,10 @@ pub const FREE_LOOT_CRATE: u64 = ONE_DAY;
 pub const WINNER_NUM_PREMIUM_DAYS: i64 = 30;
 pub const FEMALE_PROBABILITY: f64 = 1.0 / 3.0;
 pub const MAX_LEVEL: u64 = 100;
-pub const AGE_SECONDS_PER_TICK: u64 = 365 * 12;
+pub const AGE_SECONDS_PER_TICK: u64 = 365 * 24;
 pub const ADULT_AGE: u64 = 20;
 pub const DEATH_AGE: u64 = 200;
-pub const IMPROVEMENT_DURATION: u32 = ONE_DAY as u32 * 7;
+pub const IMPROVEMENT_DURATION: u32 = ONE_DAY as u32 * 5;
 pub const APPRENTICE_EFFECTIVENESS_DIVIDER: u64 = 5;
 pub const MAX_EFFECTIVENESS: u64 = 6000;
 pub const MIN_MAX_DWARF_DIFFERENCE: u64 = 3;
@@ -796,11 +796,11 @@ impl engine_shared::State for State {
                             self.time += 1;
 
                             if self.event.is_some() {
-                                if rng.gen_ratio(1, ONE_DAY as u32 / 2) {
+                                if rng.gen_ratio(1, ONE_DAY as u32 / 4) {
                                     self.event = None;
                                 }
                             } else {
-                                if rng.gen_ratio(1, ONE_DAY as u32 / 2) {
+                                if rng.gen_ratio(1, ONE_DAY as u32 / 4) {
                                     self.event = Some(enum_iterator::all().choose(rng).unwrap());
                                 }
                             }
@@ -819,7 +819,7 @@ impl engine_shared::State for State {
                                     self.event
                                         .map(|event| event.new_dwarfs_multiplier())
                                         .unwrap_or(1),
-                                    ONE_DAY as u32 * 7,
+                                    ONE_DAY as u32 * 5,
                                 ) {
                                     player.new_dwarf(
                                         rng,
@@ -859,7 +859,7 @@ impl engine_shared::State for State {
                                 if rng.gen_ratio(
                                     male_idle_dwarfs.min(female_idle_dwarfs) as u32
                                         * baby_dwarf_multiplier,
-                                    ONE_DAY as u32 / 2,
+                                    ONE_DAY as u32 / 4,
                                 ) {
                                     player.new_dwarf(rng, &mut self.next_dwarf_id, self.time, true);
                                 }
@@ -909,7 +909,7 @@ impl engine_shared::State for State {
                                         dwarf.age_seconds += AGE_SECONDS_PER_TICK;
 
                                         if dwarf.age_years() > 200 {
-                                            if rng.gen_ratio(1, ONE_DAY as u32 * 3) {
+                                            if rng.gen_ratio(1, ONE_DAY as u32 * 5) {
                                                 dwarf.health = 0;
                                             }
                                         }
@@ -2281,15 +2281,15 @@ impl Occupation {
     pub fn health_cost_per_tick(self) -> u64 {
         match self {
             Occupation::Idling => 1,
-            Occupation::Mining => 2,
-            Occupation::Logging => 2,
-            Occupation::Hunting => 2,
+            Occupation::Mining => 3,
+            Occupation::Logging => 3,
+            Occupation::Hunting => 3,
             Occupation::Gathering => 2,
-            Occupation::Fishing => 1,
-            Occupation::Fighting => 5,
-            Occupation::Exploring => 3,
-            Occupation::Farming => 2,
-            Occupation::Rockhounding => 3,
+            Occupation::Fishing => 2,
+            Occupation::Fighting => 8,
+            Occupation::Exploring => 5,
+            Occupation::Farming => 3,
+            Occupation::Rockhounding => 5,
         }
     }
 
@@ -2747,12 +2747,12 @@ impl QuestType {
             Self::KillTheDragon => ONE_HOUR * 2,
             Self::ArenaFight => ONE_HOUR * 4,
             Self::FreeTheVillage => ONE_HOUR * 2,
-            Self::FeastForAGuest => ONE_HOUR * 4,
+            Self::FeastForAGuest => ONE_HOUR * 2,
             Self::ADwarfGotLost => ONE_HOUR * 2,
             Self::AFishingFriend => ONE_HOUR,
             Self::ADwarfInDanger => ONE_HOUR * 2,
-            Self::ForTheKing => ONE_HOUR * 12,
-            Self::DrunkFishing => ONE_HOUR * 4,
+            Self::ForTheKing => ONE_HOUR * 8,
+            Self::DrunkFishing => ONE_HOUR * 2,
             Self::CollapsedCave => ONE_HOUR * 4,
             Self::TheHiddenTreasure => ONE_HOUR * 2,
             Self::CatStuckOnATree => ONE_HOUR,
@@ -2764,11 +2764,11 @@ impl QuestType {
             Self::ElvenVictory => ONE_HOUR * 2,
             Self::TheMassacre => ONE_HOUR * 8,
             Self::TheElvenWar => ONE_HOUR * 8,
-            Self::Concert => ONE_HOUR * 2,
+            Self::Concert => ONE_HOUR,
             Self::MagicalBerries => ONE_HOUR * 2,
-            Self::EatingContest => ONE_HOUR * 2,
+            Self::EatingContest => ONE_HOUR,
             Self::Socializing => ONE_HOUR * 2,
-            Self::TheElvenMagician => ONE_HOUR * 4,
+            Self::TheElvenMagician => ONE_HOUR *2,
         }
     }
 
@@ -2838,17 +2838,17 @@ impl QuestType {
 
             QuestType::ForTheKing => 100,
 
-            QuestType::KillTheDragon => 20,
-            QuestType::DrunkFishing => 20,
-            QuestType::AFishingFriend => 40,
+            QuestType::AFishingFriend => 20,
+            QuestType::Concert => 20,
             QuestType::CollapsedCave => 40,
+            QuestType::DrunkFishing => 60,
             QuestType::CatStuckOnATree => 60,
             QuestType::FarmersContest => 60,  
-            QuestType::Concert => 80,
             QuestType::EatingContest => 80,
             QuestType::MagicalBerries => 80,
+            QuestType::Socializing => 80,
+            QuestType::KillTheDragon => 100,
             QuestType::TheHiddenTreasure => 100,
-            QuestType::Socializing => 100,
             QuestType::ArenaFight => 100,
 
 
