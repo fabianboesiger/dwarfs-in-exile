@@ -92,27 +92,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .continuously_delete_expired(tokio::time::Duration::from_secs(60 * 60)),
     );
 
-    /*let _guest_deletion_task = task::spawn(async move {
+    let pool_clone = pool.clone();
+    let _guest_deletion_task = task::spawn(async move {
         let mut interval = tokio::time::interval(Duration::from_secs(60 * 60));
-        interval.tick().await;
 
         loop {
             interval.tick().await;
 
             sqlx::query(
                 r#"
-                        SELECT users
-                        SET premium = premium - 1
-                        WHERE premium > 0
-                        AND user_id = $1
+                        DELETE FROM users
+                        WHERE guest
+                        AND CURRENT_TIMESTAMP > joined + 30 DAYS
                     "#,
             )
-            .bind(user_id.0)
             .execute(&pool_clone)
             .await
             .unwrap();
         }
-    });*/
+    });
 
     let session_layer = SessionManagerLayer::new(session_store)
         .with_secure(false)

@@ -9,6 +9,7 @@ use seed::{prelude::*, *};
 use shared::{
     Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, RewardType, Stats, Time, TradeType, TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, MAX_EFFECTIVENESS, MAX_HEALTH, SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS
 };
+use time::Duration;
 use std::str::FromStr;
 use strum::Display;
 use web_sys::js_sys::Date;
@@ -2309,7 +2310,39 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
         unlocks.sort_by_key(|item| item.unlocked_at_level());
         unlocks.retain(|item| item.unlocked_at_level() > player.base.curr_level);
 
+
         div![C!["content"],
+
+            if guest {
+                let joined = model
+                    .state
+                    .get_user_data(user_id)
+                    .map(|user_data| user_data.joined)
+                    .unwrap();
+
+                div![
+                    C!["important"],
+                    strong![format!("Guest Account")],
+                    div![
+                        C!["image-aside", "small"],
+                        img![attrs! {At::Src => "/guest.jpg"}],
+                        div![
+                            p![format!(
+                                "You are currently using a guest account that expires in {}. Set your password to keep access to your account and play from multiple devices.",
+                                fmt_time((joined.saturating_add(Duration::days(30)).assume_utc().unix_timestamp() - (Date::now() / 1000.0) as i64).max(0) as u64 * SPEED)
+                            )],
+                            a![
+                                C!["button"],
+                                attrs! { At::Href => format!("/change-password") },
+                                "Set Password"
+                            ]
+                        ]
+                    ]
+                ]
+            } else {
+                Node::Empty
+            },
+
             if premium_hours <= 24 {
                 div![
                     C!["important"],
@@ -2348,27 +2381,6 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                         img![attrs! {At::Src => Image::Starvation.as_at_value()}],
                         div![
                             p![format!("Your dwarfs will start to die of starvation in {}. Make sure that you have enough food to feed your dwarfs.", fmt_time(player.remaining_time_until_starvation()))],
-                        ]
-                    ]
-                ]
-            } else {
-                Node::Empty
-            },
-
-            if guest {
-                div![
-                    C!["important"],
-                    strong![format!("Guest Account")],
-                    div![
-                        C!["image-aside", "small"],
-                        img![attrs! {At::Src => "/guest.jpg"}],
-                        div![
-                            p!["You are currently using a guest account. Set your password to keep access to your account and play from multiple devices."],
-                            a![
-                                C!["button"],
-                                attrs! { At::Href => format!("/change-password") },
-                                "Set Password"
-                            ]
                         ]
                     ]
                 ]
@@ -3547,7 +3559,7 @@ fn stars(stars: i8, padded: bool) -> Node<Msg> {
     }
     span![
         C!["symbols"],
-        attrs!{ At::Role => "meter", At::AriaValueNow => (stars as f64 / 2.0), At::AriaValueMin => 0.0, At::AriaValueMax => 5.0, At::AriaLabel => format!("Effectiveness: {}/{}", stars as f64 / 2.0, 5.0)},
+        attrs!{ At::Role => "meter", At::AriaValueNow => (stars as f64 / 2.0), At::AriaValueMin => 0.0, At::AriaValueMax => 5.0, At::AriaLabel => format!("{}/{}", stars as f64 / 2.0, 5.0)},
         span![attrs!{ At::AriaHidden => "true" }, s]
     ]
 }

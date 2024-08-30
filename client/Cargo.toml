@@ -31,6 +31,7 @@ rand_chacha = "0.3"
 sha2 = "0.10"
 rand = { version = "0.8" }
 rustrict = "0.7.26"
+time = "0.3"
 
 [profile.release]
 lto = true
