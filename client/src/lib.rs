@@ -2372,7 +2372,7 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                 Node::Empty
             },
 
-            if player.remaining_time_until_starvation() <= 60 * 60 * 12 * SPEED {
+            if player.remaining_time_until_starvation(state) <= 60 * 60 * 12 * SPEED {
                 div![
                     C!["important"],
                     strong![format!("Your Dwarfs will Starve Soon")],
@@ -2380,7 +2380,7 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                         C!["image-aside", "small"],
                         img![attrs! {At::Src => Image::Starvation.as_at_value()}],
                         div![
-                            p![format!("Your dwarfs will start to die of starvation in {}. Make sure that you have enough food to feed your dwarfs.", fmt_time(player.remaining_time_until_starvation()))],
+                            p![format!("Your dwarfs will start to die of starvation in {}. Make sure that you have enough food to feed your dwarfs.", fmt_time(player.remaining_time_until_starvation(state)))],
                         ]
                     ]
                 ]

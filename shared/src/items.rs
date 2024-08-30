@@ -764,7 +764,7 @@ impl Item {
             },
             Occupation::Hunting => match self {
                 Item::RawMeat => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_MINUTE * 5,
+                    expected_ticks_per_drop: ONE_MINUTE * 3,
                 }),
                 Item::Leather => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_MINUTE * 5,
@@ -776,10 +776,10 @@ impl Item {
             },
             Occupation::Gathering => match self {
                 Item::Blueberry => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_MINUTE * 3,
+                    expected_ticks_per_drop: ONE_MINUTE * 2,
                 }),
                 Item::Apple => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_MINUTE * 3,
+                    expected_ticks_per_drop: ONE_MINUTE * 2,
                 }),
                 Item::Hemp => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_MINUTE * 3,
@@ -791,7 +791,7 @@ impl Item {
             },
             Occupation::Fishing => match self {
                 Item::RawFish => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_MINUTE * 5,
+                    expected_ticks_per_drop: ONE_MINUTE * 3,
                 }),
                 Item::PufferFish => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_HOUR,

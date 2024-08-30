@@ -1746,13 +1746,20 @@ impl Player {
         player
     }
 
-    pub fn remaining_time_until_starvation(&self) -> Time {
+    pub fn remaining_time_until_starvation(&self, state: &State) -> Time {
         let mut health_available = self.base.food * (MAX_HEALTH / 1000);
         let mut health_cost_per_tick = 0;
 
+        let health_cost_multiplier = match state.event {
+            Some(WorldEvent::Plague) => {
+                (1 + self.dwarfs.len() as u64 / 20).min(5)
+            }
+            _ => 1,
+        };
+
         for dwarf in self.dwarfs.values() {
             health_available += dwarf.health;
-            health_cost_per_tick += dwarf.actual_occupation().health_cost_per_tick();
+            health_cost_per_tick += dwarf.actual_occupation().health_cost_per_tick() * health_cost_multiplier;
         }
 
         health_available / health_cost_per_tick
