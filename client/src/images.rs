@@ -176,6 +176,7 @@ pub enum Image {
     Starvation,
     Vest,
     Boat,
+    ExploreNewLands,
 }
 
 impl AsAtValue for Image {
@@ -386,6 +387,7 @@ impl From<QuestType> for Image {
             QuestType::EatingContest => Image::EatingContest,
             QuestType::Socializing => Image::Socializing,
             QuestType::TheElvenMagician => Image::TheElvenMagician,
+            QuestType::ExploreNewLands => Image::ExploreNewLands,
         }
     }
 }

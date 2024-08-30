@@ -881,3 +881,9 @@ a {
     left: 80px;
     outline: 1px solid rgba(255, 255, 255, 0.3);
 }
+
+[inert], [inert] * {
+    pointer-events: none;
+    cursor: default;
+    user-select: none;
+  }

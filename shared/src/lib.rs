@@ -2662,6 +2662,7 @@ pub enum QuestType {
     EatingContest,
     Socializing,
     TheElvenMagician,
+    ExploreNewLands
 }
 
 impl std::fmt::Display for QuestType {
@@ -2692,6 +2693,7 @@ impl std::fmt::Display for QuestType {
             QuestType::EatingContest => write!(f, "Eating Contest"),
             QuestType::Socializing => write!(f, "Socializing in the Tavern"),
             QuestType::TheElvenMagician => write!(f, "The Elven Magician"),
+            QuestType::ExploreNewLands => write!(f, "Explore new Lands"),
         }
     }
 }
@@ -2735,6 +2737,7 @@ impl QuestType {
             Self::EatingContest => RewardMode::SplitFairly(1000),
             Self::Socializing => RewardMode::NewDwarfByChance(3),
             Self::TheElvenMagician => RewardMode::SplitFairly(2000),
+            Self::ExploreNewLands => RewardMode::SplitFairly(4000),
         }
     }
 
@@ -2768,7 +2771,8 @@ impl QuestType {
             Self::MagicalBerries => ONE_HOUR * 2,
             Self::EatingContest => ONE_HOUR,
             Self::Socializing => ONE_HOUR * 2,
-            Self::TheElvenMagician => ONE_HOUR *2,
+            Self::TheElvenMagician => ONE_HOUR * 2,
+            Self::ExploreNewLands => ONE_HOUR * 4
         }
     }
 
@@ -2799,6 +2803,7 @@ impl QuestType {
             Self::EatingContest => Occupation::Idling,
             Self::Socializing => Occupation::Idling,
             Self::TheElvenMagician => Occupation::Gathering,
+            Self::ExploreNewLands => Occupation::Exploring,
         }
     }
 
@@ -2829,6 +2834,7 @@ impl QuestType {
             Self::EatingContest => 1,
             Self::Socializing => 1,
             Self::TheElvenMagician => 1,
+            Self::ExploreNewLands => 3,
         }
     }
 
@@ -2850,6 +2856,7 @@ impl QuestType {
             QuestType::KillTheDragon => 100,
             QuestType::TheHiddenTreasure => 100,
             QuestType::ArenaFight => 100,
+            QuestType::ExploreNewLands => 100,
 
 
             QuestType::FeastForAGuest => 10,

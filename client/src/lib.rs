@@ -245,6 +245,7 @@ pub struct Model {
     show_tutorial: bool,
     custom_name: Option<String>,
     ad_loaded: bool,
+    confirm: Option<ClientEvent>,
 }
 
 impl Model {
@@ -298,10 +299,11 @@ fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
         show_tutorial: false,
         custom_name: None,
         ad_loaded: false,
+        confirm: None
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Msg {
     GameStateEvent(EventWrapper<shared::State>),
     ChangePage(Page),
@@ -333,7 +335,11 @@ pub enum Msg {
     GoToItem(Item),
     ToggleTutorial,
     UpdateName(Option<String>),
+    SetName(DwarfId, Option<String>),
     AdLoaded,
+    Confirm(ClientEvent),
+    ConfirmYes,
+    ConfirmNo,
 }
 
 impl EngineMsg<shared::State> for Msg {}
@@ -346,11 +352,26 @@ impl From<EventWrapper<shared::State>> for Msg {
 
 fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
     match msg {
+        Msg::Confirm(ev) => {
+            model.confirm = Some(ev);
+        },
+        Msg::ConfirmYes => {
+            if let Some(ev) = model.confirm.take() {
+                orders.send_msg(Msg::send_event(ev));
+            }
+        }
+        Msg::ConfirmNo => {
+            model.confirm = None;
+        }
         Msg::AdLoaded => {
             model.ad_loaded = true;
         },
         Msg::UpdateName(name) => {
             model.custom_name = name;
+        }
+        Msg::SetName(dwarf_id, name) => {
+            orders.send_msg(Msg::send_event(ClientEvent::SetDwarfName(dwarf_id, name.unwrap_or_default())));
+            model.custom_name = None;
         }
         Msg::GameStateEvent(ev) => {
             model.state.update(ev.clone(), orders);
@@ -546,29 +567,32 @@ fn view(model: &Model) -> Node<Msg> {
         &model.state,
     ) {
         let inert = state.players.get(user_id).map(|player| !player.popups.is_empty()).unwrap_or(false) || model.show_tutorial;
-
-        div![ attrs!{ "inert" => "false" },
-            div![id!["background"]],
-            header![
-                h1![a![attrs! { At::Href => "/" }, "Dwarfs in Exile"]],
-                //a![C!["button"], id!["home-button"], attrs! {At::Href => "/account"}, icon_outlined("account_circle")],
-            ],
-            nav(model),
+        div![
+            confirm(model, state, user_id),
             popup(model, state, user_id),
             tutorial(model, state, user_id),
-            main![match model.page {
-                Page::Dwarfs(mode) => dwarfs(model, state, user_id, mode),
-                Page::Dwarf(dwarf_id) => dwarf(model, state, user_id, dwarf_id),
-                Page::Base => base(model, state, user_id),
-                Page::Inventory(mode) => inventory(model, state, user_id, mode),
-                Page::Ranking => ranking(model, state, client_state, user_id),
-                Page::Quests => quests(model, state, user_id),
-                Page::Quest(quest_id) => quest(model, state, user_id, quest_id),
-                Page::Trading => trades(model, state, user_id),
-            }],
-            chat(model, state, client_state),
-            history(model, state, user_id, client_state),
-            last_received_items(model, state, user_id),
+            div![ 
+                if inert { attrs!{ "inert" => "true" } } else { attrs!{} },
+                div![id!["background"]],
+                header![
+                    h1![a![attrs! { At::Href => "/" }, "Dwarfs in Exile"]],
+                    //a![C!["button"], id!["home-button"], attrs! {At::Href => "/account"}, icon_outlined("account_circle")],
+                ],
+                nav(model),
+                main![match model.page {
+                    Page::Dwarfs(mode) => dwarfs(model, state, user_id, mode),
+                    Page::Dwarf(dwarf_id) => dwarf(model, state, user_id, dwarf_id),
+                    Page::Base => base(model, state, user_id),
+                    Page::Inventory(mode) => inventory(model, state, user_id, mode),
+                    Page::Ranking => ranking(model, state, client_state, user_id),
+                    Page::Quests => quests(model, state, user_id),
+                    Page::Quest(quest_id) => quest(model, state, user_id, quest_id),
+                    Page::Trading => trades(model, state, user_id),
+                }],
+                chat(model, state, client_state),
+                history(model, state, user_id, client_state),
+                last_received_items(model, state, user_id),
+            ]
         ]
     } else {
         div![
@@ -579,144 +603,148 @@ fn view(model: &Model) -> Node<Msg> {
     }
 }
 
-fn popup(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
+fn popup(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
         if let Some(popup) = player.popups.front() {
-            div![
-                attrs!{ At::Role => "dialog", At::AriaLabelledBy => "popup-title", "aria-modal" => "true", "inert" => "false" },
-                C!["panel-wrapper"],
-                keyboard_ev(Ev::KeyDown, |keyboard_event| {
-                    IF!(keyboard_event.key_code() == ESC_KEY => Msg::send_event(ClientEvent::ConfirmPopup))
-                }),
-                match popup {
-                    Popup::NewDwarf(dwarf) => {
-                        div![
-                            id!["tutorial-panel"],
-                            C!["panel"],
-                            img![
-                                C!["panel-image"],
-                                attrs! { At::Src => Image::from_dwarf(dwarf).as_at_value() }
-                            ],
+            if model.confirm.is_none() {
+                div![
+                    attrs!{ At::Role => "dialog", At::AriaLabelledBy => "popup-title", "aria-modal" => "true" },
+                    C!["panel-wrapper"],
+                    keyboard_ev(Ev::KeyDown, |keyboard_event| {
+                        IF!(keyboard_event.key_code() == ESC_KEY => Msg::send_event(ClientEvent::ConfirmPopup))
+                    }),
+                    match popup {
+                        Popup::NewDwarf(dwarf) => {
                             div![
-                                C!["panel-content"],
-                                h3![id!["popup-title"], "A New Dwarf has Arrived"],
-                                h4![C!["title"], dwarf.actual_name()],
-                                p![
-                                    C!["subtitle"],
-                                    format!(
-                                        "{}, {} Years old.",
-                                        if dwarf.is_female { "Female" } else { "Male" },
-                                        dwarf.age_years()
-                                    ),
+                                id!["tutorial-panel"],
+                                C!["panel"],
+                                img![
+                                    C!["panel-image"],
+                                    attrs! { At::Src => Image::from_dwarf(dwarf).as_at_value() }
                                 ],
-                                p![
-                                    h4!["Stats"],
-                                    table![tbody![
-                                        tr![th![], th!["Inherent"]],
-                                        tr![
-                                            th!["Strength"],
-                                            td![stars(dwarf.stats.strength, true)],
-                                        ],
-                                        tr![
-                                            th!["Endurance"],
-                                            td![stars(dwarf.stats.endurance, true)],
-                                        ],
-                                        tr![th!["Agility"], td![stars(dwarf.stats.agility, true)],],
-                                        tr![
-                                            th!["Intelligence"],
-                                            td![stars(dwarf.stats.intelligence, true)],
-                                        ],
-                                        tr![
-                                            th!["Perception"],
-                                            td![stars(dwarf.stats.perception, true)],
-                                        ],
-                                    ]]
-                                ],
-                                button![
-                                    ev(Ev::Click, move |_| Msg::send_event(
-                                        ClientEvent::ConfirmPopup
-                                    )),
-                                    "Confirm"
-                                ],
+                                div![
+                                    C!["panel-content"],
+                                    h3![id!["popup-title"], "A New Dwarf has Arrived"],
+                                    h4![C!["title"], dwarf.actual_name()],
+                                    p![
+                                        C!["subtitle"],
+                                        format!(
+                                            "{}, {} Years old.",
+                                            if dwarf.is_female { "Female" } else { "Male" },
+                                            dwarf.age_years()
+                                        ),
+                                    ],
+                                    p![
+                                        h4!["Stats"],
+                                        table![tbody![
+                                            tr![th![], th!["Inherent"]],
+                                            tr![
+                                                th!["Strength"],
+                                                td![stars(dwarf.stats.strength, true)],
+                                            ],
+                                            tr![
+                                                th!["Endurance"],
+                                                td![stars(dwarf.stats.endurance, true)],
+                                            ],
+                                            tr![th!["Agility"], td![stars(dwarf.stats.agility, true)],],
+                                            tr![
+                                                th!["Intelligence"],
+                                                td![stars(dwarf.stats.intelligence, true)],
+                                            ],
+                                            tr![
+                                                th!["Perception"],
+                                                td![stars(dwarf.stats.perception, true)],
+                                            ],
+                                        ]]
+                                    ],
+                                    button![
+                                        ev(Ev::Click, move |_| Msg::send_event(
+                                            ClientEvent::ConfirmPopup
+                                        )),
+                                        "Confirm"
+                                    ],
+                                ]
                             ]
-                        ]
-                    }
-                    Popup::NewItems(bundle) => {
-                        let (item, qty) = bundle.iter().next().unwrap();
-
-                        div![
-                            id!["tutorial-panel"],
-                            C!["panel"],
-                            img![
-                                C!["panel-image"],
-                                attrs! { At::Src => Image::from(*item).as_at_value() }
-                            ],
+                        }
+                        Popup::NewItems(bundle) => {
+                            let (item, qty) = bundle.iter().next().unwrap();
+    
                             div![
-                                C!["panel-content"],
-                                h3![C!["title"], format!("You Received {} {}", qty, item)],
-                                p![
-                                    C!["subtitle"],
-                                    if let Some(item_type) = item.item_type() {
-                                        span![C!["short-info"], format!("{item_type}")]
-                                    } else {
-                                        span![C!["short-info"], "Item"]
-                                    },
-                                    span![C!["short-info"], format!("{}", item.item_rarity())],
-                                    if let Some(nutrition) = item.nutritional_value() {
-                                        span![C!["short-info"], format!("{} Food", nutrition)]
-                                    } else {
-                                        Node::Empty
-                                    },
+                                id!["tutorial-panel"],
+                                C!["panel"],
+                                img![
+                                    C!["panel-image"],
+                                    attrs! { At::Src => Image::from(*item).as_at_value() }
                                 ],
-                                p![
-                                    if !item.provides_stats().is_zero() {
-                                        div![h4!["Provides"], stats(&item.provides_stats()),]
-                                    } else {
-                                        Node::Empty
-                                    },
-                                    if enum_iterator::all::<Occupation>()
-                                        .filter(|occupation| {
-                                            let usefulness = item.usefulness_for(*occupation);
-                                            usefulness > 0
-                                        })
-                                        .count()
-                                        > 0
-                                    {
-                                        div![
-                                            h4!["Utility"],
-                                            itertools::intersperse(
-                                                enum_iterator::all::<Occupation>().filter_map(
-                                                    |occupation| {
-                                                        let usefulness =
-                                                            item.usefulness_for(occupation) as i8;
-                                                        if usefulness > 0 {
-                                                            Some(span![
-                                                                format!("{} ", occupation),
-                                                                stars(usefulness, true)
-                                                            ])
-                                                        } else {
-                                                            None
+                                div![
+                                    C!["panel-content"],
+                                    h3![C!["title"], format!("You Received {} {}", qty, item)],
+                                    p![
+                                        C!["subtitle"],
+                                        if let Some(item_type) = item.item_type() {
+                                            span![C!["short-info"], format!("{item_type}")]
+                                        } else {
+                                            span![C!["short-info"], "Item"]
+                                        },
+                                        span![C!["short-info"], format!("{}", item.item_rarity())],
+                                        if let Some(nutrition) = item.nutritional_value() {
+                                            span![C!["short-info"], format!("{} Food", nutrition)]
+                                        } else {
+                                            Node::Empty
+                                        },
+                                    ],
+                                    p![
+                                        if !item.provides_stats().is_zero() {
+                                            div![h4!["Provides"], stats(&item.provides_stats()),]
+                                        } else {
+                                            Node::Empty
+                                        },
+                                        if enum_iterator::all::<Occupation>()
+                                            .filter(|occupation| {
+                                                let usefulness = item.usefulness_for(*occupation);
+                                                usefulness > 0
+                                            })
+                                            .count()
+                                            > 0
+                                        {
+                                            div![
+                                                h4!["Utility"],
+                                                itertools::intersperse(
+                                                    enum_iterator::all::<Occupation>().filter_map(
+                                                        |occupation| {
+                                                            let usefulness =
+                                                                item.usefulness_for(occupation) as i8;
+                                                            if usefulness > 0 {
+                                                                Some(span![
+                                                                    format!("{} ", occupation),
+                                                                    stars(usefulness, true)
+                                                                ])
+                                                            } else {
+                                                                None
+                                                            }
                                                         }
-                                                    }
-                                                ),
-                                                br![]
-                                            )
-                                        ]
-                                    } else {
-                                        Node::Empty
-                                    },
-                                ],
-                                button![
-                                    ev(Ev::Click, move |_| Msg::send_event(
-                                        ClientEvent::ConfirmPopup
-                                    )),
-                                    "Confirm"
-                                ],
+                                                    ),
+                                                    br![]
+                                                )
+                                            ]
+                                        } else {
+                                            Node::Empty
+                                        },
+                                    ],
+                                    button![
+                                        ev(Ev::Click, move |_| Msg::send_event(
+                                            ClientEvent::ConfirmPopup
+                                        )),
+                                        "Confirm"
+                                    ],
+                                ]
                             ]
-                        ]
+                        }
                     }
-                }
-            ]
+                ]
+            } else {
+                Node::Empty
+            }
         } else {
             Node::Empty
         }
@@ -728,10 +756,10 @@ fn popup(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
 fn tutorial(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
         if let Some(step) = player.tutorial_step {
-            if model.show_tutorial && player.popups.is_empty() {
+            if model.show_tutorial && player.popups.is_empty() && model.confirm.is_none() {
                 div![
                     C!["panel-wrapper"],
-                    attrs!{ At::Role => "dialog", At::AriaLabelledBy => "popup-title", "aria-modal" => "true", "inert" => "false" },
+                    attrs!{ At::Role => "dialog", At::AriaLabelledBy => "popup-title", "aria-modal" => "true" },
                     keyboard_ev(Ev::KeyDown, |keyboard_event| {
                         IF!(keyboard_event.key_code() == ESC_KEY => Msg::ToggleTutorial)
                     }),
@@ -856,6 +884,41 @@ fn tutorial(model: &Model, state: &shared::State, user_id: &shared::UserId) -> N
     } else {
         Node::Empty
     }
+}
+
+
+fn confirm(model: &Model, _state: &shared::State, _user_id: &shared::UserId) -> Node<Msg> {
+    if let Some(client_event) = &model.confirm {
+        div![
+            C!["panel-wrapper"],
+            attrs!{ At::Role => "dialog", At::AriaLabelledBy => "popup-title", "aria-modal" => "true" },
+            div![
+                id!["tutorial-panel"],
+                C!["panel"],
+                img![C!["panel-image"], attrs! { At::Src => "/logo.jpg" } ],
+                div![C!["panel-content"],
+                    h3![id!["popup-title"], "Confirm"],
+                    match client_event {
+                        ClientEvent::ReleaseDwarf(..) => p!["Do you really want to release this dwarf?"],
+                        ClientEvent::Sell(..) => p!["Do you really want to sell this item on the market?"],    
+                        _ => p![],
+                    },
+                    button![
+                        ev(Ev::Click, move |_| Msg::ConfirmYes),
+                        "Yes"
+                    ],
+                    button![
+                        ev(Ev::Click, move |_| Msg::ConfirmNo),
+                        "No"
+                    ],
+                ]
+
+            ]
+        ]
+    } else {
+        Node::Empty
+    }
+
 }
 
 fn ranking(
@@ -1565,37 +1628,31 @@ fn dwarf(
                         ],
                         health_bar(dwarf.health, MAX_HEALTH),
 
-                        if let Some(custom_name) = model.custom_name.as_ref().cloned() {
-                            p![
-                                label!["Name"],
-                                input![
-                                    attrs! {At::Value => custom_name},
-                                    input_ev(Ev::Input, move |name| Msg::UpdateName(Some(name))),
-                                ],
-                                button![
-                                    ev(Ev::Click, move |_| Msg::send_event(
-                                        ClientEvent::SetDwarfName(dwarf_id, custom_name.clone())
-                                    )),
-                                    "Save"
-                                ],
-                                button![
-                                    ev(Ev::Click, move |_| Msg::send_event(
-                                        ClientEvent::SetDwarfName(dwarf_id, String::new())
-                                    )),
-                                    "Reset Name"
+                        p![
+                            if let Some(custom_name) = model.custom_name.as_ref().cloned() {
+                                div![
+                                    label!["Name"],
+                                    input![
+                                        attrs! {At::Value => custom_name},
+                                        input_ev(Ev::Input, move |name| Msg::UpdateName(Some(name))),
+                                    ],
+                                    button![
+                                        ev(Ev::Click, move |_| Msg::SetName(dwarf_id, Some(custom_name))),
+                                        "Save Name"
+                                    ],
+                                    button![
+                                        ev(Ev::Click, move |_| Msg::SetName(dwarf_id, None)),
+                                        "Reset Name"
+                                    ]
                                 ]
-                            ]
-                        } else {
-                            let dwarf_name = dwarf.actual_name().to_owned();
+                            } else {
+                                let dwarf_name = dwarf.actual_name().to_owned();
 
-                            p![
                                 button![
                                     ev(Ev::Click, move |_| Msg::UpdateName(Some(dwarf_name))),
                                     "Edit Name"
                                 ]
-                            ]
-                        },
-                        p![
+                            },
                             button![
                                 if is_premium {
                                     attrs! {}
@@ -1611,11 +1668,9 @@ fn dwarf(
                                 }
                             ],
                             button![
-                                ev(Ev::Click, move |_| Msg::send_event(ClientEvent::ReleaseDwarf(dwarf_id))),
+                                ev(Ev::Click, move |_| Msg::Confirm(ClientEvent::ReleaseDwarf(dwarf_id))),
                                 "Release Dwarf"
-                            ]
-                        ],
-                        p![
+                            ],
                             input![
                                 id!["manual-management"],
                                 attrs! {At::Type => "checkbox", At::Checked => dwarf.manual_management.as_at_value()},
@@ -2074,6 +2129,7 @@ fn quest(
                                 QuestType::EatingContest => p!["Participate in the eating contest and earn a reward."],
                                 QuestType::Socializing => p!["Socialize with the other dwarfs in the tavern. You may find a new friend."],
                                 QuestType::TheElvenMagician => p!["The elven magician is working tirelessly on a big projects. Get him some of his favorite berries so that he can focus better."],
+                                QuestType::ExploreNewLands => p!["Help exploring new lands and earn a reward."],
                             },
                         ],
                         h3!["Rewards"],
@@ -2925,7 +2981,7 @@ fn inventory(
                                         } else {
                                             attrs! {At::Disabled => "true"}
                                         },
-                                        ev(Ev::Click, move |_| Msg::send_event(
+                                        ev(Ev::Click, move |_| Msg::Confirm(
                                             ClientEvent::Sell(item, n)
                                         )),
                                         format!("Sell all on Market ({} coins)", item.money_value(n) * TRADE_MONEY_MULTIPLIER),
