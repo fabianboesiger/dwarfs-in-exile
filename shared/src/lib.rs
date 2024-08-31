@@ -64,6 +64,7 @@ pub enum WorldEvent {
     Tornado,
     Carnival,
     FullMoon,
+    Revolution,
 }
 
 impl WorldEvent {
@@ -87,6 +88,7 @@ impl WorldEvent {
             ) => 3,
             (WorldEvent::Carnival, _) => 2,
             (WorldEvent::FullMoon, _) => 2,
+            (WorldEvent::Revolution, _) => 2,
             _ => 1,
         }
     }
@@ -111,6 +113,7 @@ impl std::fmt::Display for WorldEvent {
             WorldEvent::Tornado => write!(f, "Tornado"),
             WorldEvent::Carnival => write!(f, "Carnival"),
             WorldEvent::FullMoon => write!(f, "Full Moon"),
+            WorldEvent::Revolution => write!(f, "Revolution"),
         }
     }
 }
@@ -795,6 +798,10 @@ impl engine_shared::State for State {
                         ServerEvent::Tick => {
                             self.time += 1;
 
+                            if matches!(self.event, Some(WorldEvent::Revolution)) {
+                                self.king = None;
+                            };
+
                             if self.event.is_some() {
                                 if rng.gen_ratio(1, ONE_DAY as u32 / 4) {
                                     self.event = None;
@@ -1177,20 +1184,23 @@ impl engine_shared::State for State {
                                             }
                                         }
                                         RewardMode::BecomeKing => {
+                                            
                                             if let Some(user_id) = quest.best() {
                                                 if let Some(player) = self.players.get_mut(&user_id)
                                                 {
-                                                    self.king = Some(user_id);
-                                                    player.log.add(
-                                                        self.time,
-                                                        LogMsg::QuestCompletedKing(
-                                                            quest.quest_type,
-                                                            true,
-                                                        ),
-                                                    );
+                                                    if matches!(self.event, Some(WorldEvent::Revolution)) {
+                                                        self.king = Some(user_id);
+                                                        player.log.add(
+                                                            self.time,
+                                                            LogMsg::QuestCompletedKing(
+                                                                quest.quest_type,
+                                                                true,
+                                                            ),
+                                                        );
+                                                    }
                                                 }
                                                 for contestant_id in quest.contestants.keys() {
-                                                    if *contestant_id != user_id {
+                                                    if Some(*contestant_id) != self.king {
                                                         let player =
                                                             self.players.get_mut(contestant_id)?;
                                                         player.log.add(

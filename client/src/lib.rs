@@ -9,7 +9,7 @@ use seed::{prelude::*, *};
 use shared::{
     Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, RewardType, Stats, Time, TradeType, TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, MAX_EFFECTIVENESS, MAX_HEALTH, SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS
 };
-use time::Duration;
+use time::{macros::datetime, Duration};
 use std::str::FromStr;
 use strum::Display;
 use web_sys::js_sys::Date;
@@ -969,11 +969,11 @@ fn ranking(
                 th!["Level"],
             ],
             players.iter().enumerate().map(|(i, (user_id, player))| {
-                let (is_premium, is_dev, games_won) = model
+                let (is_premium, is_dev, games_won, guest, joined) = model
                     .state
                     .get_user_data(user_id)
-                    .map(|user_data| (user_data.premium > 0, user_data.admin, user_data.games_won))
-                    .unwrap_or((false, false, 0));
+                    .map(|user_data| (user_data.premium > 0, user_data.admin, user_data.games_won, user_data.guest, user_data.joined.assume_utc()))
+                    .unwrap_or((false, false, 0, false, datetime!(2100-01-01 0:00 UTC)));
 
                 let rank = i + 1;
                 let current_user = *current_user_id == **user_id;
@@ -997,14 +997,6 @@ fn ranking(
                         } else {
                             Node::Empty
                         },
-                        if is_premium {
-                            span![
-                                C!["nametag"],
-                                "Premium"
-                            ]
-                        } else {
-                            Node::Empty
-                        },
                         if games_won == 1 {
                             span![
                                 C!["nametag"],
@@ -1014,6 +1006,30 @@ fn ranking(
                             span![
                                 C!["nametag"],
                                 format!("Winner ({})", games_won)
+                            ]
+                        } else {
+                            Node::Empty
+                        },
+                        if is_premium {
+                            span![
+                                C!["nametag"],
+                                "Premium"
+                            ]
+                        } else {
+                            Node::Empty
+                        },
+                        if joined < datetime!(2024-08-26 0:00 UTC) {
+                            span![
+                                C!["nametag"],
+                                "Veteran"
+                            ]
+                        } else {
+                            Node::Empty
+                        },
+                        if guest {
+                            span![
+                                C!["nametag"],
+                                "Guest"
                             ]
                         } else {
                             Node::Empty
@@ -1191,7 +1207,7 @@ fn dwarf_occupation(dwarf: &Dwarf, player: &Player) -> Node<Msg> {
                     span![format!("Participating in quest {}.", quest_type,)]
                 },
                 br![],
-                if dwarf.occupation != Occupation::Idling {
+                if quest_type.occupation() != Occupation::Idling {
                     stars_occupation(dwarf, quest_type.occupation())
                 } else {
                     Node::Empty
@@ -2404,6 +2420,7 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                                 WorldEvent::Tornado => p!["Tornadoes sweep accross the forbidden lands. The tornadoes makes it harder to log, gather and farm. Be aware of your resource production! There is also a higher chance that new dwarfs arrive in your settlement during this event."],
                                 WorldEvent::Carnival => p!["The carnival is in town! During the carnival, the dwarfs are in a festive mood and have less time to work. The carnival also increases the chance of new dwarfs arriving in your settlement."],
                                 WorldEvent::FullMoon => p!["The full moon is shining bright. During the full moon, the dwarfs can't sleep and thus work less efficiently. As they won't sleep well anyway, there is a chance for more children being born."],
+                                WorldEvent::Revolution => p!["The dwarfs are revolting! During a revolution, the dwarfs work less efficiently and any king is overthown immediately."],
                             }
                         ]
                     ]
