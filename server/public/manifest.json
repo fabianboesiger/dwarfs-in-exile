@@ -9,6 +9,47 @@
   "description": "Dwarfs in Exile is a text-based multiplayer management game where you have control over a dwarfen settlement and its inhabitants.",
   "lang": "en",
   "orientation": "portrait",
+  "scope": "https://dwarfs-in-exile.com",
+  "categories": ["games"],
+  "dir": "ltr",
+  "screenshots": [
+    {
+      "src": "/screenshots/settlement.png",
+      "sizes": "1080x2340",
+      "type": "image/png",
+      "platform": "narrow"
+    },
+    {
+      "src": "/screenshots/dwarfs.png",
+      "sizes": "1080x2340",
+      "type": "image/png",
+      "platform": "narrow"
+    },
+    {
+      "src": "/screenshots/ranking.png",
+      "sizes": "1080x2340",
+      "type": "image/png",
+      "platform": "narrow"
+    },
+    {
+      "src": "/screenshots/inventory.png",
+      "sizes": "1080x2340",
+      "type": "image/png",
+      "platform": "narrow"
+    },
+    {
+      "src": "/screenshots/quests.png",
+      "sizes": "1080x2340",
+      "type": "image/png",
+      "platform": "narrow"
+    },
+    {
+      "src": "/screenshots/market.png",
+      "sizes": "1080x2340",
+      "type": "image/png",
+      "platform": "narrow"
+    }
+  ],
   "icons": [
     {
       "src": "\/android-icon-36x36.png",

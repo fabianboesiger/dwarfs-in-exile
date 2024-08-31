@@ -15,7 +15,7 @@ use strum::Display;
 use web_sys::js_sys::Date;
 
 //const ENTER_KEY: u32 = 13;
-const ESC_KEY: u32 = 27;
+//const ESC_KEY: u32 = 27;
 
 #[derive(Clone, Copy, Display)]
 #[allow(unused)]
@@ -611,9 +611,6 @@ fn popup(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node
                 div![
                     attrs!{ At::Role => "dialog", At::AriaLabelledBy => "popup-title", "aria-modal" => "true" },
                     C!["panel-wrapper"],
-                    keyboard_ev(Ev::KeyDown, |keyboard_event| {
-                        IF!(keyboard_event.key_code() == ESC_KEY => Msg::send_event(ClientEvent::ConfirmPopup))
-                    }),
                     match popup {
                         Popup::NewDwarf(dwarf) => {
                             div![
@@ -761,9 +758,6 @@ fn tutorial(model: &Model, state: &shared::State, user_id: &shared::UserId) -> N
                 div![
                     C!["panel-wrapper"],
                     attrs!{ At::Role => "dialog", At::AriaLabelledBy => "popup-title", "aria-modal" => "true" },
-                    keyboard_ev(Ev::KeyDown, |keyboard_event| {
-                        IF!(keyboard_event.key_code() == ESC_KEY => Msg::ToggleTutorial)
-                    }),
                     div![
                         id!["tutorial-panel"],
                         C!["panel"],
@@ -1018,7 +1012,7 @@ fn ranking(
                         } else {
                             Node::Empty
                         },
-                        if joined < datetime!(2024-08-26 0:00 UTC) {
+                        if joined < datetime!(2024-08-27 0:00 UTC) {
                             span![
                                 C!["nametag"],
                                 "Veteran"

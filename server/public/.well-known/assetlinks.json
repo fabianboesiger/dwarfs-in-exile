@@ -1,8 +1,15 @@
-[{
-      "relation": ["delegate_permission/common.handle_all_urls"],
-      "target": {
-        "namespace": "android_app",
-        "package_name": "com.fabianboesiger.dwarfsinexile",
-        "sha256_cert_fingerprints": ["AC:85:29:58:B0:05:AA:C5:E7:0C:AE:AC:96:E2:3C:EC:3A:BE:54:CB:5F:25:24:38:E3:FE:37:F9:EE:9D:1D:C4"]
-      }
-    }]
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.fabianboesiger.dwarfsinexile",
+      "sha256_cert_fingerprints": [
+        "AC:85:29:58:B0:05:AA:C5:E7:0C:AE:AC:96:E2:3C:EC:3A:BE:54:CB:5F:25:24:38:E3:FE:37:F9:EE:9D:1D:C4",
+        "DE:26:F0:A2:FC:81:3D:84:C5:77:25:66:D5:C8:75:46:60:29:04:89:DC:A4:C4:A8:47:0D:FE:4F:3A:53:9A:4E"
+      ]
+    }
+  }
+]

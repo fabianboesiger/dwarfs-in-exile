@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<main>
+    <div class="form-wrapper">
+        <h2>Delete Account</h2>
+        <p>
+            Deleting your account will remove all your data from the server.
+            This action cannot be undone.
+        </p>
+        <form method="POST">
+            <div>
+                <label for="password">Password</label>
+                <input id="password" type="password" name="password">
+                {% for err in password_error %}
+                    <span class="error">{{ err }}</span>
+                {% endfor %}
+            </div>
+            
+            <input type="submit" value="Delete Account">
+        </form>
+        <a href="/account" class="button">Back</a>
+    </div>
+</main>
+{% endblock %}

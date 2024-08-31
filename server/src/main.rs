@@ -226,6 +226,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/change-password",
             post(auth::change_password::post_change_password),
         )
+        .route(
+            "/delete-account",
+            get(auth::delete_account::get_delete_account),
+        )
+        .route(
+            "/delete-account",
+            post(auth::delete_account::post_delete_account),
+        )
         .route("/admin", get(admin::get_admin))
         .route("/admin/manage-user", post(admin::post_manage_user))
         .route("/admin/create-world", post(admin::post_create_world))
