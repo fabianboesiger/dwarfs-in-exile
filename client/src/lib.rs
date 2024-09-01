@@ -2683,7 +2683,7 @@ fn inventory_options(model: &Model, player: &Player, item: Item, n: u64, is_prem
                         "Disable Auto"
                     ]
                 } else {
-                    slider(model, item, SliderType::Store, |_| "Store".to_owned(), n.min(1), n, ClientEvent::Craft, |n| n == 0, Some(button![
+                    slider(model, item, SliderType::Store, |_| "Store".to_owned(), n.min(1), n, ClientEvent::AddToFoodStorage, |n| n == 0, Some(button![
                         if is_premium {
                             attrs! {}
                         } else {
