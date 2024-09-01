@@ -103,7 +103,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 r#"
                         DELETE FROM users
                         WHERE guest
-                        AND CURRENT_TIMESTAMP > joined + 30 DAYS
+                        AND CURRENT_TIMESTAMP > DATE(joined, '+30 days')
                     "#,
             )
             .execute(&pool_clone)

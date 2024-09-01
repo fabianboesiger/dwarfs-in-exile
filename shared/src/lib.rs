@@ -472,6 +472,7 @@ impl engine_shared::State for State {
                                 player.dwarfs.keys().cloned().collect()
                             };
 
+
                             for dwarf_id in &dwarf_ids {
                                 let dwarf = player.dwarfs.get_mut(dwarf_id)?;
                                 if dwarf.can_be_managed() || to_optimize_dwarf_id.is_some() {
@@ -490,10 +491,17 @@ impl engine_shared::State for State {
                                 let mut best_dwarf_item = None;
                                 for dwarf_id in &dwarf_ids {
                                     let dwarf = player.dwarfs.get(dwarf_id)?;
-                                    if dwarf.occupation != Occupation::Idling
-                                        && (dwarf.can_be_managed()
-                                            || to_optimize_dwarf_id.is_some())
+                                    if dwarf.can_be_managed()
+                                        || to_optimize_dwarf_id.is_some()
                                     {
+
+                                        let occupation_to_optimize =
+                                            if to_optimize_dwarf_id.is_some() {
+                                                dwarf.actual_occupation()
+                                            } else {
+                                                dwarf.occupation
+                                            };
+
                                         for (item, _) in
                                             player.inventory.items.iter().filter(|(item, num)| {
                                                 **num > 0
@@ -510,13 +518,7 @@ impl engine_shared::State for State {
                                             })
                                         {
                                             let mut dwarf_clone = dwarf.clone();
-                                            let occupation_to_optimize =
-                                                if to_optimize_dwarf_id.is_some() {
-                                                    dwarf.actual_occupation()
-                                                } else {
-                                                    dwarf.occupation
-                                                };
-
+                                        
                                             let effectiveness_before = dwarf_clone
                                                 .effectiveness_not_normalized(
                                                     occupation_to_optimize,
@@ -530,8 +532,9 @@ impl engine_shared::State for State {
 
                                             let effectiveness_after = dwarf_clone
                                                 .effectiveness_not_normalized(
-                                                    dwarf_clone.occupation,
+                                                    occupation_to_optimize
                                                 );
+
 
                                             let effectiveness_diff = effectiveness_after as i64
                                                 - effectiveness_before as i64;
@@ -1422,7 +1425,7 @@ impl engine_shared::State for State {
                             let num_quests = if cfg!(debug_assertions) {
                                 30
                             } else {
-                                (active_players / 5)
+                                (active_players / 6)
                                     .max(active_not_new_players / 3)
                                     .max(3)
                                     .min(30)
@@ -1477,7 +1480,7 @@ impl engine_shared::State for State {
                                 15
                             } else {
                                 (active_players / 10)
-                                    .max(active_not_new_players / 6)
+                                    .max(active_not_new_players / 5)
                                     .max(3)
                                     .min(15)
                             };

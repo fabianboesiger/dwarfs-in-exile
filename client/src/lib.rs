@@ -379,6 +379,7 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
 
             if let Some(state) = model.state.get_state() {
                 if !model.ad_loaded {
+                    /*
                     let is_premium = model
                         .state
                         .get_user_data(model.state.get_user_id().unwrap())
@@ -394,6 +395,7 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
                             }
                         "#).ok();
                     }
+                    */
 
                     orders.send_msg(Msg::AdLoaded);
                 }
