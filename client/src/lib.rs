@@ -231,6 +231,14 @@ impl Default for QuestsFilter {
     }
 }
 
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+pub enum SliderType {
+    Craft,
+    Sell,
+    Store,
+}
+
 pub struct Model {
     state: ClientState<shared::State>,
     page: Page,
@@ -247,6 +255,7 @@ pub struct Model {
     custom_name: Option<String>,
     ad_loaded: bool,
     confirm: Option<ClientEvent>,
+    slider: CustomMap<(Item, SliderType), u64>,
 }
 
 impl Model {
@@ -300,7 +309,8 @@ fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
         show_tutorial: false,
         custom_name: None,
         ad_loaded: false,
-        confirm: None
+        confirm: None,
+        slider: CustomMap::new(),
     }
 }
 
@@ -341,6 +351,7 @@ pub enum Msg {
     Confirm(ClientEvent),
     ConfirmYes,
     ConfirmNo,
+    SetSlider(Item, SliderType, u64),
 }
 
 impl EngineMsg<shared::State> for Msg {}
@@ -353,6 +364,9 @@ impl From<EventWrapper<shared::State>> for Msg {
 
 fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
     match msg {
+        Msg::SetSlider(item, ty, value) => {
+            model.slider.insert((item, ty), value);
+        }
         Msg::Confirm(ev) => {
             model.confirm = Some(ev);
         },
@@ -2609,6 +2623,97 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
     }
 }
 
+fn inventory_options(model: &Model, player: &Player, item: Item, n: u64, is_premium: bool) -> Vec<Node<Msg>> {
+    vec![
+        if let Some((level, requires)) = item.requires() {
+            vec![
+                h4!["Crafting"],
+                bundle(&requires, player, true),
+                if player.base.curr_level >= level {
+                    if player.auto_functions.auto_craft.contains(&item)
+                        && is_premium
+                    {
+                        button![
+                            ev(Ev::Click, move |_| Msg::send_event(
+                                ClientEvent::ToggleAutoCraft(item)
+                            )),
+                            "Disable Auto",
+                        ]
+                    } else {
+                        let max = player.inventory.items.can_remove_x_times(&requires).unwrap_or(0);
+                        
+                        if max == 0 {
+                            Node::Empty
+                        } else {
+                            slider(model, item, SliderType::Craft, |_| "Craft".to_owned(), max.min(1), max, ClientEvent::Craft, |n| n == 0, Some(button![
+                                if is_premium {
+                                    attrs! {}
+                                } else {
+                                    attrs! {At::Disabled => "true"}
+                                },
+                                ev(Ev::Click, move |_| Msg::send_event(
+                                    ClientEvent::ToggleAutoCraft(item)
+                                )),
+                                "Auto",
+                                if !is_premium {
+                                    tip(REQUIRES_PREMIUM)
+                                } else {
+                                    Node::Empty
+                                }
+                            ]))
+                        }
+                    }
+                } else {
+                    p!["Unlocked at level ", level]
+                },
+            ]
+        } else {
+            Vec::new()
+        },
+        if let Some(_) = item.nutritional_value() {
+            vec![
+                h4!["Food Storage"],
+                if player.auto_functions.auto_store.contains(&item)
+                    && is_premium
+                {
+                    button![
+                        ev(Ev::Click, move |_| Msg::send_event(
+                            ClientEvent::ToggleAutoStore(item)
+                        )),
+                        "Disable Auto"
+                    ]
+                } else {
+                    slider(model, item, SliderType::Store, |_| "Store".to_owned(), n.min(1), n, ClientEvent::Craft, |n| n == 0, Some(button![
+                        if is_premium {
+                            attrs! {}
+                        } else {
+                            attrs! {At::Disabled => "true"}
+                        },
+                        ev(Ev::Click, move |_| Msg::send_event(
+                            ClientEvent::ToggleAutoStore(item)
+                        )),
+                        "Auto",
+                        if !is_premium {
+                            tip(REQUIRES_PREMIUM)
+                        } else {
+                            Node::Empty
+                        }
+                    ]))
+                },
+            ]
+        } else {
+            Vec::new()
+        },
+        
+        vec![
+            h4!["Sell Item"],      
+            slider(model, item, SliderType::Sell, move |n| format!("Sell ({} coins)", item.money_value(n) * TRADE_MONEY_MULTIPLIER), n.min(1), n, ClientEvent::Sell, move |n| n > 0 && item.money_value(n) * TRADE_MONEY_MULTIPLIER == 0, None)
+        ]
+
+    ].into_iter().flatten().collect()
+    
+}
+
 fn inventory(
     model: &Model,
     state: &shared::State,
@@ -2774,246 +2879,7 @@ fn inventory(
                     } else {
                         td![
                             C!["list-item-content"],
-                            if let Some((level, requires)) = item.requires() {
-                                vec![
-                                    h4!["Crafting"],
-                                    bundle(&requires, player, true),
-                                    if player.base.curr_level >= level {
-                                        if player.auto_functions.auto_craft.contains(&item)
-                                            && is_premium
-                                        {
-                                            button![
-                                                ev(Ev::Click, move |_| Msg::send_event(
-                                                    ClientEvent::ToggleAutoCraft(item)
-                                                )),
-                                                "Disable Auto",
-                                            ]
-                                        } else {
-                                            div![
-                                                C!["button-row"],
-                                                button![
-                                                    if player
-                                                        .inventory
-                                                        .items
-                                                        .check_remove(&requires)
-                                                    {
-                                                        attrs! {}
-                                                    } else {
-                                                        attrs! {At::Disabled => "true"}
-                                                    },
-                                                    ev(Ev::Click, move |_| Msg::send_event(
-                                                        ClientEvent::Craft(item, 1)
-                                                    )),
-                                                    "1x",
-                                                ],
-                                                button![
-                                                    if player
-                                                        .inventory
-                                                        .items
-                                                        .check_remove(&requires.clone().mul(10))
-                                                    {
-                                                        attrs! {}
-                                                    } else {
-                                                        attrs! {At::Disabled => "true"}
-                                                    },
-                                                    ev(Ev::Click, move |_| Msg::send_event(
-                                                        ClientEvent::Craft(item, 10)
-                                                    )),
-                                                    "10x",
-                                                ],
-                                                button![
-                                                    if player
-                                                        .inventory
-                                                        .items
-                                                        .check_remove(&requires.clone().mul(100))
-                                                    {
-                                                        attrs! {}
-                                                    } else {
-                                                        attrs! {At::Disabled => "true"}
-                                                    },
-                                                    ev(Ev::Click, move |_| Msg::send_event(
-                                                        ClientEvent::Craft(item, 100)
-                                                    )),
-                                                    "100x",
-                                                ],
-                                                button![
-                                                    if is_premium {
-                                                        attrs! {}
-                                                    } else {
-                                                        attrs! {At::Disabled => "true"}
-                                                    },
-                                                    ev(Ev::Click, move |_| Msg::send_event(
-                                                        ClientEvent::ToggleAutoCraft(item)
-                                                    )),
-                                                    "Auto",
-                                                    if !is_premium {
-                                                        tip(REQUIRES_PREMIUM)
-                                                    } else {
-                                                        Node::Empty
-                                                    }
-                                                ]
-                                            ]
-                                        }
-                                    } else {
-                                        p!["Unlocked at level ", level]
-                                    },
-                                ]
-                            } else {
-                                Vec::new()
-                            },
-                            if let Some(_) = item.nutritional_value() {
-                                vec![
-                                    h4!["Food Storage"],
-                                    if player.auto_functions.auto_store.contains(&item)
-                                        && is_premium
-                                    {
-                                        button![
-                                            ev(Ev::Click, move |_| Msg::send_event(
-                                                ClientEvent::ToggleAutoStore(item)
-                                            )),
-                                            "Disable Auto"
-                                        ]
-                                    } else {
-                                        div![
-                                            C!["button-row"],
-                                            button![
-                                                if player
-                                                    .inventory
-                                                    .items
-                                                    .check_remove(&Bundle::new().add(item, 1))
-                                                {
-                                                    attrs! {}
-                                                } else {
-                                                    attrs! {At::Disabled => "true"}
-                                                },
-                                                ev(Ev::Click, move |_| Msg::send_event(
-                                                    ClientEvent::AddToFoodStorage(item, 1)
-                                                )),
-                                                format!("1x"),
-                                            ],
-                                            button![
-                                                if player
-                                                    .inventory
-                                                    .items
-                                                    .check_remove(&Bundle::new().add(item, 10))
-                                                {
-                                                    attrs! {}
-                                                } else {
-                                                    attrs! {At::Disabled => "true"}
-                                                },
-                                                ev(Ev::Click, move |_| Msg::send_event(
-                                                    ClientEvent::AddToFoodStorage(item, 10)
-                                                )),
-                                                format!("10x"),
-                                            ],
-                                            button![
-                                                if player
-                                                    .inventory
-                                                    .items
-                                                    .check_remove(&Bundle::new().add(item, 100))
-                                                {
-                                                    attrs! {}
-                                                } else {
-                                                    attrs! {At::Disabled => "true"}
-                                                },
-                                                ev(Ev::Click, move |_| Msg::send_event(
-                                                    ClientEvent::AddToFoodStorage(item, 100)
-                                                )),
-                                                format!("100x"),
-                                            ],
-                                            button![
-                                                if is_premium {
-                                                    attrs! {}
-                                                } else {
-                                                    attrs! {At::Disabled => "true"}
-                                                },
-                                                ev(Ev::Click, move |_| Msg::send_event(
-                                                    ClientEvent::ToggleAutoStore(item)
-                                                )),
-                                                "Auto",
-                                                if !is_premium {
-                                                    tip(REQUIRES_PREMIUM)
-                                                } else {
-                                                    Node::Empty
-                                                }
-                                            ]
-                                        ]
-                                    },
-                                ]
-                            } else {
-                                Vec::new()
-                            },
-
-                            vec![
-                                h4!["Sell Item"],      
-                                div![
-                                    C!["button-row"],
-                                    /*
-                                    button![
-                                        if player
-                                            .inventory
-                                            .items
-                                            .check_remove(&Bundle::new().add(item, 1))
-                                            && item.money_value(1) * TRADE_MONEY_MULTIPLIER > 0
-                                        {
-                                            attrs! {}
-                                        } else {
-                                            attrs! {At::Disabled => "true"}
-                                        },
-                                        ev(Ev::Click, move |_| Msg::send_event(
-                                            ClientEvent::Sell(item, 1)
-                                        )),
-                                        format!("1x"),
-                                    ],
-                                    button![
-                                        if player
-                                            .inventory
-                                            .items
-                                            .check_remove(&Bundle::new().add(item, 10))
-                                            && item.money_value(10) * TRADE_MONEY_MULTIPLIER > 0
-                                        {
-                                            attrs! {}
-                                        } else {
-                                            attrs! {At::Disabled => "true"}
-                                        },
-                                        ev(Ev::Click, move |_| Msg::send_event(
-                                            ClientEvent::Sell(item, 10)
-                                        )),
-                                        format!("10x"),
-                                    ],
-                                    button![
-                                        if player
-                                            .inventory
-                                            .items
-                                            .check_remove(&Bundle::new().add(item, 100))
-                                            && item.money_value(100) * TRADE_MONEY_MULTIPLIER > 0
-                                        {
-                                            attrs! {}
-                                        } else {
-                                            attrs! {At::Disabled => "true"}
-                                        },
-                                        ev(Ev::Click, move |_| Msg::send_event(
-                                            ClientEvent::Sell(item, 100)
-                                        )),
-                                        format!("100x"),
-                                    ],
-                                    */
-                                    button![
-                                        if n > 0
-                                        && item.money_value(n) * TRADE_MONEY_MULTIPLIER > 0
-                                        {
-                                            attrs! {}
-                                        } else {
-                                            attrs! {At::Disabled => "true"}
-                                        },
-                                        ev(Ev::Click, move |_| Msg::Confirm(
-                                            ClientEvent::Sell(item, n)
-                                        )),
-                                        format!("Sell all on Market ({} coins)", item.money_value(n) * TRADE_MONEY_MULTIPLIER),
-                                    ]
-                                ]
-                            ]
-
+                            inventory_options(model, player, item, n, is_premium)
                         ]
                     }
                 ]})
@@ -3731,6 +3597,74 @@ fn tip<T: std::fmt::Display>(text: T) -> Node<Msg> {
         C!["tooltip"],
         Icon::Info.draw(),
         span![C!["tooltiptext"], format!("{}", text)]
+    ]
+}
+
+
+fn slider<F, S, D>(model: &Model, item: Item, slider_type: SliderType, name: S, min: u64, max: u64, f: F, disabled: D, added: Option<Node<Msg>>) -> Node<Msg>
+where 
+    F: Fn(Item, u64) -> ClientEvent + Copy + 'static,
+    S: Fn(u64) -> String + Copy + 'static,
+    D: Fn(u64) -> bool + Copy + 'static,
+{
+    let max = max.max(min);
+
+    let value = model
+        .slider
+        .get(&(item, slider_type))
+        .copied()
+        .unwrap_or(min);
+
+    div![
+        C!["slider"],
+
+        if min == max {
+            Node::Empty
+        } else {
+            input![
+                C!["slider-range"],
+                attrs! {
+                    At::Type => "range",
+                    At::Min => min.to_string(),
+                    At::Max => max.to_string(),
+                    At::Value => value,
+                },
+                input_ev(Ev::Input, move |v| {
+                    let v = v.parse().unwrap_or(min).min(max).max(min);
+                    Msg::SetSlider(item, slider_type, v)
+                }),
+            ]
+        },
+        
+        if min == max {
+            Node::Empty
+        } else {
+            input![
+                C!["slider-number"],
+                attrs! {
+                    At::Type => "number",
+                    At::Min => min.to_string(),
+                    At::Max => max.to_string(),
+                    At::Value => value,
+                },
+                input_ev(Ev::Input, move |v| {
+                    let v = v.parse().unwrap_or(min).min(max).max(min);
+                    Msg::SetSlider(item, slider_type, v)
+                }),
+            ]
+        },
+
+        button![
+            attrs! { At::Disabled => disabled(value).as_at_value() },
+            C!["slider-confirm"],
+            name(value),
+            ev(Ev::Click, move |_| Msg::send_event(f(item, value))),
+        ],
+        if let Some(added) = added {
+            added
+        } else {
+            Node::Empty
+        }
     ]
 }
 

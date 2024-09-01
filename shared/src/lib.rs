@@ -1525,7 +1525,8 @@ impl<T: BundleType> Bundle<T> {
     pub fn can_remove_x_times(&self, other: &Self) -> Option<u64> {
         let mut bound: Option<u64> = None;
 
-        for (t, n) in &self.0 {
+        for t in self.0.keys().chain(other.0.keys()) {
+            let n = self.0.get(t).copied().unwrap_or_default();
             if let Some(other_n) = other.0.get(t) {
                 if *other_n > 0 {
                     if let Some(bound) = &mut bound {
