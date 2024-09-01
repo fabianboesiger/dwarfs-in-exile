@@ -1188,7 +1188,7 @@ impl engine_shared::State for State {
                                             if let Some(user_id) = quest.best() {
                                                 if let Some(player) = self.players.get_mut(&user_id)
                                                 {
-                                                    if matches!(self.event, Some(WorldEvent::Revolution)) {
+                                                    if !matches!(self.event, Some(WorldEvent::Revolution)) {
                                                         self.king = Some(user_id);
                                                         player.log.add(
                                                             self.time,
@@ -1772,6 +1772,9 @@ impl Player {
             health_cost_per_tick += dwarf.actual_occupation().health_cost_per_tick() * health_cost_multiplier;
         }
 
+        if health_cost_per_tick == 0 {
+            return u64::MAX;
+        }
         health_available / health_cost_per_tick
     }
 
