@@ -117,8 +117,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_same_site(SameSite::Lax)
         .with_expiry(Expiry::OnInactivity(time::Duration::days(30)));
 
-
-
     let game_state = GameStore::new(pool.clone()).load_all().await?;
 
     // Manage the number of hours for premium accounts.

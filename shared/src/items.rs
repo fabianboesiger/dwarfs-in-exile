@@ -139,6 +139,9 @@ pub enum Item {
     Ox,
     Kobold,
     KnightsArmor,
+    MiningGear,
+    LoggingGear,
+    Fairy
 }
 
 impl Craftable for Item {
@@ -367,14 +370,14 @@ impl Craftable for Item {
                 Bundle::new()
                     .add(Item::Fabric, 10)
                     .add(Item::String, 10)
-                    .add(Item::Leather, 5)
+                    .add(Item::Leather, 5),
             )),
             Item::Boat => Some((
                 80,
                 Bundle::new()
                     .add(Item::Wood, 200)
                     .add(Item::Fabric, 50)
-                    .add(Item::Nail, 100)
+                    .add(Item::Nail, 100),
             )),
             Item::KnightsArmor => Some((
                 82,
@@ -383,7 +386,28 @@ impl Craftable for Item {
                     .add(Item::ChainMail, 1)
                     .add(Item::Nail, 50)
                     .add(Item::Iron, 100)
-                    .add(Item::Leather, 100)
+                    .add(Item::Leather, 100),
+            )),
+            Item::MiningGear => Some((
+                84,
+                Bundle::new()
+                    .add(Item::Overall, 1)
+                    .add(Item::Headlamp, 1)
+                    .add(Item::Boots, 1)
+                    .add(Item::Gloves, 1)
+                    .add(Item::Fabric, 50)
+                    .add(Item::String, 50),
+            )),
+            Item::LoggingGear => Some((
+                86,
+                Bundle::new()
+                    .add(Item::Overall, 1)
+                    .add(Item::Helmet, 1)
+                    .add(Item::Bag, 1)
+                    .add(Item::Boots, 1)
+                    .add(Item::Gloves, 1)
+                    .add(Item::Fabric, 50)
+                    .add(Item::String, 50),
             )),
             _ => None,
         }
@@ -448,9 +472,11 @@ impl Item {
             | Item::Headlamp
             | Item::BearClawBoots
             | Item::RhinoHornPants
-            | Item::BoneHelmet 
+            | Item::BoneHelmet
             | Item::Vest
-            | Item::KnightsArmor => Some(ItemType::Clothing),
+            | Item::KnightsArmor
+            | Item::MiningGear
+            | Item::LoggingGear => Some(ItemType::Clothing),
 
             Item::RingOfIntelligence
             | Item::RingOfStrength
@@ -499,7 +525,8 @@ impl Item {
             | Item::Horse
             | Item::Dolphin
             | Item::Ox
-            | Item::Kobold => Some(ItemType::Pet),
+            | Item::Kobold
+            | Item::Fairy => Some(ItemType::Pet),
 
             Item::Apple
             | Item::Blueberry
@@ -626,8 +653,10 @@ impl Item {
                 endurance: 2,
                 ..Default::default()
             },
-            Item::Dolphin => Stats {
-                agility: 4,
+            Item::Fairy => Stats {
+                endurance: 2,
+                agility: 2,
+                intelligence: 2,
                 ..Default::default()
             },
             _ => Stats::default(),
@@ -724,6 +753,9 @@ impl Item {
             (Item::Boat, Occupation::Fishing) => 10,
             (Item::Boat, Occupation::Exploring) => 8,
             (Item::KnightsArmor, Occupation::Fighting) => 10,
+            (Item::MiningGear, Occupation::Mining) => 10,
+            (Item::LoggingGear, Occupation::Logging) => 10,
+            (Item::Fairy, Occupation::Exploring) => 10,
             _ => 0,
         }
     }
@@ -859,30 +891,33 @@ impl Item {
                 }),
                 Item::Parrot => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_DAY * 3,
-                }),  
+                }),
                 Item::Cat => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_DAY * 3,
                 }),
                 Item::Donkey => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_DAY * 7,
+                    expected_ticks_per_drop: ONE_DAY * 5,
+                }),
+                Item::Wolf => Some(ItemProbability {
+                    expected_ticks_per_drop: ONE_DAY * 5,
+                }),
+                Item::Dolphin => Some(ItemProbability {
+                    expected_ticks_per_drop: ONE_DAY * 5,
+                }),
+                Item::Ox => Some(ItemProbability {
+                    expected_ticks_per_drop: ONE_DAY * 5,
                 }),
                 Item::Horse => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_DAY * 7,
                 }),
-                Item::Wolf => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_DAY * 7,
-                }),
-                Item::Dolphin => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_DAY * 7,
-                }),
-                Item::Ox => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_DAY * 7,
-                }),
                 Item::Dragon => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_DAY * 10,
+                    expected_ticks_per_drop: ONE_DAY * 7,
                 }),
                 Item::Kobold => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_DAY * 10,
+                    expected_ticks_per_drop: ONE_DAY * 7,
+                }),
+                Item::Fairy => Some(ItemProbability {
+                    expected_ticks_per_drop: ONE_DAY * 7,
                 }),
                 _ => None,
             },

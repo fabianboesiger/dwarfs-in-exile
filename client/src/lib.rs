@@ -7,11 +7,14 @@ use itertools::Itertools;
 use rustrict::CensorStr;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, RewardType, Stats, Time, TradeType, TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, MAX_EFFECTIVENESS, MAX_HEALTH, SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS
+    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg,
+    Occupation, Player, Popup, QuestId, QuestType, RewardMode, RewardType, Stats, Time, TradeType,
+    TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, MAX_EFFECTIVENESS, MAX_HEALTH,
+    SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS,
 };
-use time::{macros::datetime, Duration};
 use std::str::FromStr;
 use strum::Display;
+use time::{macros::datetime, Duration};
 use web_sys::js_sys::Date;
 
 //const ENTER_KEY: u32 = 13;
@@ -231,7 +234,6 @@ impl Default for QuestsFilter {
     }
 }
 
-
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum SliderType {
     Craft,
@@ -369,7 +371,7 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
         }
         Msg::Confirm(ev) => {
             model.confirm = Some(ev);
-        },
+        }
         Msg::ConfirmYes => {
             if let Some(ev) = model.confirm.take() {
                 orders.send_msg(Msg::send_event(ev));
@@ -380,12 +382,15 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
         }
         Msg::AdLoaded => {
             model.ad_loaded = true;
-        },
+        }
         Msg::UpdateName(name) => {
             model.custom_name = name;
         }
         Msg::SetName(dwarf_id, name) => {
-            orders.send_msg(Msg::send_event(ClientEvent::SetDwarfName(dwarf_id, name.unwrap_or_default())));
+            orders.send_msg(Msg::send_event(ClientEvent::SetDwarfName(
+                dwarf_id,
+                name.unwrap_or_default(),
+            )));
             model.custom_name = None;
         }
         Msg::GameStateEvent(ev) => {
@@ -413,7 +418,6 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
 
                     orders.send_msg(Msg::AdLoaded);
                 }
-                
 
                 if engine_shared::State::has_winner(state).is_some() {
                     orders.notify(subs::UrlRequested::new(Url::from_str("/game").unwrap()));
@@ -576,20 +580,28 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
 //     View
 // ------ ------
 
-
 fn view(model: &Model) -> Node<Msg> {
     if let (Some(state), Some(user_id), client_state) = (
         model.state.get_state(),
         model.state.get_user_id(),
         &model.state,
     ) {
-        let inert = state.players.get(user_id).map(|player| !player.popups.is_empty()).unwrap_or(false) || model.show_tutorial;
+        let inert = state
+            .players
+            .get(user_id)
+            .map(|player| !player.popups.is_empty())
+            .unwrap_or(false)
+            || model.show_tutorial;
         div![
             confirm(model, state, user_id),
             popup(model, state, user_id),
             tutorial(model, state, user_id),
-            div![ 
-                if inert { attrs!{ "inert" => "true" } } else { attrs!{} },
+            div![
+                if inert {
+                    attrs! { "inert" => "true" }
+                } else {
+                    attrs! {}
+                },
                 div![id!["background"]],
                 header![
                     h1![a![attrs! { At::Href => "/" }, "Dwarfs in Exile"]],
@@ -625,7 +637,7 @@ fn popup(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node
         if let Some(popup) = player.popups.front() {
             if model.confirm.is_none() {
                 div![
-                    attrs!{ At::Role => "dialog", At::AriaLabelledBy => "popup-title", "aria-modal" => "true" },
+                    attrs! { At::Role => "dialog", At::AriaLabelledBy => "popup-title", "aria-modal" => "true" },
                     C!["panel-wrapper"],
                     match popup {
                         Popup::NewDwarf(dwarf) => {
@@ -660,7 +672,10 @@ fn popup(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node
                                                 th!["Endurance"],
                                                 td![stars(dwarf.stats.endurance, true)],
                                             ],
-                                            tr![th!["Agility"], td![stars(dwarf.stats.agility, true)],],
+                                            tr![
+                                                th!["Agility"],
+                                                td![stars(dwarf.stats.agility, true)],
+                                            ],
                                             tr![
                                                 th!["Intelligence"],
                                                 td![stars(dwarf.stats.intelligence, true)],
@@ -682,7 +697,7 @@ fn popup(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node
                         }
                         Popup::NewItems(bundle) => {
                             let (item, qty) = bundle.iter().next().unwrap();
-    
+
                             div![
                                 id!["tutorial-panel"],
                                 C!["panel"],
@@ -726,8 +741,9 @@ fn popup(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node
                                                 itertools::intersperse(
                                                     enum_iterator::all::<Occupation>().filter_map(
                                                         |occupation| {
-                                                            let usefulness =
-                                                                item.usefulness_for(occupation) as i8;
+                                                            let usefulness = item
+                                                                .usefulness_for(occupation)
+                                                                as i8;
                                                             if usefulness > 0 {
                                                                 Some(span![
                                                                     format!("{} ", occupation),
@@ -874,7 +890,7 @@ fn tutorial(model: &Model, state: &shared::State, user_id: &shared::UserId) -> N
                 ]
             } else {
                 button![
-                    attrs!{ At::TabIndex => "0", At::AriaLabel => if step.requires().complete(player) {
+                    attrs! { At::TabIndex => "0", At::AriaLabel => if step.requires().complete(player) {
                         "Tutorial Quest (complete)"
                     } else {
                         "Tutorial Quest (incomplete)"
@@ -897,39 +913,33 @@ fn tutorial(model: &Model, state: &shared::State, user_id: &shared::UserId) -> N
     }
 }
 
-
 fn confirm(model: &Model, _state: &shared::State, _user_id: &shared::UserId) -> Node<Msg> {
     if let Some(client_event) = &model.confirm {
         div![
             C!["panel-wrapper"],
-            attrs!{ At::Role => "dialog", At::AriaLabelledBy => "popup-title", "aria-modal" => "true" },
+            attrs! { At::Role => "dialog", At::AriaLabelledBy => "popup-title", "aria-modal" => "true" },
             div![
                 id!["tutorial-panel"],
                 C!["panel"],
-                img![C!["panel-image"], attrs! { At::Src => "/logo.jpg" } ],
-                div![C!["panel-content"],
+                img![C!["panel-image"], attrs! { At::Src => "/logo.jpg" }],
+                div![
+                    C!["panel-content"],
                     h3![id!["popup-title"], "Confirm"],
                     match client_event {
-                        ClientEvent::ReleaseDwarf(..) => p!["Do you really want to release this dwarf?"],
-                        ClientEvent::Sell(..) => p!["Do you really want to sell this item on the market?"],    
+                        ClientEvent::ReleaseDwarf(..) =>
+                            p!["Do you really want to release this dwarf?"],
+                        ClientEvent::Sell(..) =>
+                            p!["Do you really want to sell this item on the market?"],
                         _ => p![],
                     },
-                    button![
-                        ev(Ev::Click, move |_| Msg::ConfirmYes),
-                        "Yes"
-                    ],
-                    button![
-                        ev(Ev::Click, move |_| Msg::ConfirmNo),
-                        "No"
-                    ],
+                    button![ev(Ev::Click, move |_| Msg::ConfirmYes), "Yes"],
+                    button![ev(Ev::Click, move |_| Msg::ConfirmNo), "No"],
                 ]
-
             ]
         ]
     } else {
         Node::Empty
     }
-
 }
 
 fn ranking(
@@ -1212,7 +1222,10 @@ fn dwarf_occupation(dwarf: &Dwarf, player: &Player) -> Node<Msg> {
         if let Some((quest_type, _, _)) = dwarf.participates_in_quest {
             div![
                 if dwarf.auto_idle {
-                    span![format!("Auto-idling, resuming quest {} shortly.", quest_type,)]
+                    span![format!(
+                        "Auto-idling, resuming quest {} shortly.",
+                        quest_type,
+                    )]
                 } else {
                     span![format!("Participating in quest {}.", quest_type,)]
                 },
@@ -1242,29 +1255,25 @@ fn dwarf_occupation(dwarf: &Dwarf, player: &Player) -> Node<Msg> {
             ]
         }
     } else {
-        div![
-            if let Some(mentor) = dwarf.mentor {
-                let mentor = player.dwarfs.get(&mentor).unwrap();
+        div![if let Some(mentor) = dwarf.mentor {
+            let mentor = player.dwarfs.get(&mentor).unwrap();
 
-                vec![
-                    span![format!(
-                        "Doing an apprenticeship with {} in {}.",
-                        mentor.custom_name.as_ref().unwrap_or(&mentor.name),
-                        mentor.actual_occupation(),
-                    )],
-                    br![],
-                    if dwarf.occupation != Occupation::Idling {
-                        stars_occupation(dwarf, mentor.occupation)
-                    } else {
-                        Node::Empty
-                    }
-                ]
-                
-            } else {
-                vec![span![format!("Currently {}.", dwarf.occupation)]]
-            },
-            
-        ]
+            vec![
+                span![format!(
+                    "Doing an apprenticeship with {} in {}.",
+                    mentor.custom_name.as_ref().unwrap_or(&mentor.name),
+                    mentor.actual_occupation(),
+                )],
+                br![],
+                if dwarf.occupation != Occupation::Idling {
+                    stars_occupation(dwarf, mentor.occupation)
+                } else {
+                    Node::Empty
+                },
+            ]
+        } else {
+            vec![span![format!("Currently {}.", dwarf.occupation)]]
+        },]
     }
 }
 
@@ -1351,7 +1360,6 @@ fn dwarf_details(dwarf: Option<&Dwarf>, player: &Player) -> Vec<Node<Msg>> {
     }
 }
 
-
 fn item_details(item: Item, n: u64) -> Vec<Node<Msg>> {
     vec![
         td![img![
@@ -1417,10 +1425,7 @@ fn item_details(item: Item, n: u64) -> Vec<Node<Msg>> {
                         enum_iterator::all::<Occupation>().filter_map(|occupation| {
                             let usefulness = item.usefulness_for(occupation) as i8;
                             if usefulness > 0 {
-                                Some(span![
-                                    format!("{} ", occupation),
-                                    stars(usefulness, true)
-                                ])
+                                Some(span![format!("{} ", occupation), stars(usefulness, true)])
                             } else {
                                 None
                             }
@@ -2157,6 +2162,9 @@ fn quest(
                                 QuestType::Socializing => p!["Socialize with the other dwarfs in the tavern. You may find a new friend."],
                                 QuestType::TheElvenMagician => p!["The elven magician is working tirelessly on a big projects. Get him some of his favorite berries so that he can focus better."],
                                 QuestType::ExploreNewLands => p!["Help exploring new lands and earn a reward."],
+                                QuestType::DeepInTheCaves => p!["Deep in the caves of the forbidden lands, mythical creatures are said to live. Explore the caves and find out what is hidden there."],
+                                QuestType::MinersLuck => p!["You are feeling lucky today. Go mining and see what you can find."],
+                                QuestType::AbandonedOrkCamp => p!["The orks have abandoned their camp. Explore it and see if you can find anything of use."],
                             },
                         ],
                         h3!["Rewards"],
@@ -2335,7 +2343,6 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
 
         unlocks.sort_by_key(|item| item.unlocked_at_level());
         unlocks.retain(|item| item.unlocked_at_level() > player.base.curr_level);
-
 
         div![C!["content"],
 
@@ -2623,16 +2630,20 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
     }
 }
 
-fn inventory_options(model: &Model, player: &Player, item: Item, n: u64, is_premium: bool) -> Vec<Node<Msg>> {
+fn inventory_options(
+    model: &Model,
+    player: &Player,
+    item: Item,
+    n: u64,
+    is_premium: bool,
+) -> Vec<Node<Msg>> {
     vec![
         if let Some((level, requires)) = item.requires() {
             vec![
                 h4!["Crafting"],
                 bundle(&requires, player, true),
                 if player.base.curr_level >= level {
-                    if player.auto_functions.auto_craft.contains(&item)
-                        && is_premium
-                    {
+                    if player.auto_functions.auto_craft.contains(&item) && is_premium {
                         button![
                             ev(Ev::Click, move |_| Msg::send_event(
                                 ClientEvent::ToggleAutoCraft(item)
@@ -2640,27 +2651,41 @@ fn inventory_options(model: &Model, player: &Player, item: Item, n: u64, is_prem
                             "Disable Auto",
                         ]
                     } else {
-                        let max = player.inventory.items.can_remove_x_times(&requires).unwrap_or(0);
-                        
+                        let max = player
+                            .inventory
+                            .items
+                            .can_remove_x_times(&requires)
+                            .unwrap_or(0);
+
                         if max == 0 {
                             Node::Empty
                         } else {
-                            slider(model, item, SliderType::Craft, |_| "Craft".to_owned(), max.min(1), max, ClientEvent::Craft, |n| n == 0, Some(button![
-                                if is_premium {
-                                    attrs! {}
-                                } else {
-                                    attrs! {At::Disabled => "true"}
-                                },
-                                ev(Ev::Click, move |_| Msg::send_event(
-                                    ClientEvent::ToggleAutoCraft(item)
-                                )),
-                                "Auto",
-                                if !is_premium {
-                                    tip(REQUIRES_PREMIUM)
-                                } else {
-                                    Node::Empty
-                                }
-                            ]))
+                            slider(
+                                model,
+                                item,
+                                SliderType::Craft,
+                                |_| "Craft".to_owned(),
+                                max.min(1),
+                                max,
+                                ClientEvent::Craft,
+                                |n| n == 0,
+                                Some(button![
+                                    if is_premium {
+                                        attrs! {}
+                                    } else {
+                                        attrs! {At::Disabled => "true"}
+                                    },
+                                    ev(Ev::Click, move |_| Msg::send_event(
+                                        ClientEvent::ToggleAutoCraft(item)
+                                    )),
+                                    "Auto",
+                                    if !is_premium {
+                                        tip(REQUIRES_PREMIUM)
+                                    } else {
+                                        Node::Empty
+                                    }
+                                ]),
+                            )
                         }
                     }
                 } else {
@@ -2673,9 +2698,7 @@ fn inventory_options(model: &Model, player: &Player, item: Item, n: u64, is_prem
         if let Some(_) = item.nutritional_value() {
             vec![
                 h4!["Food Storage"],
-                if player.auto_functions.auto_store.contains(&item)
-                    && is_premium
-                {
+                if player.auto_functions.auto_store.contains(&item) && is_premium {
                     button![
                         ev(Ev::Click, move |_| Msg::send_event(
                             ClientEvent::ToggleAutoStore(item)
@@ -2683,35 +2706,60 @@ fn inventory_options(model: &Model, player: &Player, item: Item, n: u64, is_prem
                         "Disable Auto"
                     ]
                 } else {
-                    slider(model, item, SliderType::Store, |_| "Store".to_owned(), n.min(1), n, ClientEvent::AddToFoodStorage, |n| n == 0, Some(button![
-                        if is_premium {
-                            attrs! {}
-                        } else {
-                            attrs! {At::Disabled => "true"}
-                        },
-                        ev(Ev::Click, move |_| Msg::send_event(
-                            ClientEvent::ToggleAutoStore(item)
-                        )),
-                        "Auto",
-                        if !is_premium {
-                            tip(REQUIRES_PREMIUM)
-                        } else {
-                            Node::Empty
-                        }
-                    ]))
+                    slider(
+                        model,
+                        item,
+                        SliderType::Store,
+                        |_| "Store".to_owned(),
+                        n.min(1),
+                        n,
+                        ClientEvent::AddToFoodStorage,
+                        |n| n == 0,
+                        Some(button![
+                            if is_premium {
+                                attrs! {}
+                            } else {
+                                attrs! {At::Disabled => "true"}
+                            },
+                            ev(Ev::Click, move |_| Msg::send_event(
+                                ClientEvent::ToggleAutoStore(item)
+                            )),
+                            "Auto",
+                            if !is_premium {
+                                tip(REQUIRES_PREMIUM)
+                            } else {
+                                Node::Empty
+                            }
+                        ]),
+                    )
                 },
             ]
         } else {
             Vec::new()
         },
-        
         vec![
-            h4!["Sell Item"],      
-            slider(model, item, SliderType::Sell, move |n| format!("Sell ({} coins)", item.money_value(n) * TRADE_MONEY_MULTIPLIER), n.min(1), n, ClientEvent::Sell, move |n| n > 0 && item.money_value(n) * TRADE_MONEY_MULTIPLIER == 0, None)
-        ]
-
-    ].into_iter().flatten().collect()
-    
+            h4!["Sell Item"],
+            slider(
+                model,
+                item,
+                SliderType::Sell,
+                move |n| {
+                    format!(
+                        "Sell ({} coins)",
+                        item.money_value(n) * TRADE_MONEY_MULTIPLIER
+                    )
+                },
+                n.min(1),
+                n,
+                ClientEvent::Sell,
+                move |n| n > 0 && item.money_value(n) * TRADE_MONEY_MULTIPLIER == 0,
+                None,
+            ),
+        ],
+    ]
+    .into_iter()
+    .flatten()
+    .collect()
 }
 
 fn inventory(
@@ -3438,8 +3486,8 @@ fn stars(stars: i8, padded: bool) -> Node<Msg> {
     }
     span![
         C!["symbols"],
-        attrs!{ At::Role => "meter", At::AriaValueNow => (stars as f64 / 2.0), At::AriaValueMin => 0.0, At::AriaValueMax => 5.0, At::AriaLabel => format!("{}/{}", stars as f64 / 2.0, 5.0)},
-        span![attrs!{ At::AriaHidden => "true" }, s]
+        attrs! { At::Role => "meter", At::AriaValueNow => (stars as f64 / 2.0), At::AriaValueMin => 0.0, At::AriaValueMax => 5.0, At::AriaLabel => format!("{}/{}", stars as f64 / 2.0, 5.0)},
+        span![attrs! { At::AriaHidden => "true" }, s]
     ]
 }
 
@@ -3600,9 +3648,18 @@ fn tip<T: std::fmt::Display>(text: T) -> Node<Msg> {
     ]
 }
 
-
-fn slider<F, S, D>(model: &Model, item: Item, slider_type: SliderType, name: S, min: u64, max: u64, f: F, disabled: D, added: Option<Node<Msg>>) -> Node<Msg>
-where 
+fn slider<F, S, D>(
+    model: &Model,
+    item: Item,
+    slider_type: SliderType,
+    name: S,
+    min: u64,
+    max: u64,
+    f: F,
+    disabled: D,
+    added: Option<Node<Msg>>,
+) -> Node<Msg>
+where
     F: Fn(Item, u64) -> ClientEvent + Copy + 'static,
     S: Fn(u64) -> String + Copy + 'static,
     D: Fn(u64) -> bool + Copy + 'static,
@@ -3617,7 +3674,6 @@ where
 
     div![
         C!["slider"],
-
         if min == max {
             Node::Empty
         } else {
@@ -3635,7 +3691,6 @@ where
                 }),
             ]
         },
-        
         if min == max {
             Node::Empty
         } else {
@@ -3653,7 +3708,6 @@ where
                 }),
             ]
         },
-
         button![
             attrs! { At::Disabled => disabled(value).as_at_value() },
             C!["slider-confirm"],

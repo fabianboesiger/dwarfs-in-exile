@@ -12,11 +12,7 @@ use rand::{
     Rng,
 };
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::VecDeque,
-    hash::Hash,
-    ops::Deref,
-};
+use std::{collections::VecDeque, hash::Hash, ops::Deref};
 use strum::Display;
 
 #[cfg(not(debug_assertions))]
@@ -472,7 +468,6 @@ impl engine_shared::State for State {
                                 player.dwarfs.keys().cloned().collect()
                             };
 
-
                             for dwarf_id in &dwarf_ids {
                                 let dwarf = player.dwarfs.get_mut(dwarf_id)?;
                                 if dwarf.can_be_managed() || to_optimize_dwarf_id.is_some() {
@@ -491,10 +486,7 @@ impl engine_shared::State for State {
                                 let mut best_dwarf_item = None;
                                 for dwarf_id in &dwarf_ids {
                                     let dwarf = player.dwarfs.get(dwarf_id)?;
-                                    if dwarf.can_be_managed()
-                                        || to_optimize_dwarf_id.is_some()
-                                    {
-
+                                    if dwarf.can_be_managed() || to_optimize_dwarf_id.is_some() {
                                         let occupation_to_optimize =
                                             if to_optimize_dwarf_id.is_some() {
                                                 dwarf.actual_occupation()
@@ -518,7 +510,7 @@ impl engine_shared::State for State {
                                             })
                                         {
                                             let mut dwarf_clone = dwarf.clone();
-                                        
+
                                             let effectiveness_before = dwarf_clone
                                                 .effectiveness_not_normalized(
                                                     occupation_to_optimize,
@@ -532,9 +524,8 @@ impl engine_shared::State for State {
 
                                             let effectiveness_after = dwarf_clone
                                                 .effectiveness_not_normalized(
-                                                    occupation_to_optimize
+                                                    occupation_to_optimize,
                                                 );
-
 
                                             let effectiveness_diff = effectiveness_after as i64
                                                 - effectiveness_before as i64;
@@ -739,7 +730,6 @@ impl engine_shared::State for State {
                         }
                         ClientEvent::AssignToQuest(quest_id, dwarf_idx, dwarf_id) => {
                             if let Some(dwarf_id) = dwarf_id {
-
                                 let quest = self.quests.get(&quest_id)?;
                                 if player.base.curr_level > quest.quest_type.max_level() {
                                     return None;
@@ -787,9 +777,11 @@ impl engine_shared::State for State {
                         ClientEvent::AddToFoodStorage(item, qty) => {
                             Self::add_to_food_storage(player, item, qty);
                         }
-                        ClientEvent::Sell(item, qty) => { 
+                        ClientEvent::Sell(item, qty) => {
                             if qty > 0 {
-                                if let Some(trade_deal) = TradeDeal::from_player(user_id, player, item, qty) {
+                                if let Some(trade_deal) =
+                                    TradeDeal::from_player(user_id, player, item, qty)
+                                {
                                     self.trade_deals.push(trade_deal);
                                 }
                             }
@@ -1092,7 +1084,9 @@ impl engine_shared::State for State {
                                 }
 
                                 // Handle removed dwarfs
-                                let removed_dwarfs = player.dwarfs.iter()
+                                let removed_dwarfs = player
+                                    .dwarfs
+                                    .iter()
                                     .filter(|(_, dwarf)| dwarf.dead() || dwarf.released)
                                     .map(|(id, _)| id)
                                     .copied()
@@ -1134,7 +1128,9 @@ impl engine_shared::State for State {
                                 }
 
                                 // Remove dead dwarfs from the base.
-                                player.dwarfs.retain(|_, dwarf| !(dwarf.dead() || dwarf.released));
+                                player
+                                    .dwarfs
+                                    .retain(|_, dwarf| !(dwarf.dead() || dwarf.released));
                             }
 
                             // Continue the active quests.
@@ -1187,11 +1183,13 @@ impl engine_shared::State for State {
                                             }
                                         }
                                         RewardMode::BecomeKing => {
-                                            
                                             if let Some(user_id) = quest.best() {
                                                 if let Some(player) = self.players.get_mut(&user_id)
                                                 {
-                                                    if !matches!(self.event, Some(WorldEvent::Revolution)) {
+                                                    if !matches!(
+                                                        self.event,
+                                                        Some(WorldEvent::Revolution)
+                                                    ) {
                                                         self.king = Some(user_id);
                                                         player.log.add(
                                                             self.time,
@@ -1439,11 +1437,19 @@ impl engine_shared::State for State {
                                 .unwrap_or(1);
 
                             let mut potential_quests = enum_iterator::all::<QuestType>()
-                                .filter(|quest_type| !quest_type.is_story() || (max_level > quest_type.max_level() - 10 && max_level <= quest_type.max_level()))
+                                .filter(|quest_type| {
+                                    (!quest_type.is_story()
+                                        || (max_level > quest_type.max_level() - 10
+                                            && max_level <= quest_type.max_level()))
+                                        && (quest_type.one_at_a_time()
+                                            && !self
+                                                .quests
+                                                .values()
+                                                .any(|quest| quest.quest_type == *quest_type))
+                                })
                                 .collect::<CustomSet<_>>();
 
                             while self.quests.len() < num_quests {
-
                                 if potential_quests.is_empty() {
                                     break;
                                 }
@@ -1482,7 +1488,13 @@ impl engine_shared::State for State {
                                     .min(15)
                             };
 
-                            while self.trade_deals.iter().filter(|trade_deal| trade_deal.creator.is_none()).count() < num_trades {
+                            while self
+                                .trade_deals
+                                .iter()
+                                .filter(|trade_deal| trade_deal.creator.is_none())
+                                .count()
+                                < num_trades
+                            {
                                 self.trade_deals.push(TradeDeal::new(rng));
                             }
                         }
@@ -1762,15 +1774,14 @@ impl Player {
         let mut health_cost_per_tick = 0;
 
         let health_cost_multiplier = match state.event {
-            Some(WorldEvent::Plague) => {
-                (1 + self.dwarfs.len() as u64 / 20).min(5)
-            }
+            Some(WorldEvent::Plague) => (1 + self.dwarfs.len() as u64 / 20).min(5),
             _ => 1,
         };
 
         for dwarf in self.dwarfs.values() {
             health_available += dwarf.health;
-            health_cost_per_tick += dwarf.actual_occupation().health_cost_per_tick() * health_cost_multiplier;
+            health_cost_per_tick +=
+                dwarf.actual_occupation().health_cost_per_tick() * health_cost_multiplier;
         }
 
         if health_cost_per_tick == 0 {
@@ -1902,7 +1913,6 @@ impl Player {
     }
 
     pub fn auto_craft(&mut self, time: Time, is_premium: bool) {
-
         if is_premium {
             let mut items_added = false;
             // Auto-craft!
@@ -2636,16 +2646,19 @@ pub enum RewardMode {
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RewardType {
     Fair,
-    Chance, 
+    Chance,
     Best,
 }
 
 impl RewardMode {
     pub fn reward_type(&self) -> RewardType {
         match self {
-            RewardMode::BestGetsAll(_) | RewardMode::BestGetsItems(_) | RewardMode::NewDwarf(_) | RewardMode::BecomeKing => RewardType::Best,
+            RewardMode::BestGetsAll(_)
+            | RewardMode::BestGetsItems(_)
+            | RewardMode::NewDwarf(_)
+            | RewardMode::BecomeKing => RewardType::Best,
             RewardMode::SplitFairly(_) => RewardType::Fair,
-            RewardMode::ItemsByChance(_) | RewardMode::NewDwarfByChance(_) => RewardType::Chance
+            RewardMode::ItemsByChance(_) | RewardMode::NewDwarfByChance(_) => RewardType::Chance,
         }
     }
 }
@@ -2683,7 +2696,10 @@ pub enum QuestType {
     EatingContest,
     Socializing,
     TheElvenMagician,
-    ExploreNewLands
+    ExploreNewLands,
+    DeepInTheCaves,
+    MinersLuck,
+    AbandonedOrkCamp,
 }
 
 impl std::fmt::Display for QuestType {
@@ -2715,6 +2731,9 @@ impl std::fmt::Display for QuestType {
             QuestType::Socializing => write!(f, "Socializing in the Tavern"),
             QuestType::TheElvenMagician => write!(f, "The Elven Magician"),
             QuestType::ExploreNewLands => write!(f, "Explore new Lands"),
+            QuestType::DeepInTheCaves => write!(f, "Deep in the Caves"),
+            QuestType::MinersLuck => write!(f, "Miner's Luck"),
+            QuestType::AbandonedOrkCamp => write!(f, "Abandonned Ork Camp"),
         }
     }
 }
@@ -2759,6 +2778,14 @@ impl QuestType {
             Self::Socializing => RewardMode::NewDwarfByChance(3),
             Self::TheElvenMagician => RewardMode::SplitFairly(2000),
             Self::ExploreNewLands => RewardMode::SplitFairly(4000),
+            Self::DeepInTheCaves => RewardMode::ItemsByChance(Bundle::new().add(Item::Kobold, 1)),
+            Self::MinersLuck => RewardMode::ItemsByChance(Bundle::new().add(Item::Diamond, 3)),
+            Self::AbandonedOrkCamp => RewardMode::ItemsByChance(
+                Bundle::new()
+                    .add(Item::Coal, 1000)
+                    .add(Item::Wood, 1000)
+                    .add(Item::Iron, 100),
+            ),
         }
     }
 
@@ -2793,7 +2820,10 @@ impl QuestType {
             Self::EatingContest => ONE_HOUR,
             Self::Socializing => ONE_HOUR * 2,
             Self::TheElvenMagician => ONE_HOUR * 2,
-            Self::ExploreNewLands => ONE_HOUR * 4
+            Self::ExploreNewLands => ONE_HOUR * 4,
+            Self::DeepInTheCaves => ONE_HOUR * 4,
+            Self::MinersLuck => ONE_HOUR * 4,
+            Self::AbandonedOrkCamp => ONE_HOUR * 4,
         }
     }
 
@@ -2825,6 +2855,9 @@ impl QuestType {
             Self::Socializing => Occupation::Idling,
             Self::TheElvenMagician => Occupation::Gathering,
             Self::ExploreNewLands => Occupation::Exploring,
+            Self::DeepInTheCaves => Occupation::Mining,
+            Self::MinersLuck => Occupation::Rockhounding,
+            Self::AbandonedOrkCamp => Occupation::Exploring,
         }
     }
 
@@ -2856,13 +2889,15 @@ impl QuestType {
             Self::Socializing => 1,
             Self::TheElvenMagician => 1,
             Self::ExploreNewLands => 3,
+            Self::DeepInTheCaves => 1,
+            Self::MinersLuck => 1,
+            Self::AbandonedOrkCamp => 1,
         }
     }
 
     pub fn max_level(self) -> u64 {
         match self {
             //s if s.reward_mode().reward_type() == RewardType::Fair => 100,
-
             QuestType::ForTheKing => 100,
 
             QuestType::AFishingFriend => 20,
@@ -2870,15 +2905,17 @@ impl QuestType {
             QuestType::CollapsedCave => 40,
             QuestType::DrunkFishing => 60,
             QuestType::CatStuckOnATree => 60,
-            QuestType::FarmersContest => 60,  
+            QuestType::FarmersContest => 60,
             QuestType::EatingContest => 80,
             QuestType::MagicalBerries => 80,
             QuestType::Socializing => 80,
+            QuestType::AbandonedOrkCamp => 80,
+            QuestType::DeepInTheCaves => 100,
             QuestType::KillTheDragon => 100,
             QuestType::TheHiddenTreasure => 100,
             QuestType::ArenaFight => 100,
             QuestType::ExploreNewLands => 100,
-
+            QuestType::MinersLuck => 100,
 
             QuestType::FeastForAGuest => 10,
             QuestType::FreeTheVillage => 15,
@@ -2892,25 +2929,24 @@ impl QuestType {
             QuestType::ElvenVictory => 80,
             QuestType::TheMassacre => 90,
             QuestType::TheElvenWar => 100,
-
         }
     }
 
     pub fn is_story(self) -> bool {
         match self {
-            QuestType::FeastForAGuest |
-            QuestType::FreeTheVillage |
-            QuestType::ADwarfGotLost |
-            QuestType::ADwarfInDanger |
-            QuestType::AttackTheOrks |
-            QuestType::FreeTheDwarf |
-            QuestType::CrystalsForTheElves |
-            QuestType::TheElvenMagician |
-            QuestType::ADarkSecret |
-            QuestType::ElvenVictory |
-            QuestType::TheMassacre |
-            QuestType::TheElvenWar => true,
-            _ => false
+            QuestType::FeastForAGuest
+            | QuestType::FreeTheVillage
+            | QuestType::ADwarfGotLost
+            | QuestType::ADwarfInDanger
+            | QuestType::AttackTheOrks
+            | QuestType::FreeTheDwarf
+            | QuestType::CrystalsForTheElves
+            | QuestType::TheElvenMagician
+            | QuestType::ADarkSecret
+            | QuestType::ElvenVictory
+            | QuestType::TheMassacre
+            | QuestType::TheElvenWar => true,
+            _ => false,
         }
     }
 }
@@ -2958,7 +2994,9 @@ impl TradeDeal {
 
     pub fn from_player(user_id: UserId, player: &mut Player, item: Item, qty: u64) -> Option<Self> {
         let qty = qty.min(player.inventory.items.get(&item).copied().unwrap_or(0));
-        let time_left = ((qty * item.item_rarity_num()) / 10).max(ONE_MINUTE * 20).min(ONE_HOUR * 4);
+        let time_left = ((qty * item.item_rarity_num()) / 10)
+            .max(ONE_MINUTE * 20)
+            .min(ONE_HOUR * 4);
         let items = Bundle::new().add(item, qty);
         let next_bid = item.money_value(qty) as u64 * TRADE_MONEY_MULTIPLIER;
 
@@ -2990,7 +3028,7 @@ impl TradeDeal {
             if self.time_left == 0 || self.next_bid <= 1 {
                 if let Some((best_bidder_user_id, best_bidder_money)) = self.highest_bidder {
                     let p = players.get_mut(&best_bidder_user_id)?;
-                    p.inventory.add(self.items.clone(), time);      
+                    p.inventory.add(self.items.clone(), time);
                     p.log.add(
                         time,
                         LogMsg::BidWon(self.items.clone(), best_bidder_money, self.user_trade_type),
@@ -3008,10 +3046,8 @@ impl TradeDeal {
                     if let Some(creator) = self.creator {
                         let c = players.get_mut(&creator)?;
                         c.inventory.add(self.items.clone(), time);
-                        c.log.add(
-                            time,
-                            LogMsg::ItemNotSold(self.items.clone(), self.next_bid),
-                        );
+                        c.log
+                            .add(time, LogMsg::ItemNotSold(self.items.clone(), self.next_bid));
                     }
                 }
             }
@@ -3050,7 +3086,7 @@ impl TradeDeal {
                 }
             }
         }
-        
+
         Some(())
     }
 }

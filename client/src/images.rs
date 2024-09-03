@@ -181,6 +181,12 @@ pub enum Image {
     Kobold,
     Revolution,
     KnightsArmor,
+    DeepInTheCaves,
+    MinersLuck,
+    AbandonedOrkCamp,
+    MiningGear,
+    LoggingGear,
+    Fairy,
 }
 
 impl AsAtValue for Image {
@@ -362,6 +368,9 @@ impl From<Item> for Image {
             Item::Ox => Image::Ox,
             Item::Kobold => Image::Kobold,
             Item::KnightsArmor => Image::KnightsArmor,
+            Item::LoggingGear => Image::LoggingGear,
+            Item::MiningGear => Image::MiningGear,
+            Item::Fairy => Image::Fairy,
         }
     }
 }
@@ -395,6 +404,9 @@ impl From<QuestType> for Image {
             QuestType::Socializing => Image::Socializing,
             QuestType::TheElvenMagician => Image::TheElvenMagician,
             QuestType::ExploreNewLands => Image::ExploreNewLands,
+            QuestType::DeepInTheCaves => Image::DeepInTheCaves,
+            QuestType::MinersLuck => Image::MinersLuck,
+            QuestType::AbandonedOrkCamp => Image::AbandonedOrkCamp,
         }
     }
 }

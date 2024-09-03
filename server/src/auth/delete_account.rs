@@ -57,7 +57,6 @@ pub async fn post_delete_account(
     Extension(game_state): Extension<GameState>,
     ValidatedForm(delete_account): ValidatedForm<DeleteAccountForm>,
 ) -> Result<Response, ServerError> {
-
     let user_id = session
         .get::<i64>(crate::USER_ID_KEY)
         .await?
@@ -89,13 +88,13 @@ pub async fn post_delete_account(
         .bind(&user_id)
         .execute(&pool)
         .await?;
-    
+
         tracing::debug!("Account deleted");
 
         session.remove::<i64>(crate::USER_ID_KEY).await?;
 
         game_state.new_server_connection().await.updated_user_data();
-    
+
         Ok(Redirect::to("/").into_response())
     } else {
         Ok(form_error(
@@ -105,6 +104,4 @@ pub async fn post_delete_account(
             "The password is incorrect",
         ))
     }
-
-    
 }
