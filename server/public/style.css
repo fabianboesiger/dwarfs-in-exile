@@ -899,8 +899,39 @@ a {
     outline: 1px solid rgba(255, 255, 255, 0.3);
 }
 
+.slider {
+    display: flex;
+    flex-wrap: nowrap;
+}
+
+.slider button, .slider input {
+    flex-grow: 0;
+    flex-shrink: 1;
+    width: auto;
+}
+
+.slider input.slider-range {
+    flex-grow: 1;
+    flex-shrink: 1;
+    max-width: 96px;
+}
+
+.slider input.slider-number {
+    width: 64px;
+}
+
+@media screen and (max-width: 768px) {
+    .slider {
+        flex-wrap: wrap;
+    }
+
+    .slider input.slider-range {
+        width: 100%;
+    }
+}
+
 [inert], [inert] * {
     pointer-events: none;
     cursor: default;
     user-select: none;
-  }
+}

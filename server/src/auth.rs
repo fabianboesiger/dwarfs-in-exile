@@ -4,6 +4,7 @@ pub mod change_username;
 pub mod login;
 pub mod logout;
 pub mod register;
+pub mod delete_account;
 
 use std::borrow::Cow;
 

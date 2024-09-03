@@ -179,6 +179,8 @@ pub enum Image {
     ExploreNewLands,
     Ox,
     Kobold,
+    Revolution,
+    KnightsArmor,
 }
 
 impl AsAtValue for Image {
@@ -359,6 +361,7 @@ impl From<Item> for Image {
             Item::Boat => Image::Boat,
             Item::Ox => Image::Ox,
             Item::Kobold => Image::Kobold,
+            Item::KnightsArmor => Image::KnightsArmor,
         }
     }
 }
@@ -440,6 +443,7 @@ impl From<WorldEvent> for Image {
             WorldEvent::Tornado => Image::Tornado,
             WorldEvent::Carnival => Image::Carnival,
             WorldEvent::FullMoon => Image::FullMoon,
+            WorldEvent::Revolution => Image::Revolution,
         }
     }
 }

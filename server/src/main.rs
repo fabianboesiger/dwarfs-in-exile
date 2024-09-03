@@ -103,7 +103,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 r#"
                         DELETE FROM users
                         WHERE guest
-                        AND CURRENT_TIMESTAMP > joined + 30 DAYS
+                        AND CURRENT_TIMESTAMP > DATE(joined, '+30 days')
                     "#,
             )
             .execute(&pool_clone)
@@ -225,6 +225,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route(
             "/change-password",
             post(auth::change_password::post_change_password),
+        )
+        .route(
+            "/delete-account",
+            get(auth::delete_account::get_delete_account),
+        )
+        .route(
+            "/delete-account",
+            post(auth::delete_account::post_delete_account),
         )
         .route("/admin", get(admin::get_admin))
         .route("/admin/manage-user", post(admin::post_manage_user))

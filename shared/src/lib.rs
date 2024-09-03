@@ -64,6 +64,7 @@ pub enum WorldEvent {
     Tornado,
     Carnival,
     FullMoon,
+    Revolution,
 }
 
 impl WorldEvent {
@@ -87,6 +88,7 @@ impl WorldEvent {
             ) => 3,
             (WorldEvent::Carnival, _) => 2,
             (WorldEvent::FullMoon, _) => 2,
+            (WorldEvent::Revolution, _) => 2,
             _ => 1,
         }
     }
@@ -111,6 +113,7 @@ impl std::fmt::Display for WorldEvent {
             WorldEvent::Tornado => write!(f, "Tornado"),
             WorldEvent::Carnival => write!(f, "Carnival"),
             WorldEvent::FullMoon => write!(f, "Full Moon"),
+            WorldEvent::Revolution => write!(f, "Revolution"),
         }
     }
 }
@@ -469,6 +472,7 @@ impl engine_shared::State for State {
                                 player.dwarfs.keys().cloned().collect()
                             };
 
+
                             for dwarf_id in &dwarf_ids {
                                 let dwarf = player.dwarfs.get_mut(dwarf_id)?;
                                 if dwarf.can_be_managed() || to_optimize_dwarf_id.is_some() {
@@ -487,10 +491,17 @@ impl engine_shared::State for State {
                                 let mut best_dwarf_item = None;
                                 for dwarf_id in &dwarf_ids {
                                     let dwarf = player.dwarfs.get(dwarf_id)?;
-                                    if dwarf.occupation != Occupation::Idling
-                                        && (dwarf.can_be_managed()
-                                            || to_optimize_dwarf_id.is_some())
+                                    if dwarf.can_be_managed()
+                                        || to_optimize_dwarf_id.is_some()
                                     {
+
+                                        let occupation_to_optimize =
+                                            if to_optimize_dwarf_id.is_some() {
+                                                dwarf.actual_occupation()
+                                            } else {
+                                                dwarf.occupation
+                                            };
+
                                         for (item, _) in
                                             player.inventory.items.iter().filter(|(item, num)| {
                                                 **num > 0
@@ -507,13 +518,7 @@ impl engine_shared::State for State {
                                             })
                                         {
                                             let mut dwarf_clone = dwarf.clone();
-                                            let occupation_to_optimize =
-                                                if to_optimize_dwarf_id.is_some() {
-                                                    dwarf.actual_occupation()
-                                                } else {
-                                                    dwarf.occupation
-                                                };
-
+                                        
                                             let effectiveness_before = dwarf_clone
                                                 .effectiveness_not_normalized(
                                                     occupation_to_optimize,
@@ -527,8 +532,9 @@ impl engine_shared::State for State {
 
                                             let effectiveness_after = dwarf_clone
                                                 .effectiveness_not_normalized(
-                                                    dwarf_clone.occupation,
+                                                    occupation_to_optimize
                                                 );
+
 
                                             let effectiveness_diff = effectiveness_after as i64
                                                 - effectiveness_before as i64;
@@ -794,6 +800,10 @@ impl engine_shared::State for State {
                     match event {
                         ServerEvent::Tick => {
                             self.time += 1;
+
+                            if matches!(self.event, Some(WorldEvent::Revolution)) {
+                                self.king = None;
+                            };
 
                             if self.event.is_some() {
                                 if rng.gen_ratio(1, ONE_DAY as u32 / 4) {
@@ -1177,20 +1187,23 @@ impl engine_shared::State for State {
                                             }
                                         }
                                         RewardMode::BecomeKing => {
+                                            
                                             if let Some(user_id) = quest.best() {
                                                 if let Some(player) = self.players.get_mut(&user_id)
                                                 {
-                                                    self.king = Some(user_id);
-                                                    player.log.add(
-                                                        self.time,
-                                                        LogMsg::QuestCompletedKing(
-                                                            quest.quest_type,
-                                                            true,
-                                                        ),
-                                                    );
+                                                    if !matches!(self.event, Some(WorldEvent::Revolution)) {
+                                                        self.king = Some(user_id);
+                                                        player.log.add(
+                                                            self.time,
+                                                            LogMsg::QuestCompletedKing(
+                                                                quest.quest_type,
+                                                                true,
+                                                            ),
+                                                        );
+                                                    }
                                                 }
                                                 for contestant_id in quest.contestants.keys() {
-                                                    if *contestant_id != user_id {
+                                                    if Some(*contestant_id) != self.king {
                                                         let player =
                                                             self.players.get_mut(contestant_id)?;
                                                         player.log.add(
@@ -1412,7 +1425,7 @@ impl engine_shared::State for State {
                             let num_quests = if cfg!(debug_assertions) {
                                 30
                             } else {
-                                (active_players / 5)
+                                (active_players / 6)
                                     .max(active_not_new_players / 3)
                                     .max(3)
                                     .min(30)
@@ -1464,7 +1477,7 @@ impl engine_shared::State for State {
                                 15
                             } else {
                                 (active_players / 10)
-                                    .max(active_not_new_players / 6)
+                                    .max(active_not_new_players / 5)
                                     .max(3)
                                     .min(15)
                             };
@@ -1509,7 +1522,8 @@ impl<T: BundleType> Bundle<T> {
     pub fn can_remove_x_times(&self, other: &Self) -> Option<u64> {
         let mut bound: Option<u64> = None;
 
-        for (t, n) in &self.0 {
+        for t in self.0.keys().chain(other.0.keys()) {
+            let n = self.0.get(t).copied().unwrap_or_default();
             if let Some(other_n) = other.0.get(t) {
                 if *other_n > 0 {
                     if let Some(bound) = &mut bound {
@@ -1759,6 +1773,9 @@ impl Player {
             health_cost_per_tick += dwarf.actual_occupation().health_cost_per_tick() * health_cost_multiplier;
         }
 
+        if health_cost_per_tick == 0 {
+            return u64::MAX;
+        }
         health_available / health_cost_per_tick
     }
 

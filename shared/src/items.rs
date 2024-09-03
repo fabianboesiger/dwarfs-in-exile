@@ -138,6 +138,7 @@ pub enum Item {
     Boat,
     Ox,
     Kobold,
+    KnightsArmor,
 }
 
 impl Craftable for Item {
@@ -375,6 +376,15 @@ impl Craftable for Item {
                     .add(Item::Fabric, 50)
                     .add(Item::Nail, 100)
             )),
+            Item::KnightsArmor => Some((
+                82,
+                Bundle::new()
+                    .add(Item::Helmet, 1)
+                    .add(Item::ChainMail, 1)
+                    .add(Item::Nail, 50)
+                    .add(Item::Iron, 100)
+                    .add(Item::Leather, 100)
+            )),
             _ => None,
         }
     }
@@ -439,7 +449,8 @@ impl Item {
             | Item::BearClawBoots
             | Item::RhinoHornPants
             | Item::BoneHelmet 
-            | Item::Vest => Some(ItemType::Clothing),
+            | Item::Vest
+            | Item::KnightsArmor => Some(ItemType::Clothing),
 
             Item::RingOfIntelligence
             | Item::RingOfStrength
@@ -712,6 +723,7 @@ impl Item {
             (Item::Dolphin, Occupation::Fishing) => 10,
             (Item::Boat, Occupation::Fishing) => 10,
             (Item::Boat, Occupation::Exploring) => 8,
+            (Item::KnightsArmor, Occupation::Fighting) => 10,
             _ => 0,
         }
     }
