@@ -37,6 +37,14 @@ enum Icon {
     Inventory,
     Info,
     Trade,
+    Settlement,
+    Dwarfs,
+    Ranking,
+    Account,
+    History,
+    HistoryUnread,
+    Chat,
+    ChatUnread,
 }
 
 impl Icon {
@@ -56,6 +64,14 @@ impl Icon {
             Icon::PersonAddDisabled => "person_add_disabled",
             Icon::Info => "info",
             Icon::Trade => "storefront",
+            Icon::Settlement => "holiday_village",
+            Icon::Dwarfs => "groups",
+            Icon::Ranking => "social_leaderboard",
+            Icon::Account => "account_circle",
+            Icon::History => "notifications",
+            Icon::HistoryUnread => "notifications_unread",
+            Icon::Chat => "mark_chat",
+            Icon::ChatUnread => "mark_chat_unread",
         }
     }
 
@@ -3176,6 +3192,7 @@ fn history(
                                 LogMsg::ItemSold(..) => Icon::Trade,
                                 LogMsg::ItemNotSold(..) => Icon::Trade,
                             }.draw()],
+                            span![" "],
                             span![C!["time"], format!("{} ago: ", fmt_time(state.time - time))],
                             match msg {
                                 LogMsg::Overbid(items, money, _) => {
@@ -3485,7 +3502,7 @@ fn stars(stars: i8, padded: bool) -> Node<Msg> {
         }
     }
     span![
-        C!["symbols"],
+        C!["stars"],
         attrs! { At::Role => "meter", At::AriaValueNow => (stars as f64 / 2.0), At::AriaValueMin => 0.0, At::AriaValueMax => 5.0, At::AriaLabel => format!("{}/{}", stars as f64 / 2.0, 5.0)},
         span![attrs! { At::AriaHidden => "true" }, s]
     ]
@@ -3548,7 +3565,7 @@ fn nav(model: &Model) -> Node<Msg> {
     */
 
     nav![
-        div![
+        /*div![
             C!["nav-section"],
             a![C!["button"], attrs! {At::Href => "/"}, "Home"],
             a![
@@ -3561,7 +3578,7 @@ fn nav(model: &Model) -> Node<Msg> {
             a![C!["button"], attrs! {At::Href => "/account"}, "Account"],
             a![C!["button"], attrs! {At::Href => "/store"}, "Store"],
             a![C!["button"], attrs! {At::Href => "/about"}, "About"],
-        ],
+        ],*/
         div![
             C!["nav-section", "ingame"],
             a![
@@ -3573,8 +3590,9 @@ fn nav(model: &Model) -> Node<Msg> {
                         ""
                     }
                 ],
-                attrs! {At::Href => model.base_path()},
-                "Settlement"
+                attrs! {At::Href => model.base_path(), At::AriaLabel => "Settlement"},
+                span![C!["nav-image"], Icon::Settlement.draw()],
+                span![C!["nav-description"], " Settlement"]
             ],
             a![
                 C![
@@ -3585,8 +3603,9 @@ fn nav(model: &Model) -> Node<Msg> {
                         ""
                     }
                 ],
-                attrs! {At::Href => format!("{}/dwarfs", model.base_path())},
-                "Dwarfs",
+                attrs! {At::Href => format!("{}/dwarfs", model.base_path()), At::AriaLabel => "Dwarfs"},
+                span![C!["nav-image"], Icon::Dwarfs.draw()],
+                span![C!["nav-description"], " Dwarfs"]
             ],
             a![
                 C![
@@ -3597,8 +3616,9 @@ fn nav(model: &Model) -> Node<Msg> {
                         ""
                     }
                 ],
-                attrs! {At::Href => format!("{}/inventory", model.base_path())},
-                "Inventory",
+                attrs! {At::Href => format!("{}/inventory", model.base_path()), At::AriaLabel => "Inventory"},
+                span![C!["nav-image"], Icon::Inventory.draw()],
+                span![C!["nav-description"], " Inventory"]
             ],
             a![
                 C![
@@ -3609,8 +3629,9 @@ fn nav(model: &Model) -> Node<Msg> {
                         ""
                     }
                 ],
-                attrs! {At::Href => format!("{}/trading", model.base_path())},
-                "Market",
+                attrs! {At::Href => format!("{}/trading", model.base_path()), At::AriaLabel => "Market"},
+                span![C!["nav-image"], Icon::Trade.draw()],
+                span![C!["nav-description"], " Market"]
             ],
             a![
                 C![
@@ -3621,8 +3642,9 @@ fn nav(model: &Model) -> Node<Msg> {
                         ""
                     }
                 ],
-                attrs! {At::Href => format!("{}/quests", model.base_path())},
-                "Quests",
+                attrs! {At::Href => format!("{}/quests", model.base_path()), At::AriaLabel => "Quests"},
+                span![C!["nav-image"], Icon::Task.draw()],
+                span![C!["nav-description"], " Quests"]
             ],
             a![
                 C![
@@ -3633,8 +3655,17 @@ fn nav(model: &Model) -> Node<Msg> {
                         ""
                     }
                 ],
-                attrs! {At::Href => format!("{}/ranking", model.base_path())},
-                "Ranking",
+                attrs! {At::Href => format!("{}/ranking", model.base_path()), At::AriaLabel => "Ranking"},
+                span![C!["nav-image"], Icon::Ranking.draw()],
+                span![C!["nav-description"], " Ranking"]
+            ],
+            a![
+                C![
+                    "button",
+                ],
+                attrs! {At::Href => format!("/account"), At::AriaLabel => "Account"},
+                span![C!["nav-image"], Icon::Account.draw()],
+                span![C!["nav-description"], " Account"]
             ]
         ] //a![C!["button"], attrs! { At::Href => "/account"}, "Account"]
     ]
