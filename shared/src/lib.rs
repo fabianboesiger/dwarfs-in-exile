@@ -13,7 +13,7 @@ use rand::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{HashSet, VecDeque},
+    collections::VecDeque,
     hash::Hash,
     ops::Deref,
 };
@@ -1425,31 +1425,28 @@ impl engine_shared::State for State {
                                 .max()
                                 .unwrap_or(1);
 
-                            let available_quests = enum_iterator::all::<QuestType>()
+                            let mut potential_quests = enum_iterator::all::<QuestType>()
                                 .filter(|quest_type| !quest_type.is_story() || (max_level > quest_type.max_level() - 10 && max_level <= quest_type.max_level()))
-                                .collect::<HashSet<_>>();
+                                .collect::<CustomSet<_>>();
 
                             while self.quests.len() < num_quests {
-                                let disabled_quests = self
-                                    .quests
-                                    .values()
-                                    .map(|q| q.quest_type)
-                                    .filter(|quest_type| quest_type.one_at_a_time())
-                                    .collect::<HashSet<_>>();
-
-                                let potential_quests = &available_quests - &disabled_quests;
 
                                 if potential_quests.is_empty() {
                                     break;
                                 }
 
-                                let quest = Quest::new(
-                                    *potential_quests
-                                        .into_iter()
-                                        .collect::<Vec<_>>()
-                                        .choose(rng)
-                                        .expect("potential quests is empty"),
-                                );
+                                let selected_quest = *potential_quests
+                                    .iter()
+                                    .copied()
+                                    .collect::<Vec<_>>()
+                                    .choose(rng)
+                                    .expect("potential quests is empty");
+
+                                if selected_quest.one_at_a_time() {
+                                    potential_quests.swap_remove(&selected_quest);
+                                }
+
+                                let quest = Quest::new(selected_quest);
 
                                 self.quests.insert(self.next_quest_id, quest);
 
