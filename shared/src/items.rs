@@ -136,6 +136,8 @@ pub enum Item {
     HotAirBalloon,
     Vest,
     Boat,
+    Ox,
+    Kobold,
 }
 
 impl Craftable for Item {
@@ -484,7 +486,9 @@ impl Item {
             | Item::Donkey
             | Item::Bird
             | Item::Horse
-            | Item::Dolphin => Some(ItemType::Pet),
+            | Item::Dolphin
+            | Item::Ox
+            | Item::Kobold => Some(ItemType::Pet),
 
             Item::Apple
             | Item::Blueberry
@@ -649,9 +653,8 @@ impl Item {
             (Item::TigerFangDagger, Occupation::Fighting) => 8,
             (Item::Dragon, Occupation::Hunting) => 4,
             (Item::Dragon, Occupation::Fighting) => 10,
-            (Item::Donkey, Occupation::Gathering) => 6,
+            (Item::Donkey, Occupation::Gathering) => 10,
             (Item::Donkey, Occupation::Farming) => 6,
-            (Item::Donkey, Occupation::Exploring) => 6,
             (Item::Wolf, Occupation::Hunting) => 10,
             (Item::Wolf, Occupation::Fighting) => 4,
             (Item::Axe, Occupation::Logging) => 6,
@@ -665,6 +668,8 @@ impl Item {
             (Item::LeatherArmor, Occupation::Fighting) => 4,
             (Item::RhinoHornPants, Occupation::Fighting) => 6,
             (Item::Bird, Occupation::Mining | Occupation::Rockhounding) => 3,
+            (Item::Kobold, Occupation::Mining | Occupation::Rockhounding) => 10,
+            (Item::Parrot, Occupation::Exploring) => 5,
             (Item::Musket, Occupation::Hunting) => 10,
             (Item::Musket, Occupation::Fighting) => 6,
             (Item::Dynamite, Occupation::Fighting) => 5,
@@ -679,8 +684,10 @@ impl Item {
             (Item::Headlamp, Occupation::Mining | Occupation::Rockhounding) => 8,
             (Item::RhinoHornHelmet, Occupation::Fighting) => 9,
             (Item::BoneHelmet, Occupation::Fighting) => 8,
-            (Item::Horse, Occupation::Fighting | Occupation::Exploring) => 4,
-            (Item::Horse, Occupation::Farming | Occupation::Logging) => 7,
+            (Item::Horse, Occupation::Fighting | Occupation::Exploring | Occupation::Farming) => 4,
+            (Item::Horse, Occupation::Logging) => 10,
+            (Item::Ox, Occupation::Farming) => 10,
+            (Item::Ox, Occupation::Logging) => 4,
             (Item::HotAirBalloon, Occupation::Exploring) => 10,
             (Item::Map, Occupation::Exploring) => 6,
             (Item::Map, Occupation::Gathering) => 4,
@@ -835,8 +842,14 @@ impl Item {
                 _ => None,
             },
             Occupation::Exploring => match self {
+                Item::Bird => Some(ItemProbability {
+                    expected_ticks_per_drop: ONE_DAY * 3,
+                }),
+                Item::Parrot => Some(ItemProbability {
+                    expected_ticks_per_drop: ONE_DAY * 3,
+                }),  
                 Item::Cat => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_DAY * 7,
+                    expected_ticks_per_drop: ONE_DAY * 3,
                 }),
                 Item::Donkey => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_DAY * 7,
@@ -847,17 +860,17 @@ impl Item {
                 Item::Wolf => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_DAY * 7,
                 }),
-                Item::Bird => Some(ItemProbability {
+                Item::Dolphin => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_DAY * 7,
                 }),
-                Item::Parrot => Some(ItemProbability {
+                Item::Ox => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_DAY * 7,
                 }),
                 Item::Dragon => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_DAY * 7,
+                    expected_ticks_per_drop: ONE_DAY * 10,
                 }),
-                Item::Dolphin => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_DAY * 7,
+                Item::Kobold => Some(ItemProbability {
+                    expected_ticks_per_drop: ONE_DAY * 10,
                 }),
                 _ => None,
             },
