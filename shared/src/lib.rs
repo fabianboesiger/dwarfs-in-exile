@@ -664,7 +664,7 @@ impl engine_shared::State for State {
                             }
                         }
                         ClientEvent::Message(message) => {
-                            self.chat.add_message(user_id, message, self.time);
+                            self.chat.add_message(&mut self.players, user_id, message, self.time);
                         }
                         ClientEvent::ChangeOccupation(dwarf_id, occupation) => {
                             let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
@@ -786,6 +786,12 @@ impl engine_shared::State for State {
                                 }
                             }
                         }
+                        ClientEvent::ReadLog => {
+                            player.log.unread = false;
+                        },
+                        ClientEvent::ReadChat =>{
+                            player.chat_unread = false;
+                        },
                     }
                 }
                 Event::ServerEvent(event) => {
@@ -1441,11 +1447,11 @@ impl engine_shared::State for State {
                                     (!quest_type.is_story()
                                         || (max_level > quest_type.max_level() - 10
                                             && max_level <= quest_type.max_level()))
-                                        && (quest_type.one_at_a_time()
+                                        && ((quest_type.one_at_a_time()
                                             && !self
                                                 .quests
                                                 .values()
-                                                .any(|quest| quest.quest_type == *quest_type))
+                                                .any(|quest| quest.quest_type == *quest_type)))
                                 })
                                 .collect::<CustomSet<_>>();
 
@@ -1662,10 +1668,13 @@ pub trait Craftable: Sequence + BundleType {
 #[derive(Serialize, Deserialize, Clone, Debug, Default, Hash)]
 pub struct Log {
     pub msgs: VecDeque<(Time, LogMsg)>,
+    #[serde(default)]
+    pub unread: bool,
 }
 
 impl Log {
     pub fn add(&mut self, time: Time, msg: LogMsg) {
+        self.unread = true;
         self.msgs.push_back((time, msg));
         if self.msgs.len() > 100 {
             self.msgs.pop_front();
@@ -1710,6 +1719,8 @@ pub struct Player {
     pub start_time: Time,
     pub popups: VecDeque<Popup>,
     pub manager: CustomMap<Occupation, u64>,
+    #[serde(default)]
+    pub chat_unread: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
@@ -1746,6 +1757,7 @@ impl Player {
             start_time: time,
             popups: VecDeque::new(),
             manager: CustomMap::new(),
+            chat_unread: false,
         };
 
         player.new_dwarf(rng, next_dwarf_id, time, false);
@@ -2517,6 +2529,8 @@ pub enum ClientEvent {
     SetMentor(DwarfId, Option<DwarfId>),
     Bid(usize),
     ReleaseDwarf(DwarfId),
+    ReadLog,
+    ReadChat,
 }
 
 impl engine_shared::ClientEvent for ClientEvent {
@@ -2542,7 +2556,10 @@ pub struct Chat {
 }
 
 impl Chat {
-    pub fn add_message(&mut self, user_id: UserId, message: String, time: Time) {
+    pub fn add_message(&mut self, players: &mut CustomMap<UserId, Player>, user_id: UserId, message: String, time: Time) {
+        for player in players.values_mut() {
+            player.chat_unread = true;
+        }
         self.messages.push_back((user_id, message, time));
         if self.messages.len() > 100 {
             self.messages.pop_front();
