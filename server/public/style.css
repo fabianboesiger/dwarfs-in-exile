@@ -285,13 +285,6 @@ header {
     font-weight: bold;
 }
 
-.messages .icon > span, nav .nav-image > span {
-    width: 16px;
-    height: 16px;
-    font-size: 16px;
-    vertical-align: middle;
-}
-
 ul {
     padding-left: 20px;
     margin: 4px;
@@ -949,6 +942,13 @@ nav a.button.active {
     flex-shrink: 0;
 }
 
-.stars .material-symbols-outlined {
+span.material-symbols-outlined {
+    width: 16px;
+    height: 16px;
+    font-size: 16px;
+    vertical-align: middle;
+}
+
+.stars span.material-symbols-outlined {
     font-size: 12px;
 }

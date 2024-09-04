@@ -70,16 +70,15 @@ impl Icon {
             Icon::Account => "account_circle",
             Icon::History => "notifications",
             Icon::HistoryUnread => "notifications_unread",
-            Icon::Chat => "mark_chat",
+            Icon::Chat => "chat_bubble",
             Icon::ChatUnread => "mark_chat_unread",
         }
     }
 
     fn filled(&self) -> bool {
         match self {
-            Icon::StarEmpty => false,
-            Icon::Info => false,
-            _ => true,
+            Icon::StarFull => true,
+            _ => false,
         }
     }
 
@@ -461,11 +460,17 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
         }
         Msg::ToggleChat => {
             model.chat_visible = !model.chat_visible;
-            //model.history_visible = !model.history_visible;
+            if model.chat_visible {
+                model.history_visible = false;
+            }
+            orders.send_msg(Msg::send_event(ClientEvent::ReadChat));
         }
         Msg::ToggleHistory => {
             model.history_visible = !model.history_visible;
-            //model.chat_visible = !model.history_visible;
+            if model.history_visible {
+                model.chat_visible = false;
+            }
+            orders.send_msg(Msg::send_event(ClientEvent::ReadLog));
         }
         Msg::InventoryFilterByType(item_type) => {
             let old_value = model
@@ -634,7 +639,7 @@ fn view(model: &Model) -> Node<Msg> {
                     Page::Quest(quest_id) => quest(model, state, user_id, quest_id),
                     Page::Trading => trades(model, state, user_id),
                 }],
-                chat(model, state, client_state),
+                chat(model, state, user_id, client_state),
                 history(model, state, user_id, client_state),
                 last_received_items(model, state, user_id),
             ]
@@ -642,7 +647,7 @@ fn view(model: &Model) -> Node<Msg> {
     } else {
         div![
             div![id!["background"]],
-            header![h1![a![attrs! { At::Href => "/" }, "Dwarfs in Exile"]]],
+            header![h1![a![attrs! { At::Href => "/" }, "Dfnwarfs in Exile"]]],
             div![C!["loading"], "Loading ..."],
         ]
     }
@@ -3099,58 +3104,72 @@ fn trades(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
 fn chat(
     model: &Model,
     state: &shared::State,
+    user_id: &shared::UserId,
     client_state: &ClientState<shared::State>,
 ) -> Node<Msg> {
     let message = model.message.clone();
 
-    div![
-        id!["chat"],
-        if model.chat_visible {
-            C!["visible"]
-        } else {
-            C![]
-        },
-        if model.chat_visible {
-            div![
-                C!["togglable"],
+    if let Some(player) = state.players.get(user_id) {
+
+        div![
+            id!["chat"],
+            if model.chat_visible {
+                C!["visible"]
+            } else {
+                C![]
+            },
+            if model.chat_visible {
                 div![
-                    C!["messages"],
-                    state.chat.messages.iter().map(|(user_id, message, time)| {
-                        let username = &client_state
-                            .get_user_data(&user_id)
-                            .map(|data| data.username.clone().censor())
-                            .unwrap_or_default();
-                        p![
-                            C!["message"],
-                            span![C!["time"], format!("{} ago, ", fmt_time(state.time - time))],
-                            span![C!["username"], format!("{username}:")],
-                            span![C!["message"], format!("{}", message.censor())]
-                        ]
-                    }),
-                ],
-                div![
-                    input![
-                        id!["chat-input"],
-                        attrs! {At::Type => "text", At::Value => model.message, At::Placeholder => "Type your message here ..."},
-                        input_ev(Ev::Input, Msg::ChangeMessage)
+                    C!["togglable"],
+                    div![
+                        C!["messages"],
+                        state.chat.messages.iter().map(|(user_id, message, time)| {
+                            let username = &client_state
+                                .get_user_data(&user_id)
+                                .map(|data| data.username.clone().censor())
+                                .unwrap_or_default();
+                            p![
+                                C!["message"],
+                                span![C!["time"], format!("{} ago, ", fmt_time(state.time - time))],
+                                span![C!["username"], format!("{username}:")],
+                                span![C!["message"], format!("{}", message.censor())]
+                            ]
+                        }),
                     ],
-                    button![
-                        id!["chat-submit"],
-                        if message.is_empty() {
-                            attrs! {At::Disabled => "true"}
-                        } else {
-                            attrs! {}
-                        },
-                        ev(Ev::Click, move |_| Msg::SubmitMessage),
-                        "Send",
+                    div![
+                        input![
+                            id!["chat-input"],
+                            attrs! {At::Type => "text", At::Value => model.message, At::Placeholder => "Type your message here ..."},
+                            input_ev(Ev::Input, Msg::ChangeMessage)
+                        ],
+                        button![
+                            id!["chat-submit"],
+                            if message.is_empty() {
+                                attrs! {At::Disabled => "true"}
+                            } else {
+                                attrs! {}
+                            },
+                            ev(Ev::Click, move |_| Msg::SubmitMessage),
+                            "Send",
+                        ]
                     ]
                 ]
-            ]
-        } else {
-            Node::Empty
-        },
-        button![ev(Ev::Click, move |_| Msg::ToggleChat), "Toggle Chat",],
-    ]
+            } else {
+                Node::Empty
+            },
+            if model.chat_visible {
+                button![ev(Ev::Click, move |_| Msg::ToggleChat), span!["Close"]]
+            } else {
+                button![ev(Ev::Click, move |_| Msg::ToggleChat), span![attrs!{At::AriaHidden => "true"}, if player.chat_unread {
+                    Icon::ChatUnread.draw()
+                } else {
+                    Icon::Chat.draw()
+                } , span![" Show Chat"]]]
+            }
+        ]
+    } else {
+        Node::Empty
+    }
 }
 
 fn history(
@@ -3376,7 +3395,15 @@ fn history(
             } else {
                 Node::Empty
             },
-            button![ev(Ev::Click, move |_| Msg::ToggleHistory), "Toggle History",],
+            if model.history_visible {
+                button![ev(Ev::Click, move |_| Msg::ToggleHistory), span!["Close"]]
+            } else {
+                button![ev(Ev::Click, move |_| Msg::ToggleHistory), span![attrs!{At::AriaHidden => "true"}, if player.log.unread {
+                    Icon::HistoryUnread.draw()
+                } else {
+                    Icon::History.draw()
+                } , span![" Show History"]]]
+            }
         ]
     } else {
         Node::Empty
