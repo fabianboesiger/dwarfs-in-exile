@@ -1441,11 +1441,11 @@ impl engine_shared::State for State {
                                     (!quest_type.is_story()
                                         || (max_level > quest_type.max_level() - 10
                                             && max_level <= quest_type.max_level()))
-                                        && (quest_type.one_at_a_time()
+                                        && (!quest_type.one_at_a_time() || (quest_type.one_at_a_time()
                                             && !self
                                                 .quests
                                                 .values()
-                                                .any(|quest| quest.quest_type == *quest_type))
+                                                .any(|quest| quest.quest_type == *quest_type)))
                                 })
                                 .collect::<CustomSet<_>>();
 
