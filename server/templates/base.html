@@ -127,7 +127,6 @@
                             target.style.bottom = "auto";
                         }
                     } else if (target.id === "chat-submit") {
-                        console.log(target);
                         const input = document.getElementById("chat-input");
                         input.addEventListener("keypress", function(event) {
                             if (event.key === "Enter") {
@@ -137,8 +136,6 @@
                         }); 
                     } else if (target.classList.contains("message")) {
                         target.parentElement.scrollTop = target.parentElement.scrollHeight;
-                    } else if (target.classList.contains("filter")) {
-                        target.style.top = document.getElementsByTagName("nav").item(0).offsetHeight + "px";
                     }
                 }
             });
@@ -146,12 +143,61 @@
             observer.observe(document, { attributes: false, childList: true, characterData: false, subtree: true });
         </script>
     </head>
-    <body id="app">
+    <body>
         <div id="background"></div>
         <header>
             <h1><a href="/">Dwarfs in Exile</a></h1>
+            <button id="menu-button" class="mobile">
+                <span class="material-symbols-outlined">
+                    menu
+                </span>
+            </button>
         </header>
-        {% include "nav.html" %}
+        <nav class="desktop">
+            <div class="nav-section">
+                <a href="/" class="button">Home</a>
+                <a href="/game" class="button">Play</a>
+                <a href="/wiki" class="button">Wiki</a>
+                <a href="/valhalla" class="button">Valhalla</a>
+                <a href="/account" class="button">Account</a>
+                <a href="/store" class="button">Store</a>
+                <a href="/about" class="button">About</a>
+            </div>
+        </nav>
+        <nav class="mobile hidden">
+            <div class="nav-section">
+                <a href="/" class="button">Home</a>
+                <a href="/game" class="button">Play</a>
+                <a href="/wiki" class="button">Wiki</a>
+                <a href="/valhalla" class="button">Valhalla</a>
+                <a href="/account" class="button">Account</a>
+                <a href="/store" class="button">Store</a>
+                <a href="/about" class="button">About</a>
+            </div>
+        </nav>
+        <script>
+            const menuButton = document.getElementById("menu-button");
+            const navElem = document.querySelector("nav.mobile");
+            const header = document.querySelector("header");
+            menuButton.addEventListener("click", function() {
+                if (navElem.classList.contains("hidden")) {
+                    navElem.classList.remove("hidden");
+                    menuButton.children.item(0).innerText = "close";
+                    header.classList.add("fixed");
+                } else {
+                    navElem.classList.add("hidden");
+                    menuButton.children.item(0).innerText = "menu";
+                    header.classList.remove("fixed");
+                }
+            })
+            window.addEventListener("resize", function() {
+                if (window.innerWidth > 768) {  
+                    navElem.classList.add("hidden");
+                    menuButton.children.item(0).innerText = "menu";
+                    header.classList.remove("fixed");
+                }
+            })
+        </script>
         {% block content %}{% endblock %}
     </body>
 </html>

@@ -45,6 +45,7 @@ enum Icon {
     HistoryUnread,
     Chat,
     ChatUnread,
+    Manager
 }
 
 impl Icon {
@@ -72,6 +73,7 @@ impl Icon {
             Icon::HistoryUnread => "notifications_unread",
             Icon::Chat => "chat_bubble",
             Icon::ChatUnread => "mark_chat_unread",
+            Icon::Manager => "history_edu"
         }
     }
 
@@ -119,6 +121,7 @@ pub enum Page {
     Quest(QuestId),
     Ranking,
     Trading,
+    Manager,
 }
 
 impl Page {
@@ -137,6 +140,7 @@ impl Page {
             },
             Some("ranking") => Page::Ranking,
             Some("trading") => Page::Trading,
+            Some("manager") => Page::Manager,
             _ => Page::Base,
         };
 
@@ -623,11 +627,11 @@ fn view(model: &Model) -> Node<Msg> {
                 } else {
                     attrs! {}
                 },
-                div![id!["background"]],
+                /*div![id!["background"]],
                 header![
                     h1![a![attrs! { At::Href => "/" }, "Dwarfs in Exile"]],
                     //a![C!["button"], id!["home-button"], attrs! {At::Href => "/account"}, icon_outlined("account_circle")],
-                ],
+                ],*/
                 nav(model),
                 main![match model.page {
                     Page::Dwarfs(mode) => dwarfs(model, state, user_id, mode),
@@ -638,6 +642,7 @@ fn view(model: &Model) -> Node<Msg> {
                     Page::Quests => quests(model, state, user_id),
                     Page::Quest(quest_id) => quest(model, state, user_id, quest_id),
                     Page::Trading => trades(model, state, user_id),
+                    Page::Manager => manager(model, state, user_id),
                 }],
                 chat(model, state, user_id, client_state),
                 history(model, state, user_id, client_state),
@@ -646,8 +651,8 @@ fn view(model: &Model) -> Node<Msg> {
         ]
     } else {
         div![
-            div![id!["background"]],
-            header![h1![a![attrs! { At::Href => "/" }, "Dfnwarfs in Exile"]]],
+            /*div![id!["background"]],
+            header![h1![a![attrs! { At::Href => "/" }, "Dfnwarfs in Exile"]]],*/
             div![C!["loading"], "Loading ..."],
         ]
     }
@@ -1707,6 +1712,7 @@ fn dwarf(
                                 ]
                             },
                             button![
+                                C!["premium-feature"],
                                 if is_premium {
                                     attrs! {}
                                 } else {
@@ -2331,11 +2337,11 @@ impl Unlock {
 
 fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
-        let is_premium = model
+        /*let is_premium = model
             .state
             .get_user_data(user_id)
             .map(|user_data| user_data.premium > 0)
-            .unwrap_or(false);
+            .unwrap_or(false);*/
 
         let premium_hours = model
             .state
@@ -2578,6 +2584,75 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                 ]
             ],
             */
+        ]
+    } else {
+        Node::Empty
+    }
+}
+
+
+fn manager(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
+    if let Some(player) = state.players.get(user_id) {
+        let is_premium = model
+            .state
+            .get_user_data(user_id)
+            .map(|user_data| user_data.premium > 0)
+            .unwrap_or(false);
+
+        let premium_hours = model
+            .state
+            .get_user_data(user_id)
+            .map(|user_data| user_data.premium)
+            .unwrap_or(0);
+
+        let mut unlocks = (1..100)
+            .filter_map(|curr_level| {
+                let prev_level = curr_level - 1;
+                if player.base.max_dwarfs_at(curr_level) > player.base.max_dwarfs_at(prev_level) {
+                    Some(Unlock::MaxPopulation(curr_level))
+                } else {
+                    None
+                }
+            })
+            .chain(enum_iterator::all::<Occupation>().map(Unlock::Occupation))
+            .chain(enum_iterator::all::<Item>().map(Unlock::Item))
+            .collect::<Vec<_>>();
+
+        unlocks.sort_by_key(|item| item.unlocked_at_level());
+        unlocks.retain(|item| item.unlocked_at_level() > player.base.curr_level);
+
+        div![C!["content"],
+
+
+            if premium_hours <= 24 {
+                div![
+                    C!["important"],
+                    if premium_hours == 0 {
+                        strong![format!("Premium Account Expired")]
+                    } else {
+                        strong![format!("Premium Account Expires Soon")]
+                    },
+                    div![
+                        C!["image-aside", "small"],
+                        img![attrs! {At::Src => "/premium.jpg"}],
+                        div![
+                            if premium_hours == 0 {
+                                p![format!("Your premium account has expired. If you want to upgrade to a premium account, you can purchase it in the store.")]
+                            } else {
+                                p![format!("Your premium account will expire in {premium_hours} hours. If you want to keep your premium account, you can extend it by purchasing more premium time in the store.")]
+                            },
+                            a![
+                                C!["button"],
+                                attrs! { At::Href => format!("/store") },
+                                "Visit Store"
+                            ]
+                        ]
+                    ]
+                ]
+            } else {
+                Node::Empty
+            },
+
             div![
                 h3!["Dwarfen Manager"],
                 div![C!["image-aside"],
@@ -2629,6 +2704,7 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                                 }),
                         ],
                         button![
+                            C!["premium-feature"],
                             if is_premium {
                                 attrs! {}
                             } else {
@@ -2690,7 +2766,7 @@ fn inventory_options(
                                 max,
                                 ClientEvent::Craft,
                                 |n| n == 0,
-                                Some(button![
+                                Some(button![C!["premium-feature"],
                                     if is_premium {
                                         attrs! {}
                                     } else {
@@ -3591,7 +3667,7 @@ fn nav(model: &Model) -> Node<Msg> {
     ]]
     */
 
-    nav![
+    nav![C!["ingame"],
         /*div![
             C!["nav-section"],
             a![C!["button"], attrs! {At::Href => "/"}, "Home"],
@@ -3620,6 +3696,19 @@ fn nav(model: &Model) -> Node<Msg> {
                 attrs! {At::Href => model.base_path(), At::AriaLabel => "Settlement"},
                 span![C!["nav-image"], Icon::Settlement.draw()],
                 span![C!["nav-description"], " Settlement"]
+            ],
+            a![
+                C![
+                    "button",
+                    if let Page::Manager = model.page {
+                        "active disabled"
+                    } else {
+                        ""
+                    }
+                ],
+                attrs! {At::Href => format!("{}/manager", model.base_path()), At::AriaLabel => "Manager"},
+                span![C!["nav-image"], Icon::Manager.draw()],
+                span![C!["nav-description"], " Manager"]
             ],
             a![
                 C![
@@ -3686,6 +3775,7 @@ fn nav(model: &Model) -> Node<Msg> {
                 span![C!["nav-image"], Icon::Ranking.draw()],
                 span![C!["nav-description"], " Ranking"]
             ],
+            /*
             a![
                 C![
                     "button",
@@ -3694,6 +3784,7 @@ fn nav(model: &Model) -> Node<Msg> {
                 span![C!["nav-image"], Icon::Account.draw()],
                 span![C!["nav-description"], " Account"]
             ]
+            */
         ] //a![C!["button"], attrs! { At::Href => "/account"}, "Account"]
     ]
 }
