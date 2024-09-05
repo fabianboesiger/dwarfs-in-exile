@@ -731,7 +731,7 @@ impl engine_shared::State for State {
                         ClientEvent::AssignToQuest(quest_id, dwarf_idx, dwarf_id) => {
                             if let Some(dwarf_id) = dwarf_id {
                                 let quest = self.quests.get(&quest_id)?;
-                                if player.base.curr_level > quest.quest_type.max_level() {
+                                if player.base.curr_level > quest.max_level || player.base.curr_level < quest.min_level {
                                     return None;
                                 }
 
@@ -827,7 +827,7 @@ impl engine_shared::State for State {
                                     self.event
                                         .map(|event| event.new_dwarfs_multiplier())
                                         .unwrap_or(1),
-                                    ONE_DAY as u32 * 5,
+                                    ONE_DAY as u32 * 3,
                                 ) {
                                     player.new_dwarf(
                                         rng,
@@ -1429,10 +1429,10 @@ impl engine_shared::State for State {
                             let num_quests = if cfg!(debug_assertions) {
                                 30
                             } else {
-                                (active_players / 6)
-                                    .max(active_not_new_players / 3)
-                                    .max(3)
-                                    .min(30)
+                                (active_players / 4)
+                                    .max(active_not_new_players / 2)
+                                    .max(10)
+                                    .min(100)
                             };
 
                             let max_level = self
@@ -1444,14 +1444,17 @@ impl engine_shared::State for State {
 
                             let mut potential_quests = enum_iterator::all::<QuestType>()
                                 .filter(|quest_type| {
-                                    (!quest_type.is_story()
-                                        || (max_level > quest_type.max_level() - 10
-                                            && max_level <= quest_type.max_level()))
-                                        && ((quest_type.one_at_a_time()
-                                            && !self
-                                                .quests
-                                                .values()
-                                                .any(|quest| quest.quest_type == *quest_type)))
+                                    (if let Some(level) = quest_type.max_level() {
+                                        max_level > level - 10
+                                            && max_level <= level
+                                    } else {
+                                        true
+                                    })
+                                    && (!quest_type.one_at_a_time() || (quest_type.one_at_a_time()
+                                        && !self
+                                            .quests
+                                            .values()
+                                            .any(|quest| quest.quest_type == *quest_type)))
                                 })
                                 .collect::<CustomSet<_>>();
 
@@ -1471,7 +1474,17 @@ impl engine_shared::State for State {
                                     potential_quests.swap_remove(&selected_quest);
                                 }
 
-                                let quest = Quest::new(selected_quest);
+                                
+                                let (min_level, max_level) = if let Some(level) = selected_quest.max_level() {
+                                    (1, level)
+                                } else if selected_quest.one_at_a_time() {
+                                    (1, 100)
+                                } else {
+                                    let max_level = rng.gen_range(2..=10);
+                                    (((max_level - 2) * 10).max(1), max_level * 10)
+                                };
+
+                                let quest = Quest::new(selected_quest, min_level, max_level);
 
                                 self.quests.insert(self.next_quest_id, quest);
 
@@ -2572,14 +2585,28 @@ pub struct Quest {
     pub contestants: CustomMap<UserId, Contestant>,
     pub time_left: u64,
     pub quest_type: QuestType,
+    #[serde(default = "min_level")]
+    pub min_level: u64,
+    #[serde(default = "max_level")]
+    pub max_level: u64,
+}
+
+const fn max_level() -> u64 {
+    100
+}
+
+const fn min_level() -> u64 {
+    100
 }
 
 impl Quest {
-    pub fn new(quest_type: QuestType) -> Self {
+    pub fn new(quest_type: QuestType, min_level: u64, max_level: u64) -> Self {
         Quest {
             contestants: CustomMap::new(),
             time_left: quest_type.duration(),
             quest_type,
+            min_level,
+            max_level,
         }
     }
 
@@ -2912,9 +2939,10 @@ impl QuestType {
         }
     }
 
-    pub fn max_level(self) -> u64 {
+    pub fn max_level(self) -> Option<u64> {
         match self {
             //s if s.reward_mode().reward_type() == RewardType::Fair => 100,
+            /*
             QuestType::ForTheKing => 100,
 
             QuestType::AFishingFriend => 20,
@@ -2933,37 +2961,21 @@ impl QuestType {
             QuestType::ArenaFight => 100,
             QuestType::ExploreNewLands => 100,
             QuestType::MinersLuck => 100,
+            */
 
-            QuestType::FeastForAGuest => 10,
-            QuestType::FreeTheVillage => 15,
-            QuestType::ADwarfGotLost => 20,
-            QuestType::ADwarfInDanger => 25,
-            QuestType::AttackTheOrks => 30,
-            QuestType::FreeTheDwarf => 40,
-            QuestType::CrystalsForTheElves => 50,
-            QuestType::TheElvenMagician => 60,
-            QuestType::ADarkSecret => 70,
-            QuestType::ElvenVictory => 80,
-            QuestType::TheMassacre => 90,
-            QuestType::TheElvenWar => 100,
-        }
-    }
-
-    pub fn is_story(self) -> bool {
-        match self {
-            QuestType::FeastForAGuest
-            | QuestType::FreeTheVillage
-            | QuestType::ADwarfGotLost
-            | QuestType::ADwarfInDanger
-            | QuestType::AttackTheOrks
-            | QuestType::FreeTheDwarf
-            | QuestType::CrystalsForTheElves
-            | QuestType::TheElvenMagician
-            | QuestType::ADarkSecret
-            | QuestType::ElvenVictory
-            | QuestType::TheMassacre
-            | QuestType::TheElvenWar => true,
-            _ => false,
+            QuestType::FeastForAGuest => Some(10),
+            QuestType::FreeTheVillage => Some(15),
+            QuestType::ADwarfGotLost => Some(20),
+            QuestType::ADwarfInDanger => Some(25),
+            QuestType::AttackTheOrks => Some(30),
+            QuestType::FreeTheDwarf => Some(40),
+            QuestType::CrystalsForTheElves => Some(50),
+            QuestType::TheElvenMagician => Some(60),
+            QuestType::ADarkSecret => Some(70),
+            QuestType::ElvenVictory => Some(80),
+            QuestType::TheMassacre => Some(90),
+            QuestType::TheElvenWar => Some(100),
+            _ => None,
         }
     }
 }
