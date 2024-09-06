@@ -188,7 +188,7 @@ header {
 #history .togglable,
 .form-wrapper,
 .content {
-    background: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.5);
     backdrop-filter: blur(16px);
 }
 
@@ -533,7 +533,7 @@ h4,
     height: 32px;
     display: flex;
     vertical-align: middle;
-    background: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.5);
     backdrop-filter: blur(16px);
 }
 
