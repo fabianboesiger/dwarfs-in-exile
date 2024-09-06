@@ -106,7 +106,8 @@ const WS_PROTOCOL: &str = "wss";
 #[cfg(debug_assertions)]
 const WS_PROTOCOL: &str = "ws";
 
-const REQUIRES_PREMIUM: &str = "This feature requires a premium account.";
+//const REQUIRES_PREMIUM: &str = "This feature requires a premium account.";
+
 // ------ ------
 //     Model
 // ------ ------
@@ -305,6 +306,8 @@ impl Model {
 
 fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
     orders.subscribe(|subs::UrlRequested(url, url_request)| {
+        println!("url path {:?}", url.path());
+
         if url.path().get(0).map(|s| s.as_str()) == Some("game") {
             url_request.unhandled()
         } else {
@@ -1711,21 +1714,19 @@ fn dwarf(
                                     "Edit Name"
                                 ]
                             },
-                            button![
-                                C!["premium-feature"],
-                                if is_premium {
-                                    attrs! {}
-                                } else {
-                                    attrs! {At::Disabled => "true"}
-                                },
-                                ev(Ev::Click, move |_| Msg::send_event(ClientEvent::Optimize(Some(dwarf_id)))),
-                                format!("Optimize Equipment for Current Occupation"),
-                                if !is_premium {
-                                    tip(REQUIRES_PREMIUM)
-                                } else {
-                                    Node::Empty
-                                }
-                            ],
+                            if is_premium {
+                                button![
+                                    ev(Ev::Click, move |_| Msg::send_event(ClientEvent::Optimize(Some(dwarf_id)))),
+                                    format!("Optimize Equipment for Current Occupation"),
+                                ]
+                            } else {
+                                a![
+                                    C!["premium-feature", "button"],
+                                    format!("Optimize Equipment for Current Occupation"),
+                                    attrs! { At::Href => format!("/store") },
+
+                                ]
+                            },
                             button![
                                 ev(Ev::Click, move |_| Msg::Confirm(ClientEvent::ReleaseDwarf(dwarf_id))),
                                 "Release Dwarf"
@@ -2070,7 +2071,7 @@ fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                     quest.contestants.is_empty()
                 } else {
                     true
-                }) && player.base.curr_level <= quest.quest_type.max_level()
+                }) && player.base.curr_level <= quest.max_level && player.base.curr_level >= quest.min_level
             }).map(|(quest_id, quest)| {
                 tr![
                     C!["list-item-row", match quest.quest_type.reward_mode().reward_type() {
@@ -2087,7 +2088,7 @@ fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                         h3![C!["title"], format!("{}", quest.quest_type)],
                         p![
                             C!["subtitle"],
-                            format!("{} remaining |  Requires {} | Level {}", fmt_time(quest.time_left), quest.quest_type.occupation(), quest.quest_type.max_level())
+                            format!("{} remaining |  Requires {} | Level {} - {}", fmt_time(quest.time_left), quest.quest_type.occupation(), quest.min_level, quest.max_level)
                         ],
                         if let Some(contestant) = quest.contestants.get(user_id) {
                             let rank = quest
@@ -2654,7 +2655,7 @@ fn manager(model: &Model, state: &shared::State, user_id: &shared::UserId) -> No
             },
 
             div![
-                h3!["Dwarfen Manager"],
+                h2!["Dwarfen Manager"],
                 div![C!["image-aside"],
                     img![attrs! {At::Src => Image::Manager.as_at_value()}],
                     div![
@@ -2703,21 +2704,18 @@ fn manager(model: &Model, state: &shared::State, user_id: &shared::UserId) -> No
                                     ]
                                 }),
                         ],
-                        button![
-                            C!["premium-feature"],
-                            if is_premium {
-                                attrs! {}
-                            } else {
-                                attrs! {At::Disabled => "true"}
-                            },
-                            ev(Ev::Click, move |_| Msg::send_event(ClientEvent::Optimize(None))),
-                            format!("Reassign Occupations and Equipment"),
-                            if !is_premium {
-                                tip(REQUIRES_PREMIUM)
-                            } else {
-                                Node::Empty
-                            }
-                        ],
+                        if is_premium {
+                            button![
+                                ev(Ev::Click, move |_| Msg::send_event(ClientEvent::Optimize(None))),
+                                format!("Reassign Occupations and Equipment"),
+                                ]
+                        } else {
+                            a![
+                                C!["premium-feature", "button"],
+                                format!("Reassign Occupations and Equipment"),
+                                attrs! { At::Href => format!("/store") },
+                            ]
+                        },
                     ]
                 ],
             ],
@@ -2766,22 +2764,20 @@ fn inventory_options(
                                 max,
                                 ClientEvent::Craft,
                                 |n| n == 0,
-                                Some(button![C!["premium-feature"],
-                                    if is_premium {
-                                        attrs! {}
-                                    } else {
-                                        attrs! {At::Disabled => "true"}
-                                    },
-                                    ev(Ev::Click, move |_| Msg::send_event(
-                                        ClientEvent::ToggleAutoCraft(item)
-                                    )),
-                                    "Auto",
-                                    if !is_premium {
-                                        tip(REQUIRES_PREMIUM)
-                                    } else {
-                                        Node::Empty
-                                    }
-                                ]),
+                                Some(if is_premium {
+                                    button![
+                                        ev(Ev::Click, move |_| Msg::send_event(
+                                            ClientEvent::ToggleAutoCraft(item)
+                                        )),
+                                        "Auto",
+                                        ]
+                                } else {
+                                    a![
+                                        C!["premium-feature", "button"],
+                                        "Auto",
+                                        attrs! { At::Href => format!("/store") },
+                                    ]
+                                })
                             )
                         }
                     }
@@ -2812,22 +2808,21 @@ fn inventory_options(
                         n,
                         ClientEvent::AddToFoodStorage,
                         |n| n == 0,
-                        Some(button![
-                            if is_premium {
-                                attrs! {}
-                            } else {
-                                attrs! {At::Disabled => "true"}
-                            },
-                            ev(Ev::Click, move |_| Msg::send_event(
-                                ClientEvent::ToggleAutoStore(item)
-                            )),
-                            "Auto",
-                            if !is_premium {
-                                tip(REQUIRES_PREMIUM)
-                            } else {
-                                Node::Empty
-                            }
-                        ]),
+                        Some(if is_premium {
+                            button![
+                                ev(Ev::Click, move |_| Msg::send_event(
+                                    ClientEvent::ToggleAutoStore(item)
+                                )),
+                                "Auto",
+                                ]
+                        } else {
+                            a![
+                                C!["premium-feature", "button"],
+                                "Auto",
+                                attrs! { At::Href => format!("/store") },
+
+                            ]
+                        })
                     )
                 },
             ]
@@ -3789,6 +3784,7 @@ fn nav(model: &Model) -> Node<Msg> {
     ]
 }
 
+/*
 fn tip<T: std::fmt::Display>(text: T) -> Node<Msg> {
     div![
         C!["tooltip"],
@@ -3796,6 +3792,7 @@ fn tip<T: std::fmt::Display>(text: T) -> Node<Msg> {
         span![C!["tooltiptext"], format!("{}", text)]
     ]
 }
+*/
 
 fn slider<F, S, D>(
     model: &Model,

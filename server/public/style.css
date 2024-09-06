@@ -110,6 +110,10 @@ summary {
     margin-bottom: 2px;
 }
 
+input[type="range"] {
+    padding: 2px !important;
+}
+
 /*
 input:not([type=checkbox]):not([type=radio]):focus, button:focus, select:focus, a.button:focus, summary:focus {
 }
@@ -850,7 +854,7 @@ a {
     flex-wrap: nowrap;
 }
 
-.slider button, .slider input {
+.slider button, .slider a.button, .slider input {
     flex-grow: 0;
     flex-shrink: 1;
     width: auto;
@@ -979,8 +983,8 @@ span.material-symbols-outlined {
 }
 
 .premium-feature {
-    background-image: linear-gradient(45deg,#BF953F, #FCF6BA, #BF953F);
-    background-size: 200% 100%;
+    background-image: linear-gradient(45deg,#BF953F, #FCF6BA, #BF953F) !important;
+    background-size: 200% 100% !important;
     animation: gold-animation 10s ease-in-out infinite alternate-reverse;
 }
 
