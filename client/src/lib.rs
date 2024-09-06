@@ -904,15 +904,18 @@ fn tutorial(model: &Model, state: &shared::State, user_id: &shared::UserId) -> N
                                 TutorialReward::Items(items) => bundle(&items, player, false),
                                 TutorialReward::Money(money) => p![format!("{money} coins")],
                             },
-                            button![
-                                attrs! { At::Disabled => (!step.requires().complete(player)).as_at_value() },
-                                ev(Ev::Click, move |_| Msg::send_event(ClientEvent::NextTutorialStep)),
-                                "Complete Quest"
-                            ],
-                            button![
-                                ev(Ev::Click, move |_| Msg::ToggleTutorial),
-                                "Close"
-                            ],
+                            if step.requires().complete(player) {
+                                button![
+                                    attrs! { At::Disabled => (!step.requires().complete(player)).as_at_value() },
+                                    ev(Ev::Click, move |_| Msg::send_event(ClientEvent::NextTutorialStep)),
+                                    "Complete Quest"
+                                ]
+                            } else {
+                                button![
+                                    ev(Ev::Click, move |_| Msg::ToggleTutorial),
+                                    "Close"
+                                ]
+                            }
                         ]
 
                     ]

@@ -556,35 +556,35 @@ h4,
 }
 
 .item-common {
-    background: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.2);
 }
 .item-uncommon {
-    background: rgba(0, 175, 9, 0.3);
+    background: rgba(0, 175, 9, 0.2);
 }
 .item-rare {
-    background: rgba(4, 101, 211, 0.3);
+    background: rgba(4, 101, 211, 0.2);
 }
 .item-epic {
-    background: rgba(192, 0, 199, 0.3);
+    background: rgba(192, 0, 199, 0.2);
 }
 .item-legendary {
-    background: rgba(194, 110, 0, 0.3);
+    background: rgba(194, 110, 0, 0.2);
 }
 
 .reward-mode-best {
-    background: rgba(205, 27, 0, 0.3);
+    background: rgba(205, 27, 0, 0.2);
 }
 
 .reward-mode-best {
-    background: rgba(205, 0, 0, 0.3);
+    background: rgba(205, 0, 0, 0.2);
 }
 
 .reward-mode-chance {
-    background: rgba(205, 205, 0, 0.3);
+    background: rgba(205, 205, 0, 0.2);
 }
 
 .reward-mode-fair {
-    background: rgba(0, 205, 0, 0.3);
+    background: rgba(0, 205, 0, 0.2);
 }
 
 
