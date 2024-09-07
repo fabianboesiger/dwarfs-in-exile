@@ -2339,17 +2339,19 @@ impl Unlock {
 
 fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
-        /*let is_premium = model
+        /*
+        let is_premium = model
             .state
             .get_user_data(user_id)
             .map(|user_data| user_data.premium > 0)
-            .unwrap_or(false);*/
+            .unwrap_or(false);
 
         let premium_hours = model
             .state
             .get_user_data(user_id)
             .map(|user_data| user_data.premium)
             .unwrap_or(0);
+        */
 
         let guest = model
             .state
@@ -2390,9 +2392,14 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                         img![attrs! {At::Src => "/guest.jpg"}],
                         div![
                             p![format!(
-                                "You are currently using a guest account that expires in {}. Set your password to keep access to your account and play from multiple devices.",
+                                "You are currently using a guest account that expires in {}. Set your username and password to keep access to your account and play from multiple devices.",
                                 fmt_time((joined.saturating_add(Duration::days(30)).assume_utc().unix_timestamp() - (Date::now() / 1000.0) as i64).max(0) as u64 * SPEED)
                             )],
+                            a![
+                                C!["button"],
+                                attrs! { At::Href => format!("/change-username") },
+                                "Set Username"
+                            ],
                             a![
                                 C!["button"],
                                 attrs! { At::Href => format!("/change-password") },
@@ -2404,7 +2411,7 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
             } else {
                 Node::Empty
             },
-
+            /*
             if premium_hours <= 24 {
                 div![
                     C!["important"],
@@ -2433,7 +2440,7 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
             } else {
                 Node::Empty
             },
-
+            */
             if player.remaining_time_until_starvation(state) <= 60 * 60 * 12 * SPEED {
                 div![
                     C!["important"],
@@ -2736,7 +2743,7 @@ fn inventory_options(
     vec![
         if let Some((level, requires)) = item.requires() {
             vec![
-                h4!["Crafting"],
+                h4!["Craft Item"],
                 bundle(&requires.clone().mul(model.slider.get(&(item, SliderType::Craft)).copied().unwrap_or_default().max(1)), player, true),
                 if player.base.curr_level >= level {
                     if player.auto_functions.auto_craft.contains(&item) && is_premium {
@@ -2800,7 +2807,7 @@ fn inventory_options(
 
             if matches!(item.item_type(), Some(ItemType::Tool | ItemType::Jewelry | ItemType::Clothing)) && max > 0 {
                 vec![
-                    h4!["Dismantling"],
+                    h4!["Dismantle Item"],
                     bundle(&requires.clone().mul(model.slider.get(&(item, SliderType::Dismantle)).copied().unwrap_or_default().max(1)).div(DISMANTLING_DIVIDER), player, false),
                     if player.auto_functions.auto_dismantle.contains(&item) && is_premium {
                         button![
