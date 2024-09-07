@@ -1027,3 +1027,7 @@ span.material-symbols-outlined {
         display: none;
     }
 }
+
+audio {
+    width: 100%;
+}
