@@ -141,7 +141,9 @@ pub enum Item {
     KnightsArmor,
     MiningGear,
     LoggingGear,
-    Fairy
+    Fairy,
+    Dog,
+    Wildcat,
 }
 
 impl Craftable for Item {
@@ -281,6 +283,8 @@ impl Craftable for Item {
             )),
             Item::BoneNecklace => Some((42, Bundle::new().add(Item::String, 5).add(Item::Bone, 5))),
             Item::BoneHelmet => Some((44, Bundle::new().add(Item::Helmet, 1).add(Item::Bone, 5))),
+            Item::Cat => Some((57, Bundle::new().add(Item::Wildcat, 1).add(Item::RawFish, 1000))),
+            Item::Dog => Some((59, Bundle::new().add(Item::Wolf, 1).add(Item::RawMeat, 1000))),
 
             Item::Gold => Some((26, Bundle::new().add(Item::GoldOre, 1).add(Item::Coal, 1))),
             Item::GoldenRing => Some((28, Bundle::new().add(Item::Gold, 3))),
@@ -526,7 +530,9 @@ impl Item {
             | Item::Dolphin
             | Item::Ox
             | Item::Kobold
-            | Item::Fairy => Some(ItemType::Pet),
+            | Item::Fairy
+            | Item::Dog
+            | Item::Wildcat => Some(ItemType::Pet),
 
             Item::Apple
             | Item::Blueberry
@@ -561,9 +567,14 @@ impl Item {
                 endurance: 4,
                 ..Default::default()
             },
+            Item::Wildcat => Stats {
+                agility: 4,
+                perception: 4,
+                ..Default::default()
+            },
             Item::Cat => Stats {
-                agility: 6,
-                perception: 6,
+                agility: 8,
+                perception: 8,
                 ..Default::default()
             },
             Item::Boots => Stats {
@@ -695,8 +706,9 @@ impl Item {
             (Item::Dragon, Occupation::Fighting) => 10,
             (Item::Donkey, Occupation::Gathering) => 10,
             (Item::Donkey, Occupation::Farming) => 6,
-            (Item::Wolf, Occupation::Hunting) => 10,
-            (Item::Wolf, Occupation::Fighting) => 4,
+            (Item::Wolf, Occupation::Fighting) => 6,
+            (Item::Dog, Occupation::Hunting) => 10,
+            (Item::Dog, Occupation::Fighting) => 4,
             (Item::Axe, Occupation::Logging) => 6,
             (Item::Axe, Occupation::Fighting) => 3,
             (Item::DiamondAxe, Occupation::Logging) => 10,
@@ -749,6 +761,7 @@ impl Item {
             (Item::Wheelbarrow, Occupation::Gathering) => 8,
             (Item::Plough, Occupation::Farming) => 10,
             (Item::Lantern, Occupation::Mining | Occupation::Rockhounding) => 4,
+            (Item::Cat, Occupation::Fishing) => 6,
             (Item::Dolphin, Occupation::Fishing) => 10,
             (Item::Boat, Occupation::Fishing) => 10,
             (Item::Boat, Occupation::Exploring) => 8,
@@ -892,8 +905,8 @@ impl Item {
                 Item::Parrot => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_DAY * 3,
                 }),
-                Item::Cat => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_DAY * 3,
+                Item::Wildcat => Some(ItemProbability {
+                    expected_ticks_per_drop: ONE_DAY * 5,
                 }),
                 Item::Donkey => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_DAY * 5,
@@ -902,10 +915,10 @@ impl Item {
                     expected_ticks_per_drop: ONE_DAY * 5,
                 }),
                 Item::Dolphin => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_DAY * 5,
+                    expected_ticks_per_drop: ONE_DAY * 7,
                 }),
                 Item::Ox => Some(ItemProbability {
-                    expected_ticks_per_drop: ONE_DAY * 5,
+                    expected_ticks_per_drop: ONE_DAY * 7,
                 }),
                 Item::Horse => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_DAY * 7,

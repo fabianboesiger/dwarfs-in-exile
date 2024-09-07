@@ -187,6 +187,8 @@ pub enum Image {
     MiningGear,
     LoggingGear,
     Fairy,
+    Dog,
+    Wildcat,
 }
 
 impl AsAtValue for Image {
@@ -371,6 +373,8 @@ impl From<Item> for Image {
             Item::LoggingGear => Image::LoggingGear,
             Item::MiningGear => Image::MiningGear,
             Item::Fairy => Image::Fairy,
+            Item::Dog => Image::Dog,
+            Item::Wildcat => Image::Wildcat,
         }
     }
 }
