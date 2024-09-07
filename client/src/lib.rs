@@ -7,10 +7,7 @@ use itertools::Itertools;
 use rustrict::CensorStr;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg,
-    Occupation, Player, Popup, QuestId, QuestType, RewardMode, RewardType, Stats, Time, TradeType,
-    TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, MAX_EFFECTIVENESS, MAX_HEALTH,
-    SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS,
+    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, RewardType, Stats, Time, TradeType, TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, DISMANTLING_DIVIDER, MAX_EFFECTIVENESS, MAX_HEALTH, SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS
 };
 use std::str::FromStr;
 use strum::Display;
@@ -259,6 +256,7 @@ pub enum SliderType {
     Craft,
     Sell,
     Store,
+    Dismantle,
 }
 
 pub struct Model {
@@ -2739,7 +2737,7 @@ fn inventory_options(
         if let Some((level, requires)) = item.requires() {
             vec![
                 h4!["Crafting"],
-                bundle(&requires, player, true),
+                bundle(&requires.clone().mul(model.slider.get(&(item, SliderType::Craft)).copied().unwrap_or_default().max(1)), player, true),
                 if player.base.curr_level >= level {
                     if player.auto_functions.auto_craft.contains(&item) && is_premium {
                         button![
@@ -2786,11 +2784,65 @@ fn inventory_options(
                     }
                 } else {
                     p!["Unlocked at level ", level]
-                },
+                }
             ]
         } else {
             Vec::new()
         },
+        
+        if let Some((_level, requires)) = item.requires() {
+            let max = player
+                .inventory
+                .items
+                .get(&item)
+                .copied()
+                .unwrap_or_default();
+
+            if matches!(item.item_type(), Some(ItemType::Tool | ItemType::Jewelry | ItemType::Clothing)) && max > 0 {
+                vec![
+                    h4!["Dismantling"],
+                    bundle(&requires.clone().mul(model.slider.get(&(item, SliderType::Dismantle)).copied().unwrap_or_default().max(1)).div(DISMANTLING_DIVIDER), player, false),
+                    if player.auto_functions.auto_dismantle.contains(&item) && is_premium {
+                        button![
+                            ev(Ev::Click, move |_| Msg::send_event(
+                                ClientEvent::ToggleAutoDismantle(item)
+                            )),
+                            "Disable Auto",
+                        ]
+                    } else {
+                        slider(
+                            model,
+                            item,
+                            SliderType::Dismantle,
+                            |_| "Dismantle".to_owned(),
+                            max.min(1),
+                            max,
+                            ClientEvent::Dismantle,
+                            |n| n == 0,
+                            Some(if is_premium {
+                                button![
+                                    ev(Ev::Click, move |_| Msg::send_event(
+                                        ClientEvent::ToggleAutoDismantle(item)
+                                    )),
+                                    "Auto",
+                                    ]
+                            } else {
+                                a![
+                                    C!["premium-feature", "button"],
+                                    "Auto",
+                                    attrs! { At::Href => format!("/store") },
+                                ]
+                            })
+                        )
+                    }
+                ]
+            } else {
+                Vec::new()
+            }
+        } else {
+            Vec::new()
+        },
+
         if let Some(_) = item.nutritional_value() {
             vec![
                 h4!["Food Storage"],
@@ -2971,6 +3023,7 @@ fn inventory(
                                 player.auto_functions.auto_craft.contains(item)
                                 || player.auto_functions.auto_sell.contains(item)
                                 || player.auto_functions.auto_store.contains(item)
+                                || player.auto_functions.auto_dismantle.contains(item)
                             } else {
                                 true
                             }

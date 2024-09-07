@@ -36,6 +36,7 @@ pub const APPRENTICE_EFFECTIVENESS_DIVIDER: u64 = 10;
 pub const MAX_EFFECTIVENESS: u64 = 6000;
 pub const MIN_MAX_DWARF_DIFFERENCE: u64 = 3;
 pub const TRADE_MONEY_MULTIPLIER: u64 = 10;
+pub const DISMANTLING_DIVIDER: u64 = 2;
 
 pub type Money = u64;
 pub type Food = u64;
@@ -322,6 +323,20 @@ impl State {
             }
         }
     }
+
+    fn dismantle(player: &mut Player, item: Item, qty: u64) {
+        if let Some((_level, requires)) = item.requires() {
+            if matches!(item.item_type(), Some(ItemType::Tool | ItemType::Jewelry | ItemType::Clothing)) {
+                if player.inventory.items.remove_checked(Bundle::new().add(item, qty)) {
+                    player
+                        .inventory
+                        .items
+                        .add_checked(requires.mul(qty).div(DISMANTLING_DIVIDER));
+                }
+            }
+        }
+    }
+
 }
 
 impl engine_shared::State for State {
@@ -629,7 +644,19 @@ impl engine_shared::State for State {
                                     player.auto_functions.auto_craft.swap_remove(&item);
                                 } else {
                                     player.auto_functions.auto_craft.insert(item);
+                                    player.auto_functions.auto_dismantle.swap_remove(&item);
                                     player.auto_craft(self.time, is_premium);
+                                }
+                            }
+                        }
+                        ClientEvent::ToggleAutoDismantle(item) => {
+                            if is_premium {
+                                if player.auto_functions.auto_dismantle.contains(&item) {
+                                    player.auto_functions.auto_dismantle.swap_remove(&item);
+                                } else {
+                                    player.auto_functions.auto_dismantle.insert(item);
+                                    player.auto_functions.auto_craft.swap_remove(&item);
+                                    player.auto_dismantle(self.time, is_premium);
                                 }
                             }
                         }
@@ -678,6 +705,9 @@ impl engine_shared::State for State {
                         }
                         ClientEvent::Craft(item, qty) => {
                             Self::craft(player, item, qty);
+                        }
+                        ClientEvent::Dismantle(item, qty) => {
+                            Self::dismantle(player, item, qty);
                         }
                         ClientEvent::UpgradeBase => {
                             if let Some(requires) = player.base.upgrade_cost() {
@@ -1550,6 +1580,13 @@ impl<T: BundleType> Bundle<T> {
         self
     }
 
+    pub fn div(mut self, n: u64) -> Self {
+        for qty in self.0.values_mut() {
+            *qty /= n;
+        }
+        self
+    }
+
     pub fn can_remove_x_times(&self, other: &Self) -> Option<u64> {
         let mut bound: Option<u64> = None;
 
@@ -1742,6 +1779,8 @@ pub struct AutoFunctions {
     pub auto_craft: CustomSet<Item>,
     pub auto_store: CustomSet<Item>,
     pub auto_sell: CustomSet<Item>,
+    #[serde(default = "CustomSet::new")]
+    pub auto_dismantle: CustomSet<Item>,
 }
 
 impl Default for AutoFunctions {
@@ -1751,6 +1790,7 @@ impl Default for AutoFunctions {
             auto_craft: CustomSet::new(),
             auto_store: CustomSet::new(),
             auto_sell: CustomSet::new(),
+            auto_dismantle: CustomSet::new(),
         }
     }
 }
@@ -1932,6 +1972,7 @@ impl Player {
 
     pub fn add_items(&mut self, bundle: Bundle<Item>, time: Time, is_premium: bool) {
         self.inventory.add(bundle, time);
+        self.auto_dismantle(time, is_premium);
         self.auto_craft(time, is_premium);
         self.auto_store(is_premium);
         self.auto_sell(is_premium);
@@ -1959,6 +2000,29 @@ impl Player {
 
             if items_added {
                 self.auto_craft(time, is_premium);
+            }
+        }
+    }
+
+    pub fn auto_dismantle(&mut self, time: Time, is_premium: bool) {
+        if is_premium {
+            let mut items_added = false;
+            // Auto-craft!
+            for &item in &self.auto_functions.auto_dismantle {
+                if let Some((_level, requires)) = item.requires() {
+                    let qty = self.inventory.items.get(&item).copied().unwrap_or_default();
+                    if qty > 0 {
+                        if self.inventory.items.remove_checked(Bundle::new().add(item, qty)) {
+                            self.inventory.add(requires.mul(qty).div(DISMANTLING_DIVIDER), time);
+
+                            items_added = true;
+                        }
+                    }
+                }
+            }
+
+            if items_added {
+                self.auto_dismantle(time, is_premium);
             }
         }
     }
@@ -2520,6 +2584,7 @@ pub enum ClientEvent {
     Message(String),
     ChangeOccupation(DwarfId, Occupation),
     Craft(Item, u64),
+    Dismantle(Item, u64),
     UpgradeBase,
     ChangeEquipment(DwarfId, ItemType, Option<Item>),
     OpenLootCrate,
@@ -2531,6 +2596,7 @@ pub enum ClientEvent {
     ToggleAutoCraft(Item),
     ToggleAutoStore(Item),
     ToggleAutoSell(Item),
+    ToggleAutoDismantle(Item),
     ToggleAutoIdle,
     HireDwarf(HireDwarfType),
     NextTutorialStep,
