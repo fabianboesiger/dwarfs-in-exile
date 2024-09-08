@@ -327,8 +327,15 @@ impl State {
 
     fn dismantle(player: &mut Player, item: Item, qty: u64) {
         if let Some((_level, requires)) = item.requires() {
-            if matches!(item.item_type(), Some(ItemType::Tool | ItemType::Jewelry | ItemType::Clothing)) {
-                if player.inventory.items.remove_checked(Bundle::new().add(item, qty)) {
+            if matches!(
+                item.item_type(),
+                Some(ItemType::Tool | ItemType::Jewelry | ItemType::Clothing)
+            ) {
+                if player
+                    .inventory
+                    .items
+                    .remove_checked(Bundle::new().add(item, qty))
+                {
                     player
                         .inventory
                         .items
@@ -337,7 +344,6 @@ impl State {
             }
         }
     }
-
 }
 
 impl engine_shared::State for State {
@@ -692,7 +698,8 @@ impl engine_shared::State for State {
                             }
                         }
                         ClientEvent::Message(message) => {
-                            self.chat.add_message(&mut self.players, user_id, message, self.time);
+                            self.chat
+                                .add_message(&mut self.players, user_id, message, self.time);
                         }
                         ClientEvent::ChangeOccupation(dwarf_id, occupation) => {
                             let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
@@ -762,7 +769,9 @@ impl engine_shared::State for State {
                         ClientEvent::AssignToQuest(quest_id, dwarf_idx, dwarf_id) => {
                             if let Some(dwarf_id) = dwarf_id {
                                 let quest = self.quests.get(&quest_id)?;
-                                if player.base.curr_level > quest.max_level || player.base.curr_level < quest.min_level {
+                                if player.base.curr_level > quest.max_level
+                                    || player.base.curr_level < quest.min_level
+                                {
                                     return None;
                                 }
 
@@ -819,10 +828,10 @@ impl engine_shared::State for State {
                         }
                         ClientEvent::ReadLog => {
                             player.log.unread = false;
-                        },
-                        ClientEvent::ReadChat =>{
+                        }
+                        ClientEvent::ReadChat => {
                             player.chat_unread = false;
-                        },
+                        }
                     }
                 }
                 Event::ServerEvent(event) => {
@@ -1476,16 +1485,15 @@ impl engine_shared::State for State {
                             let mut potential_quests = enum_iterator::all::<QuestType>()
                                 .filter(|quest_type| {
                                     (if let Some(level) = quest_type.max_level() {
-                                        max_player_level > level - 10
-                                            && max_player_level <= level
+                                        max_player_level > level - 10 && max_player_level <= level
                                     } else {
                                         true
-                                    })
-                                    && (!quest_type.one_at_a_time() || (quest_type.one_at_a_time()
-                                        && !self
-                                            .quests
-                                            .values()
-                                            .any(|quest| quest.quest_type == *quest_type)))
+                                    }) && (!quest_type.one_at_a_time()
+                                        || (quest_type.one_at_a_time()
+                                            && !self
+                                                .quests
+                                                .values()
+                                                .any(|quest| quest.quest_type == *quest_type)))
                                 })
                                 .collect::<CustomSet<_>>();
 
@@ -1505,34 +1513,34 @@ impl engine_shared::State for State {
                                     potential_quests.swap_remove(&selected_quest);
                                 }
 
-                                
-                                let (min_level, max_level) = if let Some(level) = selected_quest.max_level() {
-                                    (1, level)
-                                } else if selected_quest.one_at_a_time() {
-                                    (1, 100)
-                                } else {
-                                    let selected_level = self
-                                        .players
-                                        .iter()
-                                        .collect::<Vec<_>>()
-                                        .choose_weighted(rng, |(_, player)| {
-                                            if player.is_active(self.time) {
-                                                if player.is_new(self.time) {
-                                                    1
+                                let (min_level, max_level) =
+                                    if let Some(level) = selected_quest.max_level() {
+                                        (1, level)
+                                    } else if selected_quest.one_at_a_time() {
+                                        (1, 100)
+                                    } else {
+                                        let selected_level = self
+                                            .players
+                                            .iter()
+                                            .collect::<Vec<_>>()
+                                            .choose_weighted(rng, |(_, player)| {
+                                                if player.is_active(self.time) {
+                                                    if player.is_new(self.time) {
+                                                        1
+                                                    } else {
+                                                        NEW_PLAYER_DIVIDER
+                                                    }
                                                 } else {
-                                                    NEW_PLAYER_DIVIDER
+                                                    0
                                                 }
-                                            } else {
-                                                0
-                                            }
-                                        })
-                                        .map(|(_, player)| player.base.curr_level)
-                                        .unwrap_or(1);
+                                            })
+                                            .map(|(_, player)| player.base.curr_level)
+                                            .unwrap_or(1);
 
-                                    let min_level = (selected_level.saturating_sub(10)).max(1);
-                                    let max_level = (selected_level + 10).min(100);
-                                    (min_level, max_level)
-                                };
+                                        let min_level = (selected_level.saturating_sub(10)).max(1);
+                                        let max_level = (selected_level + 10).min(100);
+                                        (min_level, max_level)
+                                    };
 
                                 let quest = Quest::new(selected_quest, min_level, max_level);
 
@@ -2032,8 +2040,13 @@ impl Player {
                 if let Some((_level, requires)) = item.requires() {
                     let qty = self.inventory.items.get(&item).copied().unwrap_or_default();
                     if qty > 0 {
-                        if self.inventory.items.remove_checked(Bundle::new().add(item, qty)) {
-                            self.inventory.add(requires.mul(qty).div(DISMANTLING_DIVIDER), time);
+                        if self
+                            .inventory
+                            .items
+                            .remove_checked(Bundle::new().add(item, qty))
+                        {
+                            self.inventory
+                                .add(requires.mul(qty).div(DISMANTLING_DIVIDER), time);
 
                             items_added = true;
                         }
@@ -2655,7 +2668,13 @@ pub struct Chat {
 }
 
 impl Chat {
-    pub fn add_message(&mut self, players: &mut CustomMap<UserId, Player>, user_id: UserId, message: String, time: Time) {
+    pub fn add_message(
+        &mut self,
+        players: &mut CustomMap<UserId, Player>,
+        user_id: UserId,
+        message: String,
+        time: Time,
+    ) {
         for player in players.values_mut() {
             player.chat_unread = true;
         }
@@ -3048,7 +3067,6 @@ impl QuestType {
             QuestType::ExploreNewLands => 100,
             QuestType::MinersLuck => 100,
             */
-
             QuestType::FeastForAGuest => Some(10),
             QuestType::FreeTheVillage => Some(15),
             QuestType::ADwarfGotLost => Some(20),
@@ -3085,11 +3103,16 @@ pub enum TradeType {
 
 impl TradeDeal {
     pub fn new(rng: &mut impl Rng, max_player_level: u64) -> Self {
-        let item = enum_iterator::all::<Item>().filter(|item| if let Some((level, _)) = item.requires() {
-            level <= max_player_level
-        } else {
-            true
-        }).choose(rng).unwrap();
+        let item = enum_iterator::all::<Item>()
+            .filter(|item| {
+                if let Some((level, _)) = item.requires() {
+                    level <= max_player_level
+                } else {
+                    true
+                }
+            })
+            .choose(rng)
+            .unwrap();
         let time_left = rng.gen_range(ONE_MINUTE * 20..ONE_HOUR * 4);
         let qty = ((time_left * 10) / item.item_rarity_num()).max(1);
 

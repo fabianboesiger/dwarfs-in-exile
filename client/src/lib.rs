@@ -7,7 +7,10 @@ use itertools::Itertools;
 use rustrict::CensorStr;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, RewardType, Stats, Time, TradeType, TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, DISMANTLING_DIVIDER, MAX_EFFECTIVENESS, MAX_HEALTH, SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS
+    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg,
+    Occupation, Player, Popup, QuestId, QuestType, RewardMode, RewardType, Stats, Time, TradeType,
+    TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, DISMANTLING_DIVIDER,
+    MAX_EFFECTIVENESS, MAX_HEALTH, SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS,
 };
 use std::str::FromStr;
 use strum::Display;
@@ -42,7 +45,7 @@ enum Icon {
     HistoryUnread,
     Chat,
     ChatUnread,
-    Manager
+    Manager,
 }
 
 impl Icon {
@@ -70,7 +73,7 @@ impl Icon {
             Icon::HistoryUnread => "notifications_unread",
             Icon::Chat => "chat_bubble",
             Icon::ChatUnread => "mark_chat_unread",
-            Icon::Manager => "history_edu"
+            Icon::Manager => "history_edu",
         }
     }
 
@@ -982,62 +985,54 @@ fn name(model: &Model, user_id: &shared::UserId, include_online_status: bool) ->
 
     if let Some(player) = state.players.get(user_id) {
         let (is_premium, is_dev, games_won, guest, joined) = model
-                    .state
-                    .get_user_data(user_id)
-                    .map(|user_data| (user_data.premium > 0, user_data.admin, user_data.games_won, user_data.guest, user_data.joined.assume_utc()))
-                    .unwrap_or((false, false, 0, false, datetime!(2100-01-01 0:00 UTC)));
-
+            .state
+            .get_user_data(user_id)
+            .map(|user_data| {
+                (
+                    user_data.premium > 0,
+                    user_data.admin,
+                    user_data.games_won,
+                    user_data.guest,
+                    user_data.joined.assume_utc(),
+                )
+            })
+            .unwrap_or((false, false, 0, false, datetime!(2100-01-01 0:00 UTC)));
 
         vec![
-            span![C!["username"], format!(
-                "{}",
-                client_state
-                    .get_user_data(&user_id)
-                    .map(|data| data.username.clone().censor())
-                    .unwrap_or_default()
-            )],
+            span![
+                C!["username"],
+                format!(
+                    "{}",
+                    client_state
+                        .get_user_data(&user_id)
+                        .map(|data| data.username.clone().censor())
+                        .unwrap_or_default()
+                )
+            ],
             if is_dev {
-                span![
-                    C!["nametag", "developer"],
-                    "Developer"
-                ]
+                span![C!["nametag", "developer"], "Developer"]
             } else {
                 Node::Empty
             },
             if joined < datetime!(2024-08-27 0:00 UTC) {
-                span![
-                    C!["nametag", "veteran"],
-                    "Veteran"
-                ]
+                span![C!["nametag", "veteran"], "Veteran"]
             } else {
                 Node::Empty
             },
             if guest {
-                span![
-                    C!["nametag", "guest"],
-                    "Guest"
-                ]
+                span![C!["nametag", "guest"], "Guest"]
             } else {
                 Node::Empty
             },
             if is_premium {
-                span![
-                    C!["nametag", "premium"],
-                    "Premium"
-                ]
+                span![C!["nametag", "premium"], "Premium"]
             } else {
                 Node::Empty
             },
             if games_won == 1 {
-                span![
-                    C!["nametag", "winner"],
-                    "Winner"
-                ]
+                span![C!["nametag", "winner"], "Winner"]
             } else if games_won > 1 {
-                span![
-                    C!["nametag", "winner"],
-                    format!("Winner ({})", games_won)
-                ]
+                span![C!["nametag", "winner"], format!("Winner ({})", games_won)]
             } else {
                 Node::Empty
             },
@@ -1055,13 +1050,11 @@ fn name(model: &Model, user_id: &shared::UserId, include_online_status: bool) ->
                 ]
             } else {
                 Node::Empty
-            }
-            
+            },
         ]
     } else {
         Vec::new()
     }
-    
 }
 
 fn ranking(
@@ -2399,8 +2392,8 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
         unlocks.sort_by_key(|item| item.unlocked_at_level());
         unlocks.retain(|item| item.unlocked_at_level() > player.base.curr_level);
 
-        div![C!["content"],
-
+        div![
+            C!["content"],
             if guest {
                 let joined = model
                     .state
@@ -2480,7 +2473,6 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
             } else {
                 Node::Empty
             },
-
             if let Some(event) = state.event {
                 div![
                     C!["important"],
@@ -2505,17 +2497,23 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
             } else {
                 Node::Empty
             },
-
             h2!["Your Settlement"],
             table![
                 tr![th!["Level"], td![format!("{}", player.base.curr_level)]],
-                tr![th!["Population"], td![format!("{}/{}", player.dwarfs.len(), player.base.max_dwarfs())]],
+                tr![
+                    th!["Population"],
+                    td![format!(
+                        "{}/{}",
+                        player.dwarfs.len(),
+                        player.base.max_dwarfs()
+                    )]
+                ],
                 tr![th!["Money"], td![format!("{} coins", player.money)]],
                 tr![th!["Food"], td![format!("{} food", player.base.food)]],
             ],
-
             h3!["Upgrade Settlement"],
-            div![C!["image-aside"],
+            div![
+                C!["image-aside"],
                 img![attrs! {At::Src => Image::from(player.base.village_type()).as_at_value()}],
                 if let Some(requires) = player.base.upgrade_cost() {
                     div![
@@ -2622,7 +2620,6 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
         Node::Empty
     }
 }
-
 
 fn manager(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
@@ -2768,7 +2765,18 @@ fn inventory_options(
         if let Some((level, requires)) = item.requires() {
             vec![
                 h4!["Craft Item"],
-                bundle(&requires.clone().mul(model.slider.get(&(item, SliderType::Craft)).copied().unwrap_or_default().max(1)), player, true),
+                bundle(
+                    &requires.clone().mul(
+                        model
+                            .slider
+                            .get(&(item, SliderType::Craft))
+                            .copied()
+                            .unwrap_or_default()
+                            .max(1),
+                    ),
+                    player,
+                    true,
+                ),
                 if player.base.curr_level >= level {
                     if player.auto_functions.auto_craft.contains(&item) && is_premium {
                         button![
@@ -2802,25 +2810,24 @@ fn inventory_options(
                                             ClientEvent::ToggleAutoCraft(item)
                                         )),
                                         "Auto",
-                                        ]
+                                    ]
                                 } else {
                                     a![
                                         C!["premium-feature", "button"],
                                         "Auto",
                                         attrs! { At::Href => format!("/store") },
                                     ]
-                                })
+                                }),
                             )
                         }
                     }
                 } else {
                     p!["Unlocked at level ", level]
-                }
+                },
             ]
         } else {
             Vec::new()
         },
-        
         if let Some((_level, requires)) = item.requires() {
             let max = player
                 .inventory
@@ -2829,10 +2836,28 @@ fn inventory_options(
                 .copied()
                 .unwrap_or_default();
 
-            if matches!(item.item_type(), Some(ItemType::Tool | ItemType::Jewelry | ItemType::Clothing)) && max > 0 {
+            if matches!(
+                item.item_type(),
+                Some(ItemType::Tool | ItemType::Jewelry | ItemType::Clothing)
+            ) && max > 0
+            {
                 vec![
                     h4!["Dismantle Item"],
-                    bundle(&requires.clone().mul(model.slider.get(&(item, SliderType::Dismantle)).copied().unwrap_or_default().max(1)).div(DISMANTLING_DIVIDER), player, false),
+                    bundle(
+                        &requires
+                            .clone()
+                            .mul(
+                                model
+                                    .slider
+                                    .get(&(item, SliderType::Dismantle))
+                                    .copied()
+                                    .unwrap_or_default()
+                                    .max(1),
+                            )
+                            .div(DISMANTLING_DIVIDER),
+                        player,
+                        false,
+                    ),
                     if player.auto_functions.auto_dismantle.contains(&item) && is_premium {
                         button![
                             ev(Ev::Click, move |_| Msg::send_event(
@@ -2856,16 +2881,16 @@ fn inventory_options(
                                         ClientEvent::ToggleAutoDismantle(item)
                                     )),
                                     "Auto",
-                                    ]
+                                ]
                             } else {
                                 a![
                                     C!["premium-feature", "button"],
                                     "Auto",
                                     attrs! { At::Href => format!("/store") },
                                 ]
-                            })
+                            }),
                         )
-                    }
+                    },
                 ]
             } else {
                 Vec::new()
@@ -2873,7 +2898,6 @@ fn inventory_options(
         } else {
             Vec::new()
         },
-
         if let Some(_) = item.nutritional_value() {
             vec![
                 h4!["Food Storage"],
@@ -2900,15 +2924,14 @@ fn inventory_options(
                                     ClientEvent::ToggleAutoStore(item)
                                 )),
                                 "Auto",
-                                ]
+                            ]
                         } else {
                             a![
                                 C!["premium-feature", "button"],
                                 "Auto",
                                 attrs! { At::Href => format!("/store") },
-
                             ]
-                        })
+                        }),
                     )
                 },
             ]
@@ -3268,7 +3291,6 @@ fn chat(
     let message = model.message.clone();
 
     if let Some(player) = state.players.get(user_id) {
-
         div![
             id!["chat"],
             if model.chat_visible {
@@ -3318,11 +3340,18 @@ fn chat(
             if model.chat_visible {
                 button![ev(Ev::Click, move |_| Msg::ToggleChat), span!["Close"]]
             } else {
-                button![ev(Ev::Click, move |_| Msg::ToggleChat), span![attrs!{At::AriaHidden => "true"}, if player.chat_unread {
-                    Icon::ChatUnread.draw()
-                } else {
-                    Icon::Chat.draw()
-                } , span![" Show Chat"]]]
+                button![
+                    ev(Ev::Click, move |_| Msg::ToggleChat),
+                    span![
+                        attrs! {At::AriaHidden => "true"},
+                        if player.chat_unread {
+                            Icon::ChatUnread.draw()
+                        } else {
+                            Icon::Chat.draw()
+                        },
+                        span![" Show Chat"]
+                    ]
+                ]
             }
         ]
     } else {
@@ -3556,11 +3585,18 @@ fn history(
             if model.history_visible {
                 button![ev(Ev::Click, move |_| Msg::ToggleHistory), span!["Close"]]
             } else {
-                button![ev(Ev::Click, move |_| Msg::ToggleHistory), span![attrs!{At::AriaHidden => "true"}, if player.log.unread {
-                    Icon::HistoryUnread.draw()
-                } else {
-                    Icon::History.draw()
-                } , span![" Show History"]]]
+                button![
+                    ev(Ev::Click, move |_| Msg::ToggleHistory),
+                    span![
+                        attrs! {At::AriaHidden => "true"},
+                        if player.log.unread {
+                            Icon::HistoryUnread.draw()
+                        } else {
+                            Icon::History.draw()
+                        },
+                        span![" Show History"]
+                    ]
+                ]
             }
         ]
     } else {
@@ -3749,7 +3785,8 @@ fn nav(model: &Model) -> Node<Msg> {
     ]]
     */
 
-    nav![C!["ingame"],
+    nav![
+        C!["ingame"],
         /*div![
             C!["nav-section"],
             a![C!["button"], attrs! {At::Href => "/"}, "Home"],

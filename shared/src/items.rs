@@ -283,8 +283,14 @@ impl Craftable for Item {
             )),
             Item::BoneNecklace => Some((42, Bundle::new().add(Item::String, 5).add(Item::Bone, 5))),
             Item::BoneHelmet => Some((44, Bundle::new().add(Item::Helmet, 1).add(Item::Bone, 5))),
-            Item::Cat => Some((57, Bundle::new().add(Item::Wildcat, 1).add(Item::RawFish, 1000))),
-            Item::Dog => Some((59, Bundle::new().add(Item::Wolf, 1).add(Item::RawMeat, 1000))),
+            Item::Cat => Some((
+                57,
+                Bundle::new().add(Item::Wildcat, 1).add(Item::RawFish, 1000),
+            )),
+            Item::Dog => Some((
+                59,
+                Bundle::new().add(Item::Wolf, 1).add(Item::RawMeat, 1000),
+            )),
 
             Item::Gold => Some((26, Bundle::new().add(Item::GoldOre, 1).add(Item::Coal, 1))),
             Item::GoldenRing => Some((28, Bundle::new().add(Item::Gold, 3))),
