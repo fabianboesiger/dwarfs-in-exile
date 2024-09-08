@@ -2,7 +2,7 @@
 version = "0.1.0"
 name = "client"
 repository = "https://github.com/seed-rs/seed-quickstart"
-authors = ["Fabian Bösiger <fabian.boesiger@schindler.com>"]
+authors = ["Fabian Bösiger <boesiger.fabian@outlook.com>"]
 description = "App Description"
 categories = ["category"]
 license = "MIT"

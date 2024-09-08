@@ -37,6 +37,7 @@ pub const MAX_EFFECTIVENESS: u64 = 6000;
 pub const MIN_MAX_DWARF_DIFFERENCE: u64 = 3;
 pub const TRADE_MONEY_MULTIPLIER: u64 = 10;
 pub const DISMANTLING_DIVIDER: u64 = 2;
+pub const NEW_PLAYER_DIVIDER: u64 = 4;
 
 pub type Money = u64;
 pub type Food = u64;
@@ -1459,7 +1460,7 @@ impl engine_shared::State for State {
                             let num_quests = if cfg!(debug_assertions) {
                                 30
                             } else {
-                                (active_players / 8)
+                                (active_players / (2 * NEW_PLAYER_DIVIDER as usize))
                                     .max(active_not_new_players / 2)
                                     .max(10)
                                     .min(100)
@@ -1513,10 +1514,19 @@ impl engine_shared::State for State {
                                     let selected_level = self
                                         .players
                                         .iter()
-                                        .map(|(_, player)| player.base.curr_level)
                                         .collect::<Vec<_>>()
-                                        .choose(rng)
-                                        .copied()
+                                        .choose_weighted(rng, |(_, player)| {
+                                            if player.is_active(self.time) {
+                                                if player.is_new(self.time) {
+                                                    1
+                                                } else {
+                                                    NEW_PLAYER_DIVIDER
+                                                }
+                                            } else {
+                                                0
+                                            }
+                                        })
+                                        .map(|(_, player)| player.base.curr_level)
                                         .unwrap_or(1);
 
                                     let min_level = (selected_level.saturating_sub(10)).max(1);
@@ -1541,7 +1551,7 @@ impl engine_shared::State for State {
                             let num_trades = if cfg!(debug_assertions) {
                                 15
                             } else {
-                                (active_players / 20)
+                                (active_players / (5 * NEW_PLAYER_DIVIDER as usize))
                                     .max(active_not_new_players / 5)
                                     .max(3)
                                     .min(15)
