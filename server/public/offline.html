@@ -47,15 +47,25 @@
         </header>
         <main>
             <div class="content">
-                <h2>Server Offline</h2>
+                <h2>Server Update</h2>
                 <div class="image-aside">
                     <img src="/offline.jpg">
                     <div>
-                        <p>The game server is currently not reachable due to an update. Please come back in a minute. Thank you for your understanding!</p>
-                        <p>In the meantime, please consider joining our Discord server to keep up with the latest news.</p>
-                        <a href="https://discord.gg/7wxvUsXcus" class="button">Join Discord</a>
-                        <!--<progress value="0" max="1"></progress>
+                        <label id="progress-bar-label" for="progress-bar"></label>
+                        <progress value="0" max="1" id="progress-bar"></progress>
                         <script>
+                            const labels = [
+                                "Removing dead rats ...",
+                                "Extinguishing fire ...",
+                                "Searching for a new cable ...",
+                                "Looking up the password in my notes app ...",
+                                "Tapping into the neighbors electricity ...",
+                                "Having a panic attack ...",
+                                "Fanatically searching for the backup file ..."
+                            ];
+
+                            document.getElementById("progress-bar-label").textContent = labels[Math.floor(Math.random() * labels.length)];
+
                             function setCookie(name, value, expiresSeconds) {
                                 const d = new Date();
                                 d.setTime(d.getTime() + (expiresSeconds * 60 * 1000));
@@ -81,7 +91,7 @@
 
                             const SECONDS = 60;
                             const FPS = 10;
-                            const RELOAD_SECONDS = 30;
+                            const RELOAD_SECONDS = 5;
 
                             var progress = document.querySelector('progress');
                             progress.value = getCookie('progress') || 0;
@@ -93,7 +103,11 @@
                                     window.location.reload();
                                 }
                             }, 1000 / FPS);
-                        </script>-->
+                        </script>
+                        <p>The game server is currently not reachable due to an update. Please come back in a minute. Thank you for your understanding!</p>
+                        <p>In the meantime, please consider joining our Discord server to keep up with the latest news.</p>
+                        <a href="https://discord.gg/7wxvUsXcus" class="button">Join Discord</a>
+                        
                     </div>
                 </div>
             </div>

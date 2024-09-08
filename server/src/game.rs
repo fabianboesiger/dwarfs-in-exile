@@ -172,8 +172,8 @@ impl engine_server::BackendStore<shared::State> for GameStore {
             sqlx::query(
                 r#"
                         UPDATE users
-                        SET premium = premium + $2,
-                        WHERE id = $1
+                        SET premium = premium + $2
+                        WHERE user_id = $1
                     "#,
             )
             .bind(&winner.0)

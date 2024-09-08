@@ -1510,8 +1510,18 @@ impl engine_shared::State for State {
                                 } else if selected_quest.one_at_a_time() {
                                     (1, 100)
                                 } else {
-                                    let max_level = rng.gen_range(2..=10);
-                                    (((max_level - 2) * 10).max(1), max_level * 10)
+                                    let selected_level = self
+                                        .players
+                                        .iter()
+                                        .map(|(_, player)| player.base.curr_level)
+                                        .collect::<Vec<_>>()
+                                        .choose(rng)
+                                        .copied()
+                                        .unwrap_or(1);
+
+                                    let min_level = (selected_level.saturating_sub(10)).max(1);
+                                    let max_level = (selected_level + 10).min(100);
+                                    (min_level, max_level)
                                 };
 
                                 let quest = Quest::new(selected_quest, min_level, max_level);

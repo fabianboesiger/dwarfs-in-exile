@@ -1031,3 +1031,12 @@ span.material-symbols-outlined {
 audio {
     width: 100%;
 }
+
+progress {
+    width: 100%;
+    height: 16px;
+}
+
+#progress-bar-label {
+    font-style: italic;
+}
