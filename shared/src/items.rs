@@ -424,9 +424,9 @@ impl Craftable for Item {
     }
 }
 
-impl Into<usize> for Item {
-    fn into(self) -> usize {
-        self as usize
+impl From<Item> for usize {
+    fn from(val: Item) -> Self {
+        val as usize
     }
 }
 

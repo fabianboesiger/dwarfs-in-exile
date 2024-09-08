@@ -194,7 +194,7 @@ pub enum Image {
 impl AsAtValue for Image {
     fn as_at_value(&self) -> seed::prelude::AtValue {
         match self {
-            Image::Placeholder => AtValue::Some(format!("/images/placeholder.png")),
+            Image::Placeholder => AtValue::Some("/images/placeholder.png".to_string()),
             Image::Dwarf(id) => AtValue::Some(format!("/images/dwarf-{}.jpg", id)),
             Image::FemaleDwarf(id) => AtValue::Some(format!("/images/dwarf-female-{}.jpg", id)),
             Image::ChildDwarf(id) => AtValue::Some(format!("/images/dwarf-child-{}.jpg", id)),
@@ -215,12 +215,10 @@ impl Image {
             } else {
                 Image::dwarf_from_name(&mut rng)
             }
+        } else if dwarf.is_female {
+            Image::child_female_dwarf_from_name(&mut rng)
         } else {
-            if dwarf.is_female {
-                Image::child_female_dwarf_from_name(&mut rng)
-            } else {
-                Image::child_dwarf_from_name(&mut rng)
-            }
+            Image::child_dwarf_from_name(&mut rng)
         }
     }
 

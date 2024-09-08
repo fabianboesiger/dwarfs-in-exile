@@ -103,7 +103,7 @@ impl engine_server::BackendStore<shared::State> for GameStore {
                     WHERE id = $1
                 "#,
         )
-        .bind(&game_id)
+        .bind(game_id)
         .fetch_optional(&self.db)
         .await?;
 
@@ -162,8 +162,8 @@ impl engine_server::BackendStore<shared::State> for GameStore {
                         WHERE id = $1
                     "#,
             )
-            .bind(&game_id)
-            .bind(&winner.0)
+            .bind(game_id)
+            .bind(winner.0)
             .execute(&self.db)
             .await?;
 
@@ -176,7 +176,7 @@ impl engine_server::BackendStore<shared::State> for GameStore {
                         WHERE user_id = $1
                     "#,
             )
-            .bind(&winner.0)
+            .bind(winner.0)
             .bind(WINNER_NUM_PREMIUM_DAYS * 24)
             .execute(&self.db)
             .await?;
@@ -188,7 +188,7 @@ impl engine_server::BackendStore<shared::State> for GameStore {
                         WHERE id = $1
                     "#,
             )
-            .bind(&game_id)
+            .bind(game_id)
             .bind(rmp_serde::to_vec(&state)?)
             .execute(&self.db)
             .await?;

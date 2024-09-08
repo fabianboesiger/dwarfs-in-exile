@@ -65,7 +65,7 @@ pub async fn get_admin(
                 WHERE user_id = $1
             "#,
     )
-    .bind(&user_id)
+    .bind(user_id)
     .fetch_one(&pool)
     .await?;
 
@@ -93,7 +93,7 @@ pub async fn get_admin(
                 FROM users
             "#,
     )
-    .bind(&user_id)
+    .bind(user_id)
     .fetch_all(&pool)
     .await?
     .into_iter()
@@ -110,7 +110,7 @@ pub async fn get_admin(
                 FROM games
             "#,
     )
-    .bind(&user_id)
+    .bind(user_id)
     .fetch_all(&pool)
     .await?
     .into_iter()
@@ -143,7 +143,7 @@ pub async fn post_manage_user(
                 WHERE user_id = $1
             "#,
     )
-    .bind(&user_id)
+    .bind(user_id)
     .fetch_one(&pool)
     .await?;
 
@@ -162,7 +162,7 @@ pub async fn post_manage_user(
                     WHERE user_id = $1
                 "#,
         )
-        .bind(&manage_user.user_id)
+        .bind(manage_user.user_id)
         .execute(&mut *tx)
         .await?;
     } else {
@@ -179,7 +179,7 @@ pub async fn post_manage_user(
                             WHERE user_id = $1
                         "#,
                 )
-                .bind(&manage_user.user_id)
+                .bind(manage_user.user_id)
                 .bind(&hashed)
                 .execute(&mut *tx)
                 .await?;
@@ -195,8 +195,8 @@ pub async fn post_manage_user(
                             WHERE user_id = $1
                         "#,
                 )
-                .bind(&manage_user.user_id)
-                .bind(&add_premium)
+                .bind(manage_user.user_id)
+                .bind(add_premium)
                 .execute(&mut *tx)
                 .await?;
             }
@@ -228,7 +228,7 @@ pub async fn post_add_premium(
                 WHERE user_id = $1
             "#,
     )
-    .bind(&user_id)
+    .bind(user_id)
     .fetch_one(&pool)
     .await?;
 
@@ -245,7 +245,7 @@ pub async fn post_add_premium(
                     SET premium = premium + $1
                 "#,
         )
-        .bind(&add_premium.add_premium)
+        .bind(add_premium.add_premium)
         .execute(&pool)
         .await?;
     }
@@ -272,7 +272,7 @@ pub async fn post_create_world(
                 WHERE user_id = $1
             "#,
     )
-    .bind(&user_id)
+    .bind(user_id)
     .fetch_one(&pool)
     .await?;
 
@@ -304,7 +304,7 @@ pub async fn post_update_settings(
                 WHERE user_id = $1
             "#,
     )
-    .bind(&user_id)
+    .bind(user_id)
     .fetch_one(&pool)
     .await?;
 
@@ -320,7 +320,7 @@ pub async fn post_update_settings(
                     SET free_premium = $1
                 "#,
     )
-    .bind(&settings.free_premium)
+    .bind(settings.free_premium)
     .execute(&pool)
     .await?;
 

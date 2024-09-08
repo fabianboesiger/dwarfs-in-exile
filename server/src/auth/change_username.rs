@@ -83,7 +83,7 @@ pub async fn post_change_username(
     )
     .bind(&change_username.username)
     .bind(
-        &session
+        session
             .get::<i64>(crate::USER_ID_KEY)
             .await?
             .ok_or(ServerError::InvalidSession)?,

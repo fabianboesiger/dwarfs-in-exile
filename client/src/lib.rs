@@ -240,19 +240,12 @@ impl Default for DwarfsFilter {
     }
 }
 
+#[derive(Default)]
 pub struct QuestsFilter {
     participating: bool,
     none_participating: bool,
 }
 
-impl Default for QuestsFilter {
-    fn default() -> Self {
-        Self {
-            participating: false,
-            none_participating: false,
-        }
-    }
-}
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum SliderType {
@@ -309,7 +302,7 @@ fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
     orders.subscribe(|subs::UrlRequested(url, url_request)| {
         println!("url path {:?}", url.path());
 
-        if url.path().get(0).map(|s| s.as_str()) == Some("game") {
+        if url.path().first().map(|s| s.as_str()) == Some("game") {
             url_request.unhandled()
         } else {
             url_request.handled()
@@ -1004,7 +997,7 @@ fn name(model: &Model, user_id: &shared::UserId, include_online_status: bool) ->
                 format!(
                     "{}",
                     client_state
-                        .get_user_data(&user_id)
+                        .get_user_data(user_id)
                         .map(|data| data.username.clone().censor())
                         .unwrap_or_default()
                 )
@@ -1121,7 +1114,7 @@ fn ranking(
 }
 
 fn fmt_time(mut time: u64) -> String {
-    time = time / SPEED;
+    time /= SPEED;
     if time >= 60 {
         time /= 60;
         if time >= 60 {
@@ -1147,9 +1140,9 @@ fn fmt_time(mut time: u64) -> String {
         }
     }
     if time == 1 {
-        return format!("{} second", time);
+        format!("{} second", time)
     } else {
-        return format!("{} seconds", time);
+        format!("{} seconds", time)
     }
 }
 
@@ -1165,8 +1158,7 @@ fn last_received_items(
                 .inventory
                 .last_received
                 .iter()
-                .enumerate()
-                .filter_map(|(_idx, (item, qty, time))| {
+                .filter_map(|(item, qty, time)| {
                     let time_diff_millis = model.get_timestamp_millis_diff_now(*time);
 
                     if time_diff_millis > 3000 {
@@ -1330,12 +1322,12 @@ fn dwarf_image(dwarf: Option<&Dwarf>, player: &Player) -> Vec<Node<Msg>> {
             td![
                 img![
                     C!["list-item-image"],
-                    attrs! {At::Src => Image::from_dwarf(&dwarf).as_at_value()}
+                    attrs! {At::Src => Image::from_dwarf(dwarf).as_at_value()}
                 ],
                 if let Some(apprentice) = dwarf.apprentice.and_then(|id| player.dwarfs.get(&id)) {
                     img![
                         C!["list-item-image-corner"],
-                        attrs! {At::Src => Image::from_dwarf(&apprentice).as_at_value()},
+                        attrs! {At::Src => Image::from_dwarf(apprentice).as_at_value()},
                     ]
                 } else {
                     Node::Empty
@@ -1343,7 +1335,7 @@ fn dwarf_image(dwarf: Option<&Dwarf>, player: &Player) -> Vec<Node<Msg>> {
                 if let Some(mentor) = dwarf.mentor.and_then(|id| player.dwarfs.get(&id)) {
                     img![
                         C!["list-item-image-corner"],
-                        attrs! {At::Src => Image::from_dwarf(&mentor).as_at_value()},
+                        attrs! {At::Src => Image::from_dwarf(mentor).as_at_value()},
                     ]
                 } else {
                     Node::Empty
@@ -1694,7 +1686,7 @@ fn dwarf(
                 C!["dwarf", format!("dwarf-{}", dwarf_id)],
                 h2![C!["title"], dwarf.actual_name()],
                 div![C!["image-aside"],
-                    img![attrs! {At::Src => Image::from_dwarf(&dwarf).as_at_value()}],
+                    img![attrs! {At::Src => Image::from_dwarf(dwarf).as_at_value()}],
                     div![
                         p![C!["subtitle"],
                         format!("{}, {} Years old.", if dwarf.is_female {
@@ -1929,7 +1921,7 @@ fn dwarf(
                                             h4![C!["title"], "Requires"],
                                             p![C!["subtitle"],stats_simple(&occupation.requires_stats())],
                                             h4![C!["title"], "Provides"],
-                                            p![C!["subtitle"], if all_items.len() == 0 {
+                                            p![C!["subtitle"], if all_items.is_empty() {
                                                 "Lets your dwarf eat and restore health. Adds a possibility for child dwarfs for each male and female dwarf that is idling.".to_owned()
                                             } else {
                                                 all_items.into_iter().join(", ")
@@ -1956,13 +1948,13 @@ fn dwarf(
                                             dwarf_details(dwarf.apprentice.and_then(|apprentice| player.dwarfs.get(&apprentice)), player),
                                             button![
                                                 ev(Ev::Click, move |_| Msg::ChangePage(Page::Dwarfs(DwarfsMode::Select(DwarfsSelect::Apprentice(dwarf_id))))),
-                                                if dwarf.apprentice.map(|apprentice| player.dwarfs.get(&apprentice)).flatten().is_some() {
+                                                if dwarf.apprentice.and_then(|apprentice| player.dwarfs.get(&apprentice)).is_some() {
                                                     "Change Apprentice"
                                                 } else {
                                                     "Select Apprentice"
                                                 }
                                             ],
-                                            if dwarf.apprentice.map(|apprentice| player.dwarfs.get(&apprentice)).flatten().is_some() {
+                                            if dwarf.apprentice.and_then(|apprentice| player.dwarfs.get(&apprentice)).is_some() {
                                                 let apprentice_id = dwarf.apprentice.unwrap();
     
                                                 vec![
@@ -1995,13 +1987,13 @@ fn dwarf(
                                             dwarf_details(dwarf.mentor.and_then(|mentor| player.dwarfs.get(&mentor)), player),
                                             button![
                                                 ev(Ev::Click, move |_| Msg::ChangePage(Page::Dwarfs(DwarfsMode::Select(DwarfsSelect::Mentor(dwarf_id))))),
-                                                if dwarf.mentor.map(|mentor| player.dwarfs.get(&mentor)).flatten().is_some() {
+                                                if dwarf.mentor.and_then(|mentor| player.dwarfs.get(&mentor)).is_some() {
                                                     "Change Mentor"
                                                 } else {
                                                     "Select Mentor"
                                                 }
                                             ],
-                                            if dwarf.mentor.map(|mentor| player.dwarfs.get(&mentor)).flatten().is_some() {
+                                            if dwarf.mentor.and_then(|mentor| player.dwarfs.get(&mentor)).is_some() {
                                                 vec![
                                                     button![
                                                         ev(Ev::Click, move |_| Msg::AssignMentor(dwarf_id, None)),
@@ -2531,7 +2523,7 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                                     p![strong![match unlock {
                                         Unlock::Item(item) => format!("{}", item),
                                         Unlock::Occupation(occupation) => format!("{}", occupation),
-                                        Unlock::MaxPopulation(_) => format!("+1 Maximum Population"),
+                                        Unlock::MaxPopulation(_) => "+1 Maximum Population".to_string(),
                                     }], br![], format!("Unlocked at level {}", unlock.unlocked_at_level())]
                                 ]
                             }),
@@ -2898,7 +2890,7 @@ fn inventory_options(
         } else {
             Vec::new()
         },
-        if let Some(_) = item.nutritional_value() {
+        if item.nutritional_value().is_some() {
             vec![
                 h4!["Food Storage"],
                 if player.auto_functions.auto_store.contains(&item) && is_premium {
@@ -3056,7 +3048,7 @@ fn inventory(
                 .filter(|(item, n)| {
                     item.to_string()
                         .to_lowercase()
-                        .contains(&model.inventory_filter.item_name.to_lowercase().trim())
+                        .contains(model.inventory_filter.item_name.to_lowercase().trim())
                         && ((if model.inventory_filter.owned {
                             *n > 0
                         } else {
@@ -3305,7 +3297,7 @@ fn chat(
                         C!["messages"],
                         state.chat.messages.iter().map(|(user_id, message, time)| {
                             let username = &client_state
-                                .get_user_data(&user_id)
+                                .get_user_data(user_id)
                                 .map(|data| data.username.clone().censor())
                                 .unwrap_or_default();
                             p![
@@ -3474,7 +3466,7 @@ fn history(
                                     span![format!(
                                         "A new player has joined the game, say hi to {}!",
                                         client_state
-                                            .get_user_data(&user_id)
+                                            .get_user_data(user_id)
                                             .map(|data| data.username.clone().censor())
                                             .unwrap_or_default()
                                     )]

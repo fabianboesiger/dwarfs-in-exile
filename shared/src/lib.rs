@@ -314,13 +314,11 @@ impl State {
 
     fn craft(player: &mut Player, item: Item, qty: u64) {
         if let Some((level, requires)) = item.requires() {
-            if player.base.curr_level >= level {
-                if player.inventory.items.remove_checked(requires.mul(qty)) {
-                    player
-                        .inventory
-                        .items
-                        .add_checked(Bundle::new().add(item, qty));
-                }
+            if player.base.curr_level >= level && player.inventory.items.remove_checked(requires.mul(qty)) {
+                player
+                    .inventory
+                    .items
+                    .add_checked(Bundle::new().add(item, qty));
             }
         }
     }
@@ -330,17 +328,14 @@ impl State {
             if matches!(
                 item.item_type(),
                 Some(ItemType::Tool | ItemType::Jewelry | ItemType::Clothing)
-            ) {
-                if player
+            ) && player
                     .inventory
                     .items
-                    .remove_checked(Bundle::new().add(item, qty))
-                {
-                    player
-                        .inventory
-                        .items
-                        .add_checked(requires.mul(qty).div(DISMANTLING_DIVIDER));
-                }
+                    .remove_checked(Bundle::new().add(item, qty)) {
+                player
+                    .inventory
+                    .items
+                    .add_checked(requires.mul(qty).div(DISMANTLING_DIVIDER));
             }
         }
     }
@@ -361,7 +356,7 @@ impl engine_shared::State for State {
                 winner = Some(*user_id);
             }
         }
-        return winner;
+        winner
     }
 
     fn update(
@@ -577,10 +572,8 @@ impl engine_shared::State for State {
                                                 .expect("equippables always have item types"),
                                             best_dwarf_item,
                                         );
-                                    } else {
-                                        if cfg!(debug_assertions) {
-                                            panic!("something went wrong!");
-                                        }
+                                    } else if cfg!(debug_assertions) {
+                                        panic!("something went wrong!");
                                     }
                                 } else {
                                     break;
@@ -847,10 +840,8 @@ impl engine_shared::State for State {
                                 if rng.gen_ratio(1, ONE_DAY as u32 / 4) {
                                     self.event = None;
                                 }
-                            } else {
-                                if rng.gen_ratio(1, ONE_DAY as u32 / 4) {
-                                    self.event = Some(enum_iterator::all().choose(rng).unwrap());
-                                }
+                            } else if rng.gen_ratio(1, ONE_DAY as u32 / 4) {
+                                self.event = Some(enum_iterator::all().choose(rng).unwrap());
                             }
 
                             for (user_id, player) in self.players.iter_mut() {
@@ -934,32 +925,26 @@ impl engine_shared::State for State {
                                             if dwarf.health <= MAX_HEALTH - MAX_HEALTH / 1000 {
                                                 player.base.food -= 1;
                                                 dwarf.incr_health(MAX_HEALTH / 1000);
-                                            } else {
-                                                if player.auto_functions.auto_idle {
-                                                    dwarf.auto_idle = false;
-                                                }
+                                            } else if player.auto_functions.auto_idle {
+                                                dwarf.auto_idle = false;
                                             }
                                         } else if dwarf.auto_idle {
                                             dwarf.auto_idle = false;
                                         }
-                                    } else {
-                                        if player.auto_functions.auto_idle
-                                            && dwarf.health <= MAX_HEALTH / 5
-                                            && dwarf.occupation != Occupation::Idling
-                                            && player.base.food > 0
-                                        {
-                                            dwarf.auto_idle = true;
-                                        }
+                                    } else if player.auto_functions.auto_idle
+                                        && dwarf.health <= MAX_HEALTH / 5
+                                        && dwarf.occupation != Occupation::Idling
+                                        && player.base.food > 0
+                                    {
+                                        dwarf.auto_idle = true;
                                     }
 
                                     if !dwarf.dead() {
                                         let is_adult_before = dwarf.is_adult();
                                         dwarf.age_seconds += AGE_SECONDS_PER_TICK;
 
-                                        if dwarf.age_years() > 200 {
-                                            if rng.gen_ratio(1, ONE_DAY as u32 * 5) {
-                                                dwarf.health = 0;
-                                            }
+                                        if dwarf.age_years() > 200 && rng.gen_ratio(1, ONE_DAY as u32 * 5) {
+                                            dwarf.health = 0;
                                         }
                                         if !is_adult_before && dwarf.is_adult() {
                                             became_adult.insert(*dwarf_id);
@@ -975,20 +960,13 @@ impl engine_shared::State for State {
                                         .is_adult()
                                     {
                                         (dwarf.actual_occupation(), 1)
-                                    } else {
-                                        if let Some(mentor_id) = dwarf.mentor {
-                                            if let Some(mentor) = player.dwarfs.get(&mentor_id) {
-                                                if mentor.is_adult() {
-                                                    (
-                                                        mentor.actual_occupation(),
-                                                        APPRENTICE_EFFECTIVENESS_DIVIDER,
-                                                    )
-                                                } else {
-                                                    (
-                                                        Occupation::Idling,
-                                                        APPRENTICE_EFFECTIVENESS_DIVIDER,
-                                                    )
-                                                }
+                                    } else if let Some(mentor_id) = dwarf.mentor {
+                                        if let Some(mentor) = player.dwarfs.get(&mentor_id) {
+                                            if mentor.is_adult() {
+                                                (
+                                                    mentor.actual_occupation(),
+                                                    APPRENTICE_EFFECTIVENESS_DIVIDER,
+                                                )
                                             } else {
                                                 (
                                                     Occupation::Idling,
@@ -996,8 +974,13 @@ impl engine_shared::State for State {
                                                 )
                                             }
                                         } else {
-                                            (Occupation::Idling, APPRENTICE_EFFECTIVENESS_DIVIDER)
+                                            (
+                                                Occupation::Idling,
+                                                APPRENTICE_EFFECTIVENESS_DIVIDER,
+                                            )
                                         }
+                                    } else {
+                                        (Occupation::Idling, APPRENTICE_EFFECTIVENESS_DIVIDER)
                                     };
 
                                     let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
@@ -1087,30 +1070,28 @@ impl engine_shared::State for State {
                                 // Let the dwarfs work!
                                 let mut added_items = Bundle::new();
                                 for dwarf in player.dwarfs.values() {
-                                    if !dwarf.dead() {
-                                        if dwarf.is_adult() {
-                                            for item in enum_iterator::all::<Item>() {
-                                                if let Some(ItemProbability {
-                                                    expected_ticks_per_drop,
-                                                }) =
-                                                    item.item_probability(dwarf.actual_occupation())
-                                                {
-                                                    if dwarf.gen_ratio_effectiveness(
-                                                        &player.dwarfs,
-                                                        rng,
-                                                        expected_ticks_per_drop
-                                                            * self
-                                                                .event
-                                                                .as_ref()
-                                                                .map(|f| {
-                                                                    f.occupation_divider(
-                                                                        dwarf.actual_occupation(),
-                                                                    )
-                                                                })
-                                                                .unwrap_or(1),
-                                                    ) {
-                                                        added_items = added_items.add(item, 1);
-                                                    }
+                                    if !dwarf.dead() && dwarf.is_adult() {
+                                        for item in enum_iterator::all::<Item>() {
+                                            if let Some(ItemProbability {
+                                                expected_ticks_per_drop,
+                                            }) =
+                                                item.item_probability(dwarf.actual_occupation())
+                                            {
+                                                if dwarf.gen_ratio_effectiveness(
+                                                    &player.dwarfs,
+                                                    rng,
+                                                    expected_ticks_per_drop
+                                                        * self
+                                                            .event
+                                                            .as_ref()
+                                                            .map(|f| {
+                                                                f.occupation_divider(
+                                                                    dwarf.actual_occupation(),
+                                                                )
+                                                            })
+                                                            .unwrap_or(1),
+                                                ) {
+                                                    added_items = added_items.add(item, 1);
                                                 }
                                             }
                                         }
@@ -2014,12 +1995,10 @@ impl Player {
                 if let Some((level, requires)) = item.requires() {
                     if self.base.curr_level >= level {
                         if let Some(qty) = self.inventory.items.can_remove_x_times(&requires) {
-                            if qty > 0 {
-                                if self.inventory.items.remove_checked(requires.mul(qty)) {
-                                    self.inventory.add(Bundle::new().add(item, qty), time);
+                            if qty > 0 && self.inventory.items.remove_checked(requires.mul(qty)) {
+                                self.inventory.add(Bundle::new().add(item, qty), time);
 
-                                    items_added = true;
-                                }
+                                items_added = true;
                             }
                         }
                     }
@@ -2039,17 +2018,14 @@ impl Player {
             for &item in &self.auto_functions.auto_dismantle {
                 if let Some((_level, requires)) = item.requires() {
                     let qty = self.inventory.items.get(&item).copied().unwrap_or_default();
-                    if qty > 0 {
-                        if self
+                    if qty > 0 && self
                             .inventory
                             .items
-                            .remove_checked(Bundle::new().add(item, qty))
-                        {
-                            self.inventory
-                                .add(requires.mul(qty).div(DISMANTLING_DIVIDER), time);
+                            .remove_checked(Bundle::new().add(item, qty)) {
+                        self.inventory
+                            .add(requires.mul(qty).div(DISMANTLING_DIVIDER), time);
 
-                            items_added = true;
-                        }
+                        items_added = true;
                     }
                 }
             }
@@ -2084,14 +2060,11 @@ impl Player {
             // Auto-sell!
             for &item in &self.auto_functions.auto_sell {
                 if let Some(&qty) = self.inventory.items.get(&item) {
-                    if item.money_value(1) > 0 {
-                        if self
+                    if item.money_value(1) > 0 && self
                             .inventory
                             .items
-                            .remove_checked(Bundle::new().add(item, qty))
-                        {
-                            self.money += item.money_value(1) * qty;
-                        }
+                            .remove_checked(Bundle::new().add(item, qty)) {
+                        self.money += item.money_value(1) * qty;
                     }
                 }
             }
@@ -2171,13 +2144,13 @@ impl Stats {
     }
 
     pub fn cross(self, other: Self) -> u64 {
-        let out = self.strength as u64 * other.strength as u64
+        
+
+        self.strength as u64 * other.strength as u64
             + self.endurance as u64 * other.endurance as u64
             + self.agility as u64 * other.agility as u64
             + self.intelligence as u64 * other.intelligence as u64
-            + self.perception as u64 * other.perception as u64;
-
-        out
+            + self.perception as u64 * other.perception as u64
     }
 
     pub fn is_zero(&self) -> bool {
@@ -2253,18 +2226,14 @@ impl Dwarf {
             if last_is_consonant {
                 if second_last_is_consonant {
                     name.push(*vowels.choose(rng).unwrap());
+                } else if rng.gen_bool(0.4) {
+                    name.push(*vowels.choose(rng).unwrap());
+                } else if rng.gen_bool(0.7) {
+                    name.push(*consonants.choose(rng).unwrap());
                 } else {
-                    if rng.gen_bool(0.4) {
-                        name.push(*vowels.choose(rng).unwrap());
-                    } else {
-                        if rng.gen_bool(0.7) {
-                            name.push(*consonants.choose(rng).unwrap());
-                        } else {
-                            let last = name.pop().unwrap();
-                            name.push(last);
-                            name.push(last);
-                        }
-                    }
+                    let last = name.pop().unwrap();
+                    name.push(last);
+                    name.push(last);
                 }
             } else {
                 name.push(*consonants.choose(rng).unwrap());
@@ -2351,7 +2320,7 @@ impl Dwarf {
     }
 
     pub fn effective_stats(&self) -> Stats {
-        let mut stats = self.stats.clone();
+        let mut stats = self.stats;
         for item in self.equipment.values() {
             stats = stats.sum(item.provides_stats());
         }
@@ -2520,6 +2489,12 @@ pub struct Base {
     pub curr_level: u64,
     pub build_time: Time,
     pub food: Food,
+}
+
+impl Default for Base {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Base {
@@ -2767,7 +2742,7 @@ impl Quest {
                     if dwarf.actual_occupation() == self.quest_type.occupation() {
                         for _ in 0..10 {}
                         contestant.achieved_score +=
-                            dwarf.numerator_effectiveness(&player.dwarfs) as u64 / 100;
+                            dwarf.numerator_effectiveness(&player.dwarfs) / 100;
                     }
                 }
             }
@@ -3140,7 +3115,7 @@ impl TradeDeal {
             .max(ONE_MINUTE * 20)
             .min(ONE_HOUR * 4);
         let items = Bundle::new().add(item, qty);
-        let next_bid = item.money_value(qty) as u64 * TRADE_MONEY_MULTIPLIER;
+        let next_bid = item.money_value(qty) * TRADE_MONEY_MULTIPLIER;
 
         if qty == 0 {
             return None;
@@ -3184,13 +3159,11 @@ impl TradeDeal {
                             LogMsg::ItemSold(self.items.clone(), best_bidder_money),
                         );
                     }
-                } else {
-                    if let Some(creator) = self.creator {
-                        let c = players.get_mut(&creator)?;
-                        c.inventory.add(self.items.clone(), time);
-                        c.log
-                            .add(time, LogMsg::ItemNotSold(self.items.clone(), self.next_bid));
-                    }
+                } else if let Some(creator) = self.creator {
+                    let c = players.get_mut(&creator)?;
+                    c.inventory.add(self.items.clone(), time);
+                    c.log
+                        .add(time, LogMsg::ItemNotSold(self.items.clone(), self.next_bid));
                 }
             }
         }

@@ -69,7 +69,7 @@ pub async fn post_delete_account(
             WHERE user_id = $1
         "#,
     )
-    .bind(&user_id)
+    .bind(user_id)
     .fetch_one(&pool)
     .await?;
 
@@ -85,7 +85,7 @@ pub async fn post_delete_account(
                 WHERE user_id = $1
             "#,
         )
-        .bind(&user_id)
+        .bind(user_id)
         .execute(&pool)
         .await?;
 
