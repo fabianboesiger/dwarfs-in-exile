@@ -822,86 +822,90 @@ fn tutorial(model: &Model, state: &shared::State, user_id: &shared::UserId) -> N
                         C!["panel"],
                         img![C!["panel-image"], attrs! { At::Src => "/logo.jpg" } ],
                         div![C!["panel-content"],
-                            h3![id!["popup-title"], format!("{}", step)],
-                            match step {
-                                TutorialStep::Welcome => div![
-                                    p!["Hey, you, welcome to the forbidden lands! You just arrived here? Oh well, seems like I'm your new best friend now! No worries, I'll show you around!"]
-                                ],
-                                TutorialStep::Logging => div![
-                                    p!["The first thing that we should do is go logging. With logging we get wood that we can use to upgrade the settlement."],
-                                    p!["Go to the dwarf overview, click on a dwarf and send him logging."]
-                                ],
-                                TutorialStep::SettlementExpansion2 => div![
-                                    p!["To expand your settlement, you need to have enough resources. You can see the requirements in the settlement overview."],
-                                    p!["Go to the settlement overview and upgrade your settlement."]
-                                ],
-                                TutorialStep::Axe => div![
-                                    p!["Craft an axe to impove your dwarfs logging effectiveness."],
-                                    p!["Go to the inventory, find the axe and craft one."]
-                                ],
-                                TutorialStep::SettlementExpansion3 => div![
-                                    p!["Further expand your settlement to make space for mor more dwarfs."],
-                                    p!["Make sure that you equip your axe to your dwarf to make him log faster."]
-                                ],
-                                TutorialStep::Hunting => div![
-                                    p!["Hunting is a great way to get food. Food is important to keep your dwarfs healthy."],
-                                    p!["Go to the dwarf overview, click on a dwarf and send him hunting."]
-                                ],
-                                TutorialStep::FoodPreparation => div![
-                                    p!["Food is important to keep your dwarfs alive."],
-                                    p!["In the inventory, craft cooked meat and store it as food in your settlement."],
-                                ],
-                                TutorialStep::SettlementExpansion4 => div![
-                                    p!["Further expand your settlement to make space for mor more dwarfs."],
-                                ],
-                                TutorialStep::Idling => div![
-                                    p!["Your dwarfs need to rest from time to time. If they are idling and there is enough food, they will recover their health."],
-                                    p!["If a dwarfs health reaches zero, he will die."]
-                                ],
-                                TutorialStep::SettlementExpansion5 => div![
-                                    p!["Further expand your settlement to make space for mor more dwarfs."],
-                                ],         
-                                TutorialStep::SettlementExpansion7 => div![
-                                    p!["Further expand your settlement to make space for mor more dwarfs."],
-                                ],
-                                TutorialStep::SettlementExpansion9 => div![
-                                    p!["Further expand your settlement to make space for mor more dwarfs."],
-                                ],
-                                TutorialStep::Quests => div![
-                                    p!["Quests are a great way to earn money, or get new dwarfs and items. Go to the quest overview and do quests until you get a new dwarf. Make sure that a new dwarf has enough space in your settlement."]
-                                ],
-                                TutorialStep::MakeLove => div![
-                                    p!["If you have both a male and a female adult dwarf, you can let them idle for a while. There is a good chance that they get a child!"]
-                                ],
-                            },
-                            h4!["Requirements"],
-                            match step.requires() {
-                                TutorialRequirement::Nothing => p!["No requirements."],
-                                TutorialRequirement::Items(items) => div![
-                                    p!["The following items need to be in your inventory:"],
-                                    bundle(&items, player, true)
-                                ],
-                                TutorialRequirement::BaseLevel(level) => p![
-                                    format!("Expand your settlement until it reaches level {} (your current level is {}).", level, player.base.curr_level)
+                            div![
+                                C!["panel-scrollable"],
+                                h3![id!["popup-title"], format!("{}", step)],
+                                match step {
+                                    TutorialStep::Welcome => div![
+                                        p!["Hey, you, welcome to the forbidden lands! You just arrived here? Oh well, seems like I'm your new best friend now! No worries, I'll show you around!"]
+                                    ],
+                                    TutorialStep::Logging => div![
+                                        p!["The first thing that we should do is go logging. With logging we get wood that we can use to upgrade the settlement."],
+                                        p!["Go to the dwarf overview, click on a dwarf and send him logging."]
+                                    ],
+                                    TutorialStep::SettlementExpansion2 => div![
+                                        p!["To expand your settlement, you need to have enough resources. You can see the requirements in the settlement overview."],
+                                        p!["Go to the settlement overview and upgrade your settlement."]
+                                    ],
+                                    TutorialStep::Axe => div![
+                                        p!["Craft an axe to impove your dwarfs logging effectiveness."],
+                                        p!["Go to the inventory, find the axe and craft one."]
+                                    ],
+                                    TutorialStep::SettlementExpansion3 => div![
+                                        p!["Further expand your settlement to make space for mor more dwarfs."],
+                                        p!["Make sure that you equip your axe to your dwarf to make him log faster."]
+                                    ],
+                                    TutorialStep::Hunting => div![
+                                        p!["Hunting is a great way to get food. Food is important to keep your dwarfs healthy."],
+                                        p!["Go to the dwarf overview, click on a dwarf and send him hunting."]
+                                    ],
+                                    TutorialStep::FoodPreparation => div![
+                                        p!["Food is important to keep your dwarfs alive."],
+                                        p!["In the inventory, craft cooked meat and store it as food in your settlement."],
+                                    ],
+                                    TutorialStep::SettlementExpansion4 => div![
+                                        p!["Further expand your settlement to make space for mor more dwarfs."],
+                                    ],
+                                    TutorialStep::Idling => div![
+                                        p!["Your dwarfs need to rest from time to time. If they are idling and there is enough food, they will recover their health."],
+                                        p!["If a dwarfs health reaches zero, he will die."]
+                                    ],
+                                    TutorialStep::SettlementExpansion5 => div![
+                                        p!["Further expand your settlement to make space for mor more dwarfs."],
+                                    ],         
+                                    TutorialStep::SettlementExpansion7 => div![
+                                        p!["Further expand your settlement to make space for mor more dwarfs."],
+                                    ],
+                                    TutorialStep::SettlementExpansion9 => div![
+                                        p!["Further expand your settlement to make space for mor more dwarfs."],
+                                    ],
+                                    TutorialStep::Quests => div![
+                                        p!["Quests are a great way to earn money, or get new dwarfs and items. Go to the quest overview and do quests until you get a new dwarf. Make sure that a new dwarf has enough space in your settlement."]
+                                    ],
+                                    TutorialStep::MakeLove => div![
+                                        p!["If you have both a male and a female adult dwarf, you can let them idle for a while. There is a good chance that they get a child!"]
+                                    ],
+                                },
+                                h4!["Requirements"],
+                                match step.requires() {
+                                    TutorialRequirement::Nothing => p!["No requirements."],
+                                    TutorialRequirement::Items(items) => div![
+                                        p!["The following items need to be in your inventory:"],
+                                        bundle(&items, player, true)
+                                    ],
+                                    TutorialRequirement::BaseLevel(level) => p![
+                                        format!("Expand your settlement until it reaches level {} (your current level is {}).", level, player.base.curr_level)
 
-                                ],
-                                TutorialRequirement::Food(food) => p![
-                                    format!("Store food until you have {} food in your settlement (you have {} food).", food, player.base.food)
-                                ],
-                                TutorialRequirement::AnyDwarfOccupation(occupation) => p![
-                                    format!("Send any dwarf {}.", occupation)
-                                ],
-                                TutorialRequirement::NumberOfDwarfs(dwarfs) => p![
-                                    format!("Expand your settlement until it reaches a population of {} (your current population is {}).", dwarfs, player.dwarfs.len())
-                                ],
-                            },
-                            h4!["Rewards"],
-                            match step.reward() {
-                                TutorialReward::Dwarfs(num) if num == 1 => p![format!("A new dwarf")],
-                                TutorialReward::Dwarfs(num) => p![format!("{num} dwarfs")],
-                                TutorialReward::Items(items) => bundle(&items, player, false),
-                                TutorialReward::Money(money) => p![format!("{money} coins")],
-                            },
+                                    ],
+                                    TutorialRequirement::Food(food) => p![
+                                        format!("Store food until you have {} food in your settlement (you have {} food).", food, player.base.food)
+                                    ],
+                                    TutorialRequirement::AnyDwarfOccupation(occupation) => p![
+                                        format!("Send any dwarf {}.", occupation)
+                                    ],
+                                    TutorialRequirement::NumberOfDwarfs(dwarfs) => p![
+                                        format!("Expand your settlement until it reaches a population of {} (your current population is {}).", dwarfs, player.dwarfs.len())
+                                    ],
+                                },
+                                h4!["Rewards"],
+                                match step.reward() {
+                                    TutorialReward::Dwarfs(num) if num == 1 => p![format!("A new dwarf")],
+                                    TutorialReward::Dwarfs(num) => p![format!("{num} dwarfs")],
+                                    TutorialReward::Items(items) => bundle(&items, player, false),
+                                    TutorialReward::Money(money) => p![format!("{money} coins")],
+                                }
+
+                            ],
                             if step.requires().complete(player) {
                                 button![
                                     attrs! { At::Disabled => (!step.requires().complete(player)).as_at_value() },

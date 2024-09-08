@@ -1040,3 +1040,8 @@ progress {
 #progress-bar-label {
     font-style: italic;
 }
+
+.panel-scrollable {
+    overflow-y: auto;
+    max-height: 40vh;
+}
