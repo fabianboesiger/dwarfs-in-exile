@@ -1459,7 +1459,7 @@ impl engine_shared::State for State {
                             let num_quests = if cfg!(debug_assertions) {
                                 30
                             } else {
-                                (active_players / 4)
+                                (active_players / 8)
                                     .max(active_not_new_players / 2)
                                     .max(10)
                                     .min(100)
@@ -1541,7 +1541,7 @@ impl engine_shared::State for State {
                             let num_trades = if cfg!(debug_assertions) {
                                 15
                             } else {
-                                (active_players / 10)
+                                (active_players / 20)
                                     .max(active_not_new_players / 5)
                                     .max(3)
                                     .min(15)
@@ -1941,7 +1941,7 @@ impl Player {
     }
 
     pub fn is_new(&self, time: Time) -> bool {
-        (time - self.start_time) / SPEED < ONE_DAY
+        (time - self.start_time) / SPEED < ONE_DAY || self.base.curr_level == 1
     }
 
     pub fn new_dwarf(
