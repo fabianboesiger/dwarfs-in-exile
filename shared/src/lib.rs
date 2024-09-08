@@ -37,7 +37,7 @@ pub const MAX_EFFECTIVENESS: u64 = 6000;
 pub const MIN_MAX_DWARF_DIFFERENCE: u64 = 3;
 pub const TRADE_MONEY_MULTIPLIER: u64 = 10;
 pub const DISMANTLING_DIVIDER: u64 = 2;
-pub const NEW_PLAYER_DIVIDER: u64 = 4;
+pub const NEW_PLAYER_DIVIDER: u64 = 5;
 
 pub type Money = u64;
 pub type Food = u64;
@@ -1466,7 +1466,7 @@ impl engine_shared::State for State {
                                     .min(100)
                             };
 
-                            let max_level = self
+                            let max_player_level = self
                                 .players
                                 .iter()
                                 .map(|(_, player)| player.base.curr_level)
@@ -1476,8 +1476,8 @@ impl engine_shared::State for State {
                             let mut potential_quests = enum_iterator::all::<QuestType>()
                                 .filter(|quest_type| {
                                     (if let Some(level) = quest_type.max_level() {
-                                        max_level > level - 10
-                                            && max_level <= level
+                                        max_player_level > level - 10
+                                            && max_player_level <= level
                                     } else {
                                         true
                                     })
@@ -1564,7 +1564,7 @@ impl engine_shared::State for State {
                                 .count()
                                 < num_trades
                             {
-                                self.trade_deals.push(TradeDeal::new(rng));
+                                self.trade_deals.push(TradeDeal::new(rng, max_player_level));
                             }
                         }
                     }
@@ -3084,8 +3084,12 @@ pub enum TradeType {
 }
 
 impl TradeDeal {
-    pub fn new(rng: &mut impl Rng) -> Self {
-        let item = enum_iterator::all::<Item>().choose(rng).unwrap();
+    pub fn new(rng: &mut impl Rng, max_player_level: u64) -> Self {
+        let item = enum_iterator::all::<Item>().filter(|item| if let Some((level, _)) = item.requires() {
+            level <= max_player_level
+        } else {
+            true
+        }).choose(rng).unwrap();
         let time_left = rng.gen_range(ONE_MINUTE * 20..ONE_HOUR * 4);
         let qty = ((time_left * 10) / item.item_rarity_num()).max(1);
 
