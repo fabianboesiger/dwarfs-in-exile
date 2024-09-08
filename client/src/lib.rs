@@ -976,6 +976,94 @@ fn confirm(model: &Model, _state: &shared::State, _user_id: &shared::UserId) -> 
     }
 }
 
+fn name(model: &Model, user_id: &shared::UserId, include_online_status: bool) -> Vec<Node<Msg>> {
+    let client_state = &model.state;
+    let state: &&shared::State = &client_state.get_state().unwrap();
+
+    if let Some(player) = state.players.get(user_id) {
+        let (is_premium, is_dev, games_won, guest, joined) = model
+                    .state
+                    .get_user_data(user_id)
+                    .map(|user_data| (user_data.premium > 0, user_data.admin, user_data.games_won, user_data.guest, user_data.joined.assume_utc()))
+                    .unwrap_or((false, false, 0, false, datetime!(2100-01-01 0:00 UTC)));
+
+
+        vec![
+            span![C!["username"], format!(
+                "{}",
+                client_state
+                    .get_user_data(&user_id)
+                    .map(|data| data.username.clone().censor())
+                    .unwrap_or_default()
+            )],
+            if is_dev {
+                span![
+                    C!["nametag", "developer"],
+                    "Developer"
+                ]
+            } else {
+                Node::Empty
+            },
+            if joined < datetime!(2024-08-27 0:00 UTC) {
+                span![
+                    C!["nametag", "veteran"],
+                    "Veteran"
+                ]
+            } else {
+                Node::Empty
+            },
+            if guest {
+                span![
+                    C!["nametag", "guest"],
+                    "Guest"
+                ]
+            } else {
+                Node::Empty
+            },
+            if is_premium {
+                span![
+                    C!["nametag", "premium"],
+                    "Premium"
+                ]
+            } else {
+                Node::Empty
+            },
+            if games_won == 1 {
+                span![
+                    C!["nametag", "winner"],
+                    "Winner"
+                ]
+            } else if games_won > 1 {
+                span![
+                    C!["nametag", "winner"],
+                    format!("Winner ({})", games_won)
+                ]
+            } else {
+                Node::Empty
+            },
+            if include_online_status {
+                span![
+                    C![
+                        "symbols",
+                        if player.is_online(state.time) {
+                            "online"
+                        } else {
+                            "offline"
+                        }
+                    ],
+                    "●"
+                ]
+            } else {
+                Node::Empty
+            }
+            
+        ]
+    } else {
+        Vec::new()
+    }
+    
+}
+
 fn ranking(
     model: &Model,
     state: &shared::State,
@@ -1023,12 +1111,6 @@ fn ranking(
                 th!["Level"],
             ],
             players.iter().enumerate().map(|(i, (user_id, player))| {
-                let (is_premium, is_dev, games_won, guest, joined) = model
-                    .state
-                    .get_user_data(user_id)
-                    .map(|user_data| (user_data.premium > 0, user_data.admin, user_data.games_won, user_data.guest, user_data.joined.assume_utc()))
-                    .unwrap_or((false, false, 0, false, datetime!(2100-01-01 0:00 UTC)));
-
                 let rank = i + 1;
                 let current_user = *current_user_id == **user_id;
 
@@ -1036,69 +1118,7 @@ fn ranking(
                     td![C![if current_user { "current-user" } else { "" }], rank],
                     td![
                         C![if current_user { "current-user" } else { "" }],
-                        format!(
-                            "{}",
-                            client_state
-                                .get_user_data(&user_id)
-                                .map(|data| data.username.clone().censor())
-                                .unwrap_or_default()
-                        ),
-                        if is_dev {
-                            span![
-                                C!["nametag"],
-                                "Developer"
-                            ]
-                        } else {
-                            Node::Empty
-                        },
-                        if games_won == 1 {
-                            span![
-                                C!["nametag"],
-                                "Winner"
-                            ]
-                        } else if games_won > 1 {
-                            span![
-                                C!["nametag"],
-                                format!("Winner ({})", games_won)
-                            ]
-                        } else {
-                            Node::Empty
-                        },
-                        if is_premium {
-                            span![
-                                C!["nametag"],
-                                "Premium"
-                            ]
-                        } else {
-                            Node::Empty
-                        },
-                        if joined < datetime!(2024-08-27 0:00 UTC) {
-                            span![
-                                C!["nametag"],
-                                "Veteran"
-                            ]
-                        } else {
-                            Node::Empty
-                        },
-                        if guest {
-                            span![
-                                C!["nametag"],
-                                "Guest"
-                            ]
-                        } else {
-                            Node::Empty
-                        },
-                        span![
-                            C![
-                                "symbols",
-                                if player.is_online(state.time) {
-                                    "online"
-                                } else {
-                                    "offline"
-                                }
-                            ],
-                            "●"
-                        ]
+                        name(model, user_id, true)
                     ],
                     td![C![if current_user { "current-user" } else { "" }], player.base.curr_level]
                 ]

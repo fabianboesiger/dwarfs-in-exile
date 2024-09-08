@@ -790,19 +790,8 @@ summary > * {
     margin: 0;
 }
 
-.nametag {
-    margin-left: 2px;
-    margin-right: 2px;
-    padding-left: 4px;
-    padding-right: 4px;
-    border-radius: 8px;
-    background: black;
-    color: white;
-    font-size: 12px;
-}
-
 td.current-user {
-    background: rgba(255, 255, 255, 0.6);
+    background: rgba(255, 255, 255, 0.75);
 }
 
 a {
@@ -982,13 +971,48 @@ span.material-symbols-outlined {
     font-size: 12px;
 }
 
+.nametag {
+    margin-left: 2px;
+    margin-right: 2px;
+    padding-left: 4px;
+    padding-right: 4px;
+    border-radius: 8px;
+    background: white;
+    color: black;
+    font-size: 12px;
+    background-size: 200% 100% !important;
+    animation: shine 10s ease-in-out infinite alternate-reverse;
+}
+
+.nametag.premium {
+    background-image: linear-gradient(45deg,#BF953F, #FCF6BA, #BF953F) !important;
+}
+
+.nametag.developer {
+    background-image: linear-gradient(45deg,#813fbf, #d9bafc, #813fbf) !important;
+}
+
+.nametag.veteran {
+    background-image: linear-gradient(45deg,#3f63bf, #badafc, #3f63bf) !important;
+}
+
+.nametag.guest {
+    background-image: linear-gradient(45deg,#45bf3f, #bafcba, #45bf3f) !important;
+}
+
+.nametag.winner {
+    background-image: linear-gradient(45deg,#bf483f, #fcbbba, #bf483f) !important;
+}
+
+
+
 .premium-feature {
     background-image: linear-gradient(45deg,#BF953F, #FCF6BA, #BF953F) !important;
     background-size: 200% 100% !important;
-    animation: gold-animation 10s ease-in-out infinite alternate-reverse;
+    animation: shine 10s ease-in-out infinite alternate-reverse;
 }
 
-@keyframes gold-animation {
+@keyframes shine {
     0% {
         background-position: 0% 0%;
     }
