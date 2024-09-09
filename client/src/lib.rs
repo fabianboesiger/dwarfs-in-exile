@@ -2081,7 +2081,7 @@ fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                     quest.contestants.is_empty()
                 } else {
                     true
-                }) && player.base.curr_level <= quest.max_level && player.base.curr_level >= quest.min_level
+                }) && ((player.base.curr_level <= quest.max_level && player.base.curr_level >= quest.min_level) || quest.contestants.contains_key(user_id))
             }).map(|(quest_id, quest)| {
                 tr![
                     C!["list-item-row", match quest.quest_type.reward_mode().reward_type() {
