@@ -37,7 +37,7 @@ pub const MAX_EFFECTIVENESS: u64 = 6000;
 pub const MIN_MAX_DWARF_DIFFERENCE: u64 = 3;
 pub const TRADE_MONEY_MULTIPLIER: u64 = 10;
 pub const DISMANTLING_DIVIDER: u64 = 2;
-pub const NEW_PLAYER_DIVIDER: u64 = 5;
+pub const NEW_PLAYER_DIVIDER: u64 = 8;
 
 pub type Money = u64;
 pub type Food = u64;
