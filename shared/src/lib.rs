@@ -37,7 +37,7 @@ pub const MAX_EFFECTIVENESS: u64 = 6000;
 pub const MIN_MAX_DWARF_DIFFERENCE: u64 = 3;
 pub const TRADE_MONEY_MULTIPLIER: u64 = 10;
 pub const DISMANTLING_DIVIDER: u64 = 2;
-pub const NEW_PLAYER_DIVIDER: u64 = 6;
+pub const NEW_PLAYER_DIVIDER: u64 = 8;
 
 pub type Money = u64;
 pub type Food = u64;
@@ -1450,8 +1450,7 @@ impl engine_shared::State for State {
                             let num_quests = if cfg!(debug_assertions) {
                                 30
                             } else {
-                                (active_players / (2 * NEW_PLAYER_DIVIDER as usize))
-                                    .max(active_not_new_players / 2)
+                                (active_players / (2 * NEW_PLAYER_DIVIDER as usize) + active_not_new_players / 2)
                                     .max(10)
                                     .min(100)
                             };
@@ -1518,8 +1517,8 @@ impl engine_shared::State for State {
                                             .map(|(_, player)| player.base.curr_level)
                                             .unwrap_or(1);
 
-                                        let min_level = (selected_level.saturating_sub(10)).max(1);
-                                        let max_level = (selected_level + 10).min(100);
+                                        let min_level = (selected_level.saturating_sub(rng.gen_range(5..=15))).max(1);
+                                        let max_level = (selected_level + rng.gen_range(5..=15)).min(100);
                                         (min_level, max_level)
                                     };
 
@@ -1540,8 +1539,7 @@ impl engine_shared::State for State {
                             let num_trades = if cfg!(debug_assertions) {
                                 15
                             } else {
-                                (active_players / (5 * NEW_PLAYER_DIVIDER as usize))
-                                    .max(active_not_new_players / 5)
+                                (active_players / (5 * NEW_PLAYER_DIVIDER as usize) + active_not_new_players / 5)
                                     .max(3)
                                     .min(15)
                             };
