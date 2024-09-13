@@ -2831,7 +2831,7 @@ fn inventory_options(
             if matches!(
                 item.item_type(),
                 Some(ItemType::Tool | ItemType::Jewelry | ItemType::Clothing)
-            ) && max > 0
+            ) && (max > 0 || player.auto_functions.auto_dismantle.contains(&item))
             {
                 vec![
                     h4!["Dismantle Item"],
