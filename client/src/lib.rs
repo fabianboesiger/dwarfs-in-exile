@@ -46,6 +46,7 @@ enum Icon {
     Chat,
     ChatUnread,
     Manager,
+    Tribe,
 }
 
 impl Icon {
@@ -74,6 +75,7 @@ impl Icon {
             Icon::Chat => "chat_bubble",
             Icon::ChatUnread => "mark_chat_unread",
             Icon::Manager => "history_edu",
+            Icon::Tribe => "handshake",
         }
     }
 
@@ -123,6 +125,7 @@ pub enum Page {
     Ranking,
     Trading,
     Manager,
+    Tribe,
 }
 
 impl Page {
@@ -142,6 +145,7 @@ impl Page {
             Some("ranking") => Page::Ranking,
             Some("trading") => Page::Trading,
             Some("manager") => Page::Manager,
+            Some("tribe") => Page::Tribe,
             _ => Page::Base,
         };
 
@@ -640,6 +644,8 @@ fn view(model: &Model) -> Node<Msg> {
                     Page::Quest(quest_id) => quest(model, state, user_id, quest_id),
                     Page::Trading => trades(model, state, user_id),
                     Page::Manager => manager(model, state, user_id),
+                    Page::Tribe => tribe(model, state, user_id),
+
                 }],
                 chat(model, state, user_id, client_state),
                 history(model, state, user_id, client_state),
@@ -3289,6 +3295,14 @@ fn trades(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
     }
 }
 
+fn tribe(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
+    if let Some(player) = state.players.get(user_id) {
+        Node::Empty
+    } else {
+        Node::Empty
+    }
+}
+
 fn chat(
     model: &Model,
     state: &shared::State,
@@ -3887,6 +3901,19 @@ fn nav(model: &Model) -> Node<Msg> {
                 attrs! {At::Href => format!("{}/quests", model.base_path()), At::AriaLabel => "Quests"},
                 span![C!["nav-image"], Icon::Task.draw()],
                 span![C!["nav-description"], " Quests"]
+            ],
+            a![
+                C![
+                    "button",
+                    if let Page::Tribe = model.page {
+                        "active disabled"
+                    } else {
+                        ""
+                    }
+                ],
+                attrs! {At::Href => format!("{}/tribe", model.base_path()), At::AriaLabel => "Tribe"},
+                span![C!["nav-image"], Icon::Tribe.draw()],
+                span![C!["nav-description"], " Tribe"]
             ],
             a![
                 C![

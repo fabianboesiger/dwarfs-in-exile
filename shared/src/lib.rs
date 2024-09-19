@@ -46,7 +46,7 @@ pub type Health = u64;
 pub type Time = u64;
 
 pub type QuestId = u64;
-pub type ClanId = u64;
+pub type TribeId = u64;
 pub type TradeId = u64;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash)]
@@ -286,6 +286,7 @@ pub struct State {
     #[serde(default)]
     pub event: Option<WorldEvent>,
     pub trade_deals: CustomMap<TradeId, TradeDeal>,
+    pub tribes: CustomMap<TribeId, Tribe>,
 }
 
 impl State {
@@ -1801,6 +1802,7 @@ pub struct Player {
     pub manager: CustomMap<Occupation, u64>,
     #[serde(default)]
     pub chat_unread: bool,
+    pub tribe: Option<TribeId>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
@@ -1841,6 +1843,7 @@ impl Player {
             popups: VecDeque::new(),
             manager: CustomMap::new(),
             chat_unread: false,
+            tribe: None,
         };
 
         player.new_dwarf(rng, next_dwarf_id, time, false);
@@ -3228,6 +3231,15 @@ impl TradeDeal {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
-pub struct Clan {
+pub struct Tribe {
     
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq)]
+pub enum Territory {
+    Mountains, // Mining, Rockhounding
+    Forest, // Logging, Hunting
+    Plains, // Farming, Fighting
+    Swamp, // Fishing, Gathering
+    Desert, // Exploring,
 }

@@ -55,6 +55,29 @@ pub async fn setup() -> Result<SqlitePool, Box<dyn std::error::Error>> {
     .execute(&mut *transaction)
     .await?;
 
+    let (settings_count,): (i64,) = sqlx::query_as(
+        r#"
+        SELECT COUNT(*) FROM settings
+    "#,
+    )
+    .fetch_one(&mut *transaction)
+    .await?;
+
+    if settings_count == 0 {
+        tracing::info!("inserting default settings");
+
+        sqlx::query(
+            r#"
+            INSERT INTO settings (free_premium, auto_start_world) VALUES (0, 1)
+        "#,
+        )
+        .execute(&mut *transaction)
+        .await?;
+    } else {
+        tracing::info!("settings loaded");
+    }
+    
+
     transaction.commit().await?;
 
     Ok(pool)
