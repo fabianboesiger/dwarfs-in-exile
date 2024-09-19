@@ -3149,7 +3149,7 @@ fn inventory(
 
 fn trades(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
-        let mut trades = state.trade_deals.iter().enumerate().collect::<Vec<_>>();
+        let mut trades = state.trade_deals.iter().map(|(trade_id, trade)| (*trade_id, trade)).collect::<Vec<_>>();
 
         trades.sort_by_key(|(_, trade_deal)| trade_deal.time_left);
 
@@ -3225,7 +3225,7 @@ fn trades(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                             
                         )
                 })
-                .map(|(idx, trade_deal)| {
+                .map(|(trade_id, trade_deal)| {
                     let item = *trade_deal.items.iter().next().unwrap().0;
                     let n = *trade_deal.items.iter().next().unwrap().1;
                     let highest_bidder_is_you = if let Some((highest_bidder_user_id, _)) = trade_deal.highest_bidder {   
@@ -3272,7 +3272,7 @@ fn trades(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                                 },                                                 
                                 button![
                                     attrs! { At::Disabled => (highest_bidder_is_you || !can_afford).as_at_value() },
-                                    ev(Ev::Click, move |_| Msg::send_event(ClientEvent::Bid(idx))),
+                                    ev(Ev::Click, move |_| Msg::send_event(ClientEvent::Bid(trade_id))),
                                     format!("Bid {} coins", trade_deal.next_bid)
                                 ]
                             ]

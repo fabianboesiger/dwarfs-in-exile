@@ -46,6 +46,8 @@ pub type Health = u64;
 pub type Time = u64;
 
 pub type QuestId = u64;
+pub type ClanId = u64;
+pub type TradeId = u64;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash)]
 pub enum Popup {
@@ -277,12 +279,13 @@ pub struct State {
     pub next_dwarf_id: DwarfId,
     pub chat: Chat,
     pub next_quest_id: QuestId,
+    pub next_trade_id: TradeId,
     pub quests: CustomMap<QuestId, Quest>,
     pub time: Time,
     pub king: Option<UserId>,
     #[serde(default)]
     pub event: Option<WorldEvent>,
-    pub trade_deals: Vec<TradeDeal>,
+    pub trade_deals: CustomMap<TradeId, TradeDeal>,
 }
 
 impl State {
@@ -384,8 +387,8 @@ impl engine_shared::State for State {
 
                     match event {
                         ClientEvent::Init => {}
-                        ClientEvent::Bid(trade_idx) => {
-                            if let Some(trade) = self.trade_deals.get_mut(trade_idx) {
+                        ClientEvent::Bid(trade_id) => {
+                            if let Some(trade) = self.trade_deals.get_mut(&trade_id) {
                                 trade.bid(&mut self.players, user_id, self.time)?;
                             }
                         }
@@ -1549,11 +1552,11 @@ impl engine_shared::State for State {
                             }
 
                             // Add trades.
-                            for trade in &mut self.trade_deals {
+                            for trade in self.trade_deals.values_mut() {
                                 trade.update(&mut self.players, self.time)?;
                             }
 
-                            self.trade_deals.retain(|trade| !trade.done());
+                            self.trade_deals.retain(|_, trade| !trade.done());
 
                             let num_trades = if cfg!(debug_assertions) {
                                 15
@@ -1565,12 +1568,13 @@ impl engine_shared::State for State {
 
                             while self
                                 .trade_deals
-                                .iter()
+                                .values()
                                 .filter(|trade_deal| trade_deal.creator.is_none())
                                 .count()
                                 < num_trades
                             {
-                                self.trade_deals.push(TradeDeal::new(rng, max_player_level));
+                                self.trade_deals.insert(self.next_trade_id, TradeDeal::new(rng, max_player_level));
+                                self.next_trade_id += 1;
                             }
                         }
                     }
@@ -2631,7 +2635,7 @@ pub enum ClientEvent {
     SetDwarfName(DwarfId, String),
     ToggleManualManagement(DwarfId),
     SetMentor(DwarfId, Option<DwarfId>),
-    Bid(usize),
+    Bid(TradeId),
     ReleaseDwarf(DwarfId),
     ReadLog,
     ReadChat,
@@ -3221,4 +3225,9 @@ impl TradeDeal {
 
         Some(())
     }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
+pub struct Clan {
+    
 }
