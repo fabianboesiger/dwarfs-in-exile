@@ -1115,7 +1115,8 @@ fn ranking(
 
 fn fmt_time(mut time: u64) -> String {
     time /= SPEED;
-    if time >= 60 {
+    
+    /*if time >= 60 {
         time /= 60;
         if time >= 60 {
             time /= 60;
@@ -1144,6 +1145,17 @@ fn fmt_time(mut time: u64) -> String {
     } else {
         format!("{} seconds", time)
     }
+    */
+
+    let mut s = String::new();
+    if time / 60 / 60 >= 1 {
+        s.push_str(&format!("{}h ", time / 60 / 60));
+    }
+    if time / 60 >= 1 {
+        s.push_str(&format!("{}m ", (time / 60) % 60));
+    }
+    s.push_str(&format!("{}s", time % 60));
+    s
 }
 
 fn last_received_items(
@@ -2308,7 +2320,8 @@ fn quest(
     }
 }
 
-fn big_number(mut num: u64) -> String {
+fn big_number(num: u64) -> String {
+    /*
     let mut ending = String::new();
     if num >= 1000 {
         ending = String::from("K");
@@ -2319,6 +2332,8 @@ fn big_number(mut num: u64) -> String {
         num /= 1000;
     }
     format!("{}{}", num, ending)
+    */
+    format!("{}", num)
 }
 
 fn enumerate(num: usize) -> String {

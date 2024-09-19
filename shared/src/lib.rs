@@ -812,11 +812,30 @@ impl engine_shared::State for State {
                         }
                         ClientEvent::Sell(item, qty) => {
                             if qty > 0 {
+                                /*
                                 if let Some(trade_deal) =
                                     TradeDeal::from_player(user_id, player, item, qty)
                                 {
                                     self.trade_deals.push(trade_deal);
                                 }
+                                */
+                                let qty = qty.min(player.inventory.items.get(&item).copied().unwrap_or(0));
+                                let items = Bundle::new().add(item, qty);
+                                let next_bid = item.money_value(qty) * TRADE_MONEY_MULTIPLIER;
+
+                                if qty == 0 {
+                                    return None;
+                                }
+
+                                if next_bid == 0 {
+                                    return None;
+                                }
+
+                                if !player.inventory.items.remove_checked(items.clone()) {
+                                    return None;
+                                }
+
+                                player.money += next_bid;
                             }
                         }
                         ClientEvent::ReadLog => {
@@ -3078,15 +3097,15 @@ impl TradeDeal {
     pub fn new(rng: &mut impl Rng, max_player_level: u64) -> Self {
         let item = enum_iterator::all::<Item>()
             .filter(|item| {
-                if let Some((level, _)) = item.requires() {
+                (if let Some((level, _)) = item.requires() {
                     level <= max_player_level
                 } else {
                     true
-                }
+                }) && item.item_type().is_some()
             })
             .choose(rng)
             .unwrap();
-        let time_left = rng.gen_range(ONE_MINUTE * 20..ONE_HOUR * 4);
+        let time_left = rng.gen_range(ONE_MINUTE * 20..ONE_HOUR * 2);
         let qty = ((time_left * 10) / item.item_rarity_num()).max(1);
 
         /*
