@@ -7,10 +7,7 @@ use itertools::Itertools;
 use rustrict::CensorStr;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg,
-    Occupation, Player, Popup, QuestId, QuestType, RewardMode, RewardType, Stats, Time, TradeType,
-    TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, DISMANTLING_DIVIDER,
-    MAX_EFFECTIVENESS, MAX_HEALTH, SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS,
+    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, RewardType, Stats, Time, TradeType, TutorialRequirement, TutorialReward, TutorialStep, UserId, WorldEvent, DISMANTLING_DIVIDER, MAX_EFFECTIVENESS, MAX_HEALTH, SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS
 };
 use std::str::FromStr;
 use strum::Display;
@@ -123,6 +120,7 @@ pub enum Page {
     Ranking,
     Trading,
     Manager,
+    Visit(Option<UserId>)
 }
 
 impl Page {
@@ -130,6 +128,7 @@ impl Page {
         url.next_path_part().unwrap();
         let game_id = url.next_path_part().unwrap().parse().unwrap();
         let page = match url.next_path_part() {
+            Some("visit") => Page::Visit(url.next_path_part().map(|id| UserId(id.parse().unwrap()))),
             Some("dwarfs") => match url.next_path_part() {
                 None => Page::Dwarfs(DwarfsMode::Overview),
                 Some(id) => Page::Dwarf(id.parse().unwrap()),
@@ -631,7 +630,8 @@ fn view(model: &Model) -> Node<Msg> {
                 ],*/
                 nav(model),
                 main![match model.page {
-                    Page::Dwarfs(mode) => dwarfs(model, state, user_id, mode),
+                    Page::Visit(visit_id) => dwarfs(model, state, user_id, DwarfsMode::Overview, visit_id),
+                    Page::Dwarfs(mode) => dwarfs(model, state, user_id, mode, None),
                     Page::Dwarf(dwarf_id) => dwarf(model, state, user_id, dwarf_id),
                     Page::Base => base(model, state, user_id),
                     Page::Inventory(mode) => inventory(model, state, user_id, mode),
@@ -1091,29 +1091,45 @@ fn ranking(
         p![format!("To win this game, you need to meet two conditions. First, expand your settlement until you reach level 100. Second, become the king of this world. If both conditions are met, the game will be over and you will be the winner. As a reward, you get gifted a free premium account for {} days.", WINNER_NUM_PREMIUM_DAYS)],
 
         table![
+            C!["ranking"],
             tr![
                 th!["Rank"],
                 th!["Username"],
                 th!["Level"],
+                th![]
             ],
             players.iter().enumerate().map(|(i, (user_id, player))| {
                 let rank = i + 1;
                 let current_user = *current_user_id == **user_id;
 
-                tr![
-                    td![C![if current_user { "current-user" } else { "" }], rank],
+                tr![C![if current_user { "current-user" } else { "" }],
+                    td![rank],
                     td![
-                        C![if current_user { "current-user" } else { "" }],
                         name(model, user_id, true)
                     ],
-                    td![C![if current_user { "current-user" } else { "" }], player.base.curr_level]
+                    td![player.base.curr_level],
+                    td![
+                        if !current_user {
+                            a![
+                                C!["button", "inline"],
+                                attrs! { At::Href => format!("{}/visit/{}", model.base_path(), user_id.0) },
+                                format!(
+                                    "Visit",
+                                ),
+                            ]
+                        } else {
+                            Node::Empty
+                        }
+
+                        
+                    ]
                 ]
             })
         ]
     ]
 }
 
-fn fmt_time(mut time: u64) -> String {
+fn fmt_time(mut time: u64, precise: bool) -> String {
     time /= SPEED;
     
     /*if time >= 60 {
@@ -1150,9 +1166,15 @@ fn fmt_time(mut time: u64) -> String {
     let mut s = String::new();
     if time / 60 / 60 >= 1 {
         s.push_str(&format!("{}h ", time / 60 / 60));
+        if !precise {
+            return s;
+        }
     }
     if time / 60 >= 1 {
         s.push_str(&format!("{}m ", (time / 60) % 60));
+        if !precise {
+            return s;
+        }
     }
     s.push_str(&format!("{}s", time % 60));
     s
@@ -1496,8 +1518,9 @@ fn dwarfs(
     state: &shared::State,
     user_id: &shared::UserId,
     mode: DwarfsMode,
+    visit_id: Option<shared::UserId>,
 ) -> Node<Msg> {
-    if let Some(player) = state.players.get(user_id) {
+    if let Some(player) = visit_id.and_then(|visit_id| state.players.get(&visit_id)).or_else(|| state.players.get(user_id)) {
         if player.dwarfs.len() > 0 {
             let mut dwarfs = player
                 .dwarfs
@@ -1590,6 +1613,9 @@ fn dwarfs(
                             C!["list-item-content", "grow"],
                             dwarf_details(Some(dwarf), player),
                             p![match mode {
+                                DwarfsMode::Overview if visit_id.is_some() => {
+                                    Node::Empty
+                                }
                                 DwarfsMode::Overview => {
                                     a![
                                         C!["button"],
@@ -2110,7 +2136,7 @@ fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                         h3![C!["title"], format!("{}", quest.quest_type)],
                         p![
                             C!["subtitle"],
-                            format!("{} remaining |  Requires {} | Level {} - {}", fmt_time(quest.time_left), quest.quest_type.occupation(), quest.min_level, quest.max_level)
+                            format!("{} remaining |  Requires {} | Level {} - {}", fmt_time(quest.time_left, true), quest.quest_type.occupation(), quest.min_level, quest.max_level)
                         ],
                         if let Some(contestant) = quest.contestants.get(user_id) {
                             let rank = quest
@@ -2162,7 +2188,7 @@ fn quest(
                 div![C!["image-aside"],
                     img![attrs! {At::Src => Image::from(quest.quest_type).as_at_value()}],
                     div![
-                        p![C!["subtitle"], format!("{} remaining.", fmt_time(quest.time_left))],
+                        p![C!["subtitle"], format!("{} remaining.", fmt_time(quest.time_left, true))],
                         if let Some(contestant) = quest.contestants.get(user_id) {
                             let rank = quest.contestants.values().filter(|c| c.achieved_score >= contestant.achieved_score).count();
                             let mut contestants = quest.contestants.values().map(|c| c.achieved_score).collect::<Vec<_>>();
@@ -2417,7 +2443,7 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                         div![
                             p![format!(
                                 "You are currently using a guest account that expires in {}. Set your username and password to keep access to your account and play from multiple devices.",
-                                fmt_time((joined.saturating_add(Duration::days(30)).assume_utc().unix_timestamp() - (Date::now() / 1000.0) as i64).max(0) as u64 * SPEED)
+                                fmt_time((joined.saturating_add(Duration::days(30)).assume_utc().unix_timestamp() - (Date::now() / 1000.0) as i64).max(0) as u64 * SPEED, true)
                             )],
                             a![
                                 C!["button"],
@@ -2473,7 +2499,7 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                         C!["image-aside", "small"],
                         img![attrs! {At::Src => Image::Starvation.as_at_value()}],
                         div![
-                            p![format!("Your dwarfs will start to die of starvation in {}. Make sure that you have enough food to feed your dwarfs.", fmt_time(player.remaining_time_until_starvation(state)))],
+                            p![format!("Your dwarfs will start to die of starvation in {}. Make sure that you have enough food to feed your dwarfs.", fmt_time(player.remaining_time_until_starvation(state), true))],
                         ]
                     ]
                 ]
@@ -2549,7 +2575,7 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                             button![
                                 attrs! {At::Disabled => "true"},
                                 ev(Ev::Click, move |_| Msg::send_event(ClientEvent::UpgradeBase)),
-                                format!("Upgrading ({} remaining)", fmt_time(player.base.build_time))
+                                format!("Upgrading ({} remaining)", fmt_time(player.base.build_time, true)),
                             ]
                         } else {
                             button![
@@ -3251,7 +3277,7 @@ fn trades(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                         C!["list-item-content"],
                         h4![C!["title"], "Cost" ],
                         p![C!["subtitle"], format!("{} coins", trade_deal.next_bid)],
-                        p![format!("Deal ends in {}.", fmt_time(trade_deal.time_left))],
+                        p![format!("Deal ends in {}.", fmt_time(trade_deal.time_left, true))],
                         if trade_deal.creator == Some(*user_id) {
                             vec![p![format!("You created this deal.")]]
                         } else {
@@ -3317,7 +3343,7 @@ fn chat(
                                 .unwrap_or_default();
                             p![
                                 C!["message"],
-                                span![C!["time"], format!("{} ago, ", fmt_time(state.time - time))],
+                                span![C!["time"], format!("{} ago, ", fmt_time(state.time - time, false))],
                                 span![C!["username"], format!("{username}:")],
                                 span![C!["message"], format!("{}", message.censor())]
                             ]
@@ -3406,7 +3432,7 @@ fn history(
                                 LogMsg::ItemNotSold(..) => Icon::Trade,
                             }.draw()],
                             span![" "],
-                            span![C!["time"], format!("{} ago: ", fmt_time(state.time - time))],
+                            span![C!["time"], format!("{} ago: ", fmt_time(state.time - time, false))],
                             match msg {
                                 LogMsg::Overbid(items, money, _) => {
                                     span![format!(
