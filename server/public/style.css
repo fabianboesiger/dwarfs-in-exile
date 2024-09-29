@@ -1093,3 +1093,8 @@ progress {
     overflow-y: auto;
     max-height: calc(40vh - 64px);
 }
+
+button.inline, .button.inline {
+    margin: 0;
+    padding: 4px;
+}
