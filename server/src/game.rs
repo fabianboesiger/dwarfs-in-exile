@@ -207,7 +207,7 @@ pub async fn ws_handler(
     session: Session,
     Extension(game_state): Extension<GameState>,
 ) -> Result<Response, ServerError> {
-    tracing::debug!("new websocket connection");
+    tracing::info!("starting new websocket connection");
 
     let user_id = UserId(
         session
@@ -216,14 +216,22 @@ pub async fn ws_handler(
             .ok_or(ServerError::InvalidSession)?,
     );
 
+    tracing::info!("user {} connecting to game {}", user_id.0, game_id);
+
     Ok(ws.on_upgrade(move |socket: WebSocket| async move {
+        tracing::info!("websocket connection upgraded");
+
         if let Ok((conn_req, mut conn_res)) = game_state.new_connection(user_id, game_id).await {
             let (mut sink, mut stream) = socket.split();
+
+            tracing::info!("new websocket connection for game {}", game_id);
 
             tokio::select!(
                 _ = async {
                     while let Some(msg) = stream.next().await {
                         if let Ok(msg) = msg {
+                            tracing::debug!("got message");
+
                             if let Message::Binary(msg) = msg {
                                 let req: engine_shared::Req<shared::State> = rmp_serde::from_slice(&msg).unwrap();
                                 conn_req.request(req);
@@ -235,6 +243,8 @@ pub async fn ws_handler(
                 } => {},
                 _ = async {
                     while let Ok(Some(res)) = conn_res.poll().await {
+                        tracing::debug!("sending response");
+
                         let msg = rmp_serde::to_vec(&res).unwrap();
                         if sink.send(Message::Binary(msg)).await.is_err() {
                             break;

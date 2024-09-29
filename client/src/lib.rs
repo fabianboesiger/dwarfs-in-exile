@@ -1255,7 +1255,7 @@ fn score_bar(curr: u64, max: u64, rank: usize, max_rank: usize, markers: Vec<u64
             C!["score-bar-overlay"],
             if curr == 0 {
                 format!(
-                    "{} / {} XP ({} users participating)",
+                    "{} / {} XP ({} participating)",
                     big_number(curr),
                     big_number(max),
                     max_rank
@@ -1270,6 +1270,50 @@ fn score_bar(curr: u64, max: u64, rank: usize, max_rank: usize, markers: Vec<u64
             } else {
                 format!(
                     "{} / {} XP ({} place of {})",
+                    big_number(curr),
+                    big_number(max),
+                    enumerate(rank),
+                    max_rank
+                )
+            }
+        ],
+    ]
+}
+
+fn tribe_bar(curr: u64, max: u64, rank: usize, max_rank: usize, markers: Vec<u64>) -> Node<Msg> {
+    div![
+        attrs! {At::Role => "progressbar", At::AriaValueMin => 0, At::AriaValueMax => max, At::AriaValueNow => curr, At::AriaLabel => "Score"},
+        C!["score-bar-wrapper"],
+        if curr > 0 {
+            div![
+                C!["score-bar-curr"],
+                attrs! {
+                    At::Style => format!("width: calc(100% / {max} * {curr});")
+                }
+            ]
+        } else {
+            Node::Empty
+        },
+        markers.iter().map(|marker| {
+            div![
+                C!["score-bar-marker"],
+                attrs! {
+                    At::Style => format!("width: calc(100% / {max} * {marker});")
+                }
+            ]
+        }),
+        div![
+            C!["score-bar-overlay"],
+            if curr == max {
+                format!(
+                    "{} FP ({} place of {})",
+                    big_number(curr),
+                    enumerate(rank),
+                    max_rank
+                )
+            } else {
+                format!(
+                    "{} / {} FP ({} place of {})",
                     big_number(curr),
                     big_number(max),
                     enumerate(rank),
@@ -2128,8 +2172,8 @@ fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                             let rank = quest
                                 .contestants
                                 .values()
-                                .filter(|c| c.achieved_score > contestant.achieved_score)
-                                .count() + 1;
+                                .filter(|c| c.achieved_score >= contestant.achieved_score)
+                                .count();
                             let mut contestants = quest.contestants.values().map(|c| c.achieved_score).collect::<Vec<_>>();
                             contestants.sort();
                             let best_score = contestants.last().copied().unwrap();
@@ -2176,7 +2220,7 @@ fn quest(
                     div![
                         p![C!["subtitle"], format!("{} remaining.", fmt_time(quest.time_left))],
                         if let Some(contestant) = quest.contestants.get(user_id) {
-                            let rank = quest.contestants.values().filter(|c| c.achieved_score > contestant.achieved_score).count() + 1;
+                            let rank = quest.contestants.values().filter(|c| c.achieved_score >= contestant.achieved_score).count();
                             let mut contestants = quest.contestants.values().map(|c| c.achieved_score).collect::<Vec<_>>();
                             contestants.sort();
                             let best_score = contestants.last().copied().unwrap();
@@ -3306,7 +3350,7 @@ fn tribe(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
         if let Some(tribe_id) = player.tribe {
             //let tribe = state.tribes.get(&tribe_id).unwrap();
 
-            div![
+            div![C!["content"],
                 h2!["Your Tribe"],
                 h3!["Territories"],
                 p!["Spend your fame points for your tribe to conquer territories. Controlling territories rewards you with powerful dwarfs that join your settlement more frequently."],
@@ -3327,8 +3371,8 @@ fn tribe(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
 
                         let rank = scores
                             .iter()
-                            .filter(|s| **s > curr)
-                            .count() + 1;
+                            .filter(|s| **s >= curr)
+                            .count();
 
                         /*div![
                             h4![format!("{}", territory)],
@@ -3348,16 +3392,16 @@ fn tribe(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                                 } else {
                                     p!["Your tribe does not control this territory."]
                                 },
-                                score_bar(curr, max, rank, scores.len(), scores)
+                                tribe_bar(curr, max, rank, scores.len(), scores)
                             ],
                         ]
                     })
                 ]
             ]
         } else {
-            div![
+            div![C!["content"],
                 h2!["Your Tribe"],
-                p![format!("You are not a member of a tribe. You will be assigned a tribe at level {}", JOIN_TRIBE_LEVEL)],
+                p![format!("You are not a member of a tribe. You will be assigned a tribe at level {}.", JOIN_TRIBE_LEVEL)],
             ]
         }
     } else {

@@ -38,7 +38,7 @@ pub const MIN_MAX_DWARF_DIFFERENCE: u64 = 3;
 pub const TRADE_MONEY_MULTIPLIER: u64 = 10;
 pub const DISMANTLING_DIVIDER: u64 = 2;
 pub const NEW_PLAYER_DIVIDER: u64 = 8;
-pub const JOIN_TRIBE_LEVEL: u64 = 2;
+pub const JOIN_TRIBE_LEVEL: u64 = 16;
 
 pub type Money = u64;
 pub type Food = u64;
@@ -924,8 +924,8 @@ impl engine_shared::State for State {
 
                                             let under_control = scores
                                                 .iter()
-                                                .filter(|s| **s > score)
-                                                .count() == 0;
+                                                .filter(|s| **s >= score)
+                                                .count() == 1;
                                             
                                             under_control
                                         } else {
@@ -3329,8 +3329,8 @@ pub struct Tribe {
 pub enum Territory {
     Mountains, // Mining, Rockhounding -> Stength
     Forest, // Logging, Hunting -> Agility
-    Plains, // Farming, Fighting -> Perception
     Swamp, // Fishing, Gathering -> Intelligence
+    Plains, // Farming, Fighting -> Perception
     Desert, // Exploring -> Endurance
 }
 
