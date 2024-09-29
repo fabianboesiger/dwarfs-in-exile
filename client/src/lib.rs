@@ -4,13 +4,11 @@ use engine_client::{ClientState, EventWrapper, Msg as EngineMsg};
 use engine_shared::{utils::custom_map::CustomMap, GameId};
 use images::Image;
 use itertools::Itertools;
+use rand::RngCore;
 use rustrict::CensorStr;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg,
-    Occupation, Player, Popup, QuestId, QuestType, RewardMode, RewardType, Stats, Time, TradeType,
-    TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, DISMANTLING_DIVIDER,
-    MAX_EFFECTIVENESS, MAX_HEALTH, SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS,
+    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, RewardType, Stats, Territory, Time, TradeType, TutorialRequirement, TutorialReward, TutorialStep, WorldEvent, DISMANTLING_DIVIDER, JOIN_TRIBE_LEVEL, MAX_EFFECTIVENESS, MAX_HEALTH, SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS
 };
 use std::str::FromStr;
 use strum::Display;
@@ -1100,19 +1098,27 @@ fn ranking(
             tr![
                 th!["Rank"],
                 th!["Username"],
+                th!["Tribe"],
                 th!["Level"],
             ],
             players.iter().enumerate().map(|(i, (user_id, player))| {
                 let rank = i + 1;
                 let current_user = *current_user_id == **user_id;
 
-                tr![
-                    td![C![if current_user { "current-user" } else { "" }], rank],
+                tr![C![if current_user { "current-user" } else { "" }],
+                    td![rank],
                     td![
-                        C![if current_user { "current-user" } else { "" }],
                         name(model, user_id, true)
                     ],
-                    td![C![if current_user { "current-user" } else { "" }], player.base.curr_level]
+                    if let Some(tribe) = player.tribe.as_ref() {
+                        let mut rng = Image::rng_from_str(&format!("{}", tribe));
+                        let tribe_name = format!("{} Tribe", Dwarf::name(&mut rng));
+                        let tribe_color = ((rng.next_u32() % 128) as u8, (rng.next_u32() % 128) as u8, (rng.next_u32() % 128) as u8);
+                        td![style![ St::Color => format!("rgb({}, {}, {})", tribe_color.0, tribe_color.1, tribe_color.2) ], tribe_name]
+                    } else {
+                        td![]
+                    },
+                    td![player.base.curr_level]
                 ]
             })
         ]
@@ -2122,8 +2128,8 @@ fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                             let rank = quest
                                 .contestants
                                 .values()
-                                .filter(|c| c.achieved_score >= contestant.achieved_score)
-                                .count();
+                                .filter(|c| c.achieved_score > contestant.achieved_score)
+                                .count() + 1;
                             let mut contestants = quest.contestants.values().map(|c| c.achieved_score).collect::<Vec<_>>();
                             contestants.sort();
                             let best_score = contestants.last().copied().unwrap();
@@ -2170,7 +2176,7 @@ fn quest(
                     div![
                         p![C!["subtitle"], format!("{} remaining.", fmt_time(quest.time_left))],
                         if let Some(contestant) = quest.contestants.get(user_id) {
-                            let rank = quest.contestants.values().filter(|c| c.achieved_score >= contestant.achieved_score).count();
+                            let rank = quest.contestants.values().filter(|c| c.achieved_score > contestant.achieved_score).count() + 1;
                             let mut contestants = quest.contestants.values().map(|c| c.achieved_score).collect::<Vec<_>>();
                             contestants.sort();
                             let best_score = contestants.last().copied().unwrap();
@@ -3295,9 +3301,65 @@ fn trades(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
     }
 }
 
-fn tribe(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
+fn tribe(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
-        Node::Empty
+        if let Some(tribe_id) = player.tribe {
+            //let tribe = state.tribes.get(&tribe_id).unwrap();
+
+            div![
+                h2!["Your Tribe"],
+                h3!["Territories"],
+                p!["Spend your fame points for your tribe to conquer territories. Controlling territories rewards you with powerful dwarfs that join your settlement more frequently."],
+                p!["If the winner of this world is from your tribe, you will earn a free premium account for a week, so make sure to support your tribe members."],
+                table![C!["list"],
+                enum_iterator::all::<Territory>()
+                    .map(|territory| {
+                        let scores =state.tribes
+                            .values()
+                            .map(|tribe| {
+                                tribe.territories.get(&territory).copied().unwrap_or_default()
+                            })
+                            .collect::<Vec<_>>();
+
+                        let max = scores.iter().max().copied().unwrap_or_default(); 
+
+                        let curr = state.tribes.get(&tribe_id).unwrap().territories.get(&territory).copied().unwrap_or_default();
+
+                        let rank = scores
+                            .iter()
+                            .filter(|s| **s > curr)
+                            .count() + 1;
+
+                        /*div![
+                            h4![format!("{}", territory)],
+                            
+                        ]*/
+                        tr![C!["list-item-row"],
+                            td![img![C!["list-item-image"], attrs! { At::Src => Image::from(territory).as_at_value() } ]],
+                            td![C!["list-item-content"],
+                                h3![C!["title"],
+                                    format!("{}", territory)
+                                ],
+                                p![C!["subtitle"],
+                                    format!("Provides additional dwarfs with maxed out {}.", stats_simple(&territory.provides_stats()))
+                                ],
+                                if rank == 1 {
+                                    p!["Your tribe controls this territory."]
+                                } else {
+                                    p!["Your tribe does not control this territory."]
+                                },
+                                score_bar(curr, max, rank, scores.len(), scores)
+                            ],
+                        ]
+                    })
+                ]
+            ]
+        } else {
+            div![
+                h2!["Your Tribe"],
+                p![format!("You are not a member of a tribe. You will be assigned a tribe at level {}", JOIN_TRIBE_LEVEL)],
+            ]
+        }
     } else {
         Node::Empty
     }

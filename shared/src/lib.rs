@@ -38,6 +38,7 @@ pub const MIN_MAX_DWARF_DIFFERENCE: u64 = 3;
 pub const TRADE_MONEY_MULTIPLIER: u64 = 10;
 pub const DISMANTLING_DIVIDER: u64 = 2;
 pub const NEW_PLAYER_DIVIDER: u64 = 8;
+pub const JOIN_TRIBE_LEVEL: u64 = 2;
 
 pub type Money = u64;
 pub type Food = u64;
@@ -273,7 +274,7 @@ impl HireDwarfType {
     }
 }
 
-#[derive(Serialize, Deserialize, Default, Clone, Debug, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 pub struct State {
     pub players: CustomMap<UserId, Player>,
     pub next_dwarf_id: DwarfId,
@@ -287,6 +288,30 @@ pub struct State {
     pub event: Option<WorldEvent>,
     pub trade_deals: CustomMap<TradeId, TradeDeal>,
     pub tribes: CustomMap<TribeId, Tribe>,
+}
+
+impl Default for State {
+    fn default() -> Self {
+        let mut tribes = CustomMap::default();
+        tribes.insert(0, Tribe::default());
+        tribes.insert(1, Tribe::default());
+        tribes.insert(2, Tribe::default());
+
+
+        Self {
+            players: CustomMap::default(),
+            next_dwarf_id: 0,
+            chat: Chat::default(),
+            next_quest_id: 0,
+            next_trade_id: 0,
+            quests: CustomMap::default(),
+            time: 0,
+            king: None,
+            event: None,
+            trade_deals: CustomMap::default(),
+            tribes,
+        }
+    }
 }
 
 impl State {
@@ -369,7 +394,7 @@ impl engine_shared::State for State {
         event: Event<Self>,
         user_data: &CustomMap<UserId, UserData>,
     ) {
-        move || -> Option<()> {
+        let update_result = move || -> Option<()> {
             match event {
                 Event::ClientEvent(event, user_id) => {
                     if !self.players.contains_key(&user_id) {
@@ -625,7 +650,7 @@ impl engine_shared::State for State {
                                                     rng,
                                                     &mut self.next_dwarf_id,
                                                     self.time,
-                                                    false,
+                                                    Some(Stats::default()),
                                                 );
                                             }
                                         }
@@ -867,6 +892,13 @@ impl engine_shared::State for State {
                                 self.event = Some(enum_iterator::all().choose(rng).unwrap());
                             }
 
+                            let fewest_members_tribe_id = *self
+                                        .tribes
+                                        .keys()
+                                        .map(|tribe_id| (tribe_id, self.players.values().filter(|player| player.is_active(self.time) && player.tribe == Some(*tribe_id)).count()))
+                                        .min_by_key(|(_, count)| *count)
+                                        .unwrap().0;
+
                             for (user_id, player) in self.players.iter_mut() {
                                 let is_premium = user_data
                                     .get(user_id)
@@ -874,20 +906,48 @@ impl engine_shared::State for State {
                                     .unwrap_or(false);
 
                                 // Build the base.
-                                player.base.build();
+                                if let Some(JOIN_TRIBE_LEVEL) = player.base.build() {
+                                    player.tribe = Some(fewest_members_tribe_id);
+                                }
 
                                 // Chance for a new dwarf!
+                                let controlled_territories = enum_iterator::all::<Territory>()
+                                    .filter(|territory| {
+                                        if let Some(tribe_id) = player.tribe {
+                                            let score = self.tribes.get(&tribe_id).unwrap().territories.get(territory).copied().unwrap_or(0);
+                                            let scores = self.tribes
+                                                .values()
+                                                .map(|tribe| {
+                                                    tribe.territories.get(territory).copied().unwrap_or_default()
+                                                })
+                                                .collect::<Vec<_>>();
+
+                                            let under_control = scores
+                                                .iter()
+                                                .filter(|s| **s > score)
+                                                .count() == 0;
+                                            
+                                            under_control
+                                        } else {
+                                            false
+                                        }
+                                    })
+                                    .map(|territory| territory.provides_stats())
+                                    .collect::<Vec<_>>();
+
                                 if rng.gen_ratio(
                                     self.event
                                         .map(|event| event.new_dwarfs_multiplier())
                                         .unwrap_or(1),
-                                    ONE_DAY as u32 * 3,
+                                    (ONE_DAY as u32 * 5) / (controlled_territories.len() as u32 + 1),
                                 ) {
+                                    let added_stats = controlled_territories.choose(rng).cloned().unwrap_or(Stats::default());
+
                                     player.new_dwarf(
                                         rng,
                                         &mut self.next_dwarf_id,
                                         self.time,
-                                        false,
+                                        Some(added_stats),
                                     );
                                 }
 
@@ -923,7 +983,7 @@ impl engine_shared::State for State {
                                         * baby_dwarf_multiplier,
                                     ONE_DAY as u32 / 4,
                                 ) {
-                                    player.new_dwarf(rng, &mut self.next_dwarf_id, self.time, true);
+                                    player.new_dwarf(rng, &mut self.next_dwarf_id, self.time, None);
                                 }
 
                                 let mut became_adult = CustomSet::new();
@@ -1386,7 +1446,7 @@ impl engine_shared::State for State {
                                                             rng,
                                                             &mut self.next_dwarf_id,
                                                             self.time,
-                                                            false,
+                                                            Some(Stats::default()),
                                                         );
                                                     }
                                                     for contestant_id in quest.contestants.keys() {
@@ -1422,7 +1482,7 @@ impl engine_shared::State for State {
                                                             rng,
                                                             &mut self.next_dwarf_id,
                                                             self.time,
-                                                            false,
+                                                            Some(Stats::default()),
                                                         );
                                                     }
                                                 }
@@ -1584,6 +1644,10 @@ impl engine_shared::State for State {
 
             Some(())
         }();
+
+        if update_result.is_none() {
+            println!("state update failed");
+        }
     }
 }
 
@@ -1803,6 +1867,7 @@ pub struct Player {
     #[serde(default)]
     pub chat_unread: bool,
     pub tribe: Option<TribeId>,
+    pub tribe_points: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
@@ -1844,15 +1909,16 @@ impl Player {
             manager: CustomMap::new(),
             chat_unread: false,
             tribe: None,
+            tribe_points: 0,
         };
 
-        player.new_dwarf(rng, next_dwarf_id, time, false);
+        player.new_dwarf(rng, next_dwarf_id, time, Some(Stats::default()));
 
         if cfg!(debug_assertions) {
             player.base.curr_level = 15;
             player.money = 100000;
             for _ in 0..4 {
-                player.new_dwarf(rng, next_dwarf_id, time, false);
+                player.new_dwarf(rng, next_dwarf_id, time, Some(Stats::default()));
             }
             player.inventory.add(
                 Bundle::new()
@@ -1972,13 +2038,13 @@ impl Player {
         rng: &mut impl Rng,
         next_dwarf_id: &mut DwarfId,
         time: Time,
-        baby: bool,
+        adult_with_added_stats: Option<Stats>,
     ) {
         if self.dwarfs.len() < self.base.max_dwarfs() {
-            let dwarf = if baby {
-                Dwarf::new_baby(rng)
+            let dwarf = if let Some(stats) = adult_with_added_stats {
+                Dwarf::new_with_added_stats(rng, stats)
             } else {
-                Dwarf::new_adult(rng)
+                Dwarf::new_baby(rng)
             };
             self.log
                 .add(time, LogMsg::NewDwarf(dwarf.actual_name().to_owned()));
@@ -2267,7 +2333,7 @@ impl Dwarf {
         name
     }
 
-    fn new_adult(rng: &mut impl Rng) -> Self {
+    /*fn new_adult(rng: &mut impl Rng) -> Self {
         let name = Dwarf::name(rng);
 
         Dwarf {
@@ -2286,7 +2352,29 @@ impl Dwarf {
             apprentice: None,
             released: false,
         }
+    }*/
+
+    fn new_with_added_stats(rng: &mut impl Rng, stats: Stats) -> Self {
+        let name = Dwarf::name(rng);
+
+        Dwarf {
+            name,
+            occupation: Occupation::Idling,
+            auto_idle: false,
+            stats: Stats::random(rng, 1, 6).sum(stats),
+            equipment: CustomMap::new(),
+            health: MAX_HEALTH,
+            participates_in_quest: None,
+            is_female: rng.gen_bool(FEMALE_PROBABILITY),
+            age_seconds: rng.gen_range(ADULT_AGE..DEATH_AGE) * 365 * 24 * 60 * 60,
+            custom_name: None,
+            manual_management: false,
+            mentor: None,
+            apprentice: None,
+            released: false,
+        }
     }
+
 
     fn new_baby(rng: &mut impl Rng) -> Self {
         let name = Dwarf::name(rng);
@@ -2562,13 +2650,15 @@ impl Base {
         self.curr_level * (self.curr_level / 10 + 1) * 15
     }
 
-    pub fn build(&mut self) {
+    pub fn build(&mut self) -> Option<u64> {
         if self.build_time > 0 {
             self.build_time -= 1;
             if self.build_time == 0 {
                 self.curr_level += 1;
+                return Some(self.curr_level);
             }
         }
+        None
     }
 
     pub fn upgrade(&mut self) {
@@ -3230,16 +3320,48 @@ impl TradeDeal {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, Default)]
 pub struct Tribe {
-    
+    pub territories: CustomMap<Territory, u64>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash, PartialEq, Eq, Sequence, Display)]
 pub enum Territory {
-    Mountains, // Mining, Rockhounding
-    Forest, // Logging, Hunting
-    Plains, // Farming, Fighting
-    Swamp, // Fishing, Gathering
-    Desert, // Exploring,
+    Mountains, // Mining, Rockhounding -> Stength
+    Forest, // Logging, Hunting -> Agility
+    Plains, // Farming, Fighting -> Perception
+    Swamp, // Fishing, Gathering -> Intelligence
+    Desert, // Exploring -> Endurance
+}
+
+impl Territory {
+    pub fn provides_stats(self) -> Stats {
+        match self {
+            Territory::Mountains => Stats {
+                strength: 10,
+                perception: 10,
+                ..Default::default()
+            },
+            Territory::Forest => Stats {
+                agility: 10,
+                strength: 10,
+                ..Default::default()
+            },
+            Territory::Plains => Stats {
+                perception: 10,
+                endurance: 10,
+                ..Default::default()
+            },
+            Territory::Swamp => Stats {
+                intelligence: 10,
+                agility: 10,
+                ..Default::default()
+            },
+            Territory::Desert => Stats {
+                endurance: 10,
+                intelligence: 10,
+                ..Default::default()
+            },
+        }
+    }
 }

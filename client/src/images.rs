@@ -4,7 +4,7 @@ use rand::Rng;
 use rand_chacha::{rand_core::SeedableRng, ChaCha8Rng};
 use seed::virtual_dom::{AsAtValue, AtValue};
 use sha2::{Digest, Sha256};
-use shared::{Dwarf, Item, Occupation, QuestType, VillageType, WorldEvent, FEMALE_PROBABILITY};
+use shared::{Dwarf, Item, Occupation, QuestType, Territory, VillageType, WorldEvent, FEMALE_PROBABILITY};
 use strum::Display;
 
 #[derive(Display)]
@@ -189,6 +189,11 @@ pub enum Image {
     Fairy,
     Dog,
     Wildcat,
+    Forest,
+    Mountains,
+    Plains,
+    Swamp,
+    Desert,
 }
 
 impl AsAtValue for Image {
@@ -231,7 +236,7 @@ impl Image {
         }
     }
 
-    fn rng_from_str(name: &str) -> ChaCha8Rng {
+    pub fn rng_from_str(name: &str) -> ChaCha8Rng {
         let mut hasher = Sha256::new();
         hasher.update(name.as_bytes());
         let slice = &hasher.finalize()[..];
@@ -458,6 +463,19 @@ impl From<WorldEvent> for Image {
             WorldEvent::Carnival => Image::Carnival,
             WorldEvent::FullMoon => Image::FullMoon,
             WorldEvent::Revolution => Image::Revolution,
+        }
+    }
+}
+
+
+impl From<Territory> for Image {
+    fn from(territory: Territory) -> Self {
+        match territory {
+            Territory::Mountains => Image::Mountains,
+            Territory::Forest => Image::Forest,
+            Territory::Plains => Image::Plains,
+            Territory::Swamp => Image::Swamp,
+            Territory::Desert => Image::Desert,
         }
     }
 }
