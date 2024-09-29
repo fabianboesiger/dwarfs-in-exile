@@ -924,7 +924,7 @@ fn tutorial(model: &Model, state: &shared::State, user_id: &shared::UserId) -> N
                         "Tutorial Quest (complete)"
                     } else {
                         "Tutorial Quest (incomplete)"
-                    }, At::AriaLive => "assertive" },
+                    } },
                     id!["tutorial-button"],
                     C![if step.requires().complete(player) {
                         "complete"
