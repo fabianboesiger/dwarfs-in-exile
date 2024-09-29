@@ -135,7 +135,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             game_state_clone
                 .read_games(|game| {
-                    if engine_shared::State::has_winner(game).is_none() {
+                    if !engine_shared::State::closed(game) {
                         num_active_games += 1;
 
                         for (user_id, player) in game.players.iter() {

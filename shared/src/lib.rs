@@ -18,7 +18,7 @@ use strum::Display;
 #[cfg(not(debug_assertions))]
 pub const SPEED: u64 = 1;
 #[cfg(debug_assertions)]
-pub const SPEED: u64 = 1;
+pub const SPEED: u64 = 20;
 pub const ONE_MINUTE: u64 = 60;
 pub const ONE_HOUR: u64 = ONE_MINUTE * 60;
 pub const ONE_DAY: u64 = ONE_HOUR * 24;
@@ -26,6 +26,7 @@ pub const MAX_HEALTH: Health = ONE_DAY * 3;
 pub const LOOT_CRATE_COST: Money = 1000;
 pub const FREE_LOOT_CRATE: u64 = ONE_DAY;
 pub const WINNER_NUM_PREMIUM_DAYS: i64 = 30;
+pub const WINNER_TRIBE_NUM_PREMIUM_DAYS: i64 = 7;
 pub const FEMALE_PROBABILITY: f64 = 1.0 / 3.0;
 pub const MAX_LEVEL: u64 = 100;
 pub const AGE_SECONDS_PER_TICK: u64 = 365 * 24;
@@ -256,6 +257,7 @@ pub struct UserData {
     pub admin: bool,
     pub guest: bool,
     pub joined: time::PrimitiveDateTime,
+    pub referrer: Option<UserId>,
 }
 
 impl engine_shared::UserData for UserData {}
@@ -368,6 +370,33 @@ impl State {
             }
         }
     }
+
+    pub fn winner(&self) -> Option<UserId> {
+        for (user_id, player) in &self.players {
+            if player.base.curr_level == 100 && self.king == Some(*user_id) {
+                return Some(*user_id);
+            }
+        }
+        None
+    }
+
+    pub fn rewarded_premium_days(&self) -> Vec<(UserId, i64)> {
+        let winner_id = self.winner().unwrap();
+        let winner_tribe = self.players.get(&winner_id).and_then(|p|p.tribe);
+
+        self.players
+            .iter()
+            .flat_map(|(&user_id, player)| {
+                if user_id == winner_id {
+                    return Some((user_id, WINNER_NUM_PREMIUM_DAYS));
+                } else if player.tribe == winner_tribe {
+                    return Some((user_id, WINNER_TRIBE_NUM_PREMIUM_DAYS));
+                } else {
+                    return None;
+                }
+            })
+            .collect()
+    }
 }
 
 impl engine_shared::State for State {
@@ -378,14 +407,10 @@ impl engine_shared::State for State {
 
     const DURATION_PER_TICK: std::time::Duration = std::time::Duration::from_millis(1000 / SPEED);
 
-    fn has_winner(&self) -> Option<UserId> {
-        let mut winner = None;
-        for (user_id, player) in &self.players {
-            if player.base.curr_level == 100 && self.king == Some(*user_id) {
-                winner = Some(*user_id);
-            }
-        }
-        winner
+   
+
+    fn closed(&self) -> bool {
+        self.winner().is_some()
     }
 
     fn update(
@@ -413,6 +438,16 @@ impl engine_shared::State for State {
 
                     match event {
                         ClientEvent::Init => {}
+                        ClientEvent::SpendTribePoint(territory) => {
+                            if let Some(tribe_id) = player.tribe {
+                                if player.tribe_points > 0 {
+                                    player.tribe_points -= 1;
+                                    let tribe = self.tribes.get_mut(&tribe_id)?;
+                                    *tribe.territories.entry(territory).or_default() += 1;
+                                }
+                            }
+
+                        }
                         ClientEvent::Bid(trade_id) => {
                             if let Some(trade) = self.trade_deals.get_mut(&trade_id) {
                                 trade.bid(&mut self.players, user_id, self.time)?;
@@ -899,6 +934,10 @@ impl engine_shared::State for State {
                                         .min_by_key(|(_, count)| *count)
                                         .unwrap().0;
 
+                            let tribes_map = self.players.iter()
+                                .filter_map(|(user_id, player)| player.tribe.map(|tribe_id| (*user_id, tribe_id)))
+                                .collect::<CustomMap<_, _>>();
+
                             for (user_id, player) in self.players.iter_mut() {
                                 let is_premium = user_data
                                     .get(user_id)
@@ -907,7 +946,17 @@ impl engine_shared::State for State {
 
                                 // Build the base.
                                 if let Some(JOIN_TRIBE_LEVEL) = player.base.build() {
-                                    player.tribe = Some(fewest_members_tribe_id);
+                                    let referrer_tribe = user_data.get(user_id).and_then(|user_data| {
+                                        user_data.referrer
+                                    }).and_then(|referrer_id| {
+                                        tribes_map.get(&referrer_id)
+                                    });
+
+                                    if let Some(referrer_tribe) = referrer_tribe {
+                                        player.tribe = Some(*referrer_tribe);
+                                    } else {
+                                        player.tribe = Some(fewest_members_tribe_id);
+                                    }
                                 }
 
                                 // Chance for a new dwarf!
@@ -1253,6 +1302,8 @@ impl engine_shared::State for State {
                                             if let Some(user_id) = quest.best() {
                                                 if let Some(player) = self.players.get_mut(&user_id)
                                                 {
+                                                    player.tribe_points += 1;
+
                                                     if self.king.is_some() {
                                                         player.money += money * 9 / 10;
                                                     } else {
@@ -1296,6 +1347,8 @@ impl engine_shared::State for State {
                                             if let Some(user_id) = quest.best() {
                                                 if let Some(player) = self.players.get_mut(&user_id)
                                                 {
+                                                    player.tribe_points += 1;
+
                                                     if !matches!(
                                                         self.event,
                                                         Some(WorldEvent::Revolution)
@@ -1359,6 +1412,8 @@ impl engine_shared::State for State {
                                             if let Some(user_id) = quest.best() {
                                                 if let Some(player) = self.players.get_mut(&user_id)
                                                 {
+                                                    player.tribe_points += 1;
+
                                                     let is_premium = user_data
                                                         .get(&user_id)
                                                         .map(|user_data| user_data.premium > 0)
@@ -1470,6 +1525,7 @@ impl engine_shared::State for State {
                                             if let Some(user_id) = quest.best() {
                                                 if let Some(player) = self.players.get_mut(&user_id)
                                                 {
+                                                    player.tribe_points += 1;
                                                     player.log.add(
                                                         self.time,
                                                         LogMsg::QuestCompletedDwarfs(
@@ -2732,6 +2788,7 @@ pub enum ClientEvent {
     ReleaseDwarf(DwarfId),
     ReadLog,
     ReadChat,
+    SpendTribePoint(Territory),
 }
 
 impl engine_shared::ClientEvent for ClientEvent {

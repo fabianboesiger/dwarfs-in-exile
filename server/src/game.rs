@@ -8,10 +8,10 @@ use axum::{
     response::Redirect,
     Extension,
 };
-use engine_shared::{utils::custom_map::CustomMap, GameId, State};
+use engine_shared::{utils::custom_map::CustomMap, GameId};
 use futures_util::{sink::SinkExt, stream::StreamExt};
 use serde::{Deserialize, Serialize};
-use shared::{ClientEvent, UserData, UserId, WINNER_NUM_PREMIUM_DAYS};
+use shared::{ClientEvent, UserData, UserId};
 use sqlx::SqlitePool;
 use tower_sessions::Session;
 
@@ -118,13 +118,13 @@ impl engine_server::BackendStore<shared::State> for GameStore {
     }
 
     async fn load_user_data(&self) -> Result<CustomMap<UserId, UserData>, Self::Error> {
-        let users: Vec<(i64, String, i64, i64, i64, i64, time::PrimitiveDateTime)> =
+        let users: Vec<(i64, String, i64, i64, i64, i64, time::PrimitiveDateTime, Option<i64>)> =
             sqlx::query_as(
                 r#"
-                        SELECT user_id, username, premium, admin, COUNT(winner), guest, joined
+                        SELECT user_id, username, premium, admin, COUNT(winner), guest, joined, referrer
                         FROM users
                         LEFT JOIN games ON winner = user_id
-                        GROUP BY user_id, username, premium, admin
+                        GROUP BY user_id, username, premium, admin, guest, joined, referrer
                     "#,
             )
             .fetch_all(&self.db)
@@ -133,7 +133,7 @@ impl engine_server::BackendStore<shared::State> for GameStore {
 
         let users = users
             .into_iter()
-            .map(|(id, username, premium, admin, games_won, guest, joined)| {
+            .map(|(id, username, premium, admin, games_won, guest, joined, referrer)| {
                 (
                     id.into(),
                     UserData {
@@ -143,6 +143,7 @@ impl engine_server::BackendStore<shared::State> for GameStore {
                         games_won,
                         guest: guest != 0,
                         joined,
+                        referrer: referrer.map(|id| UserId(id)),
                     },
                 )
             })
@@ -152,7 +153,7 @@ impl engine_server::BackendStore<shared::State> for GameStore {
     }
 
     async fn save_game(&self, game_id: GameId, state: &shared::State) -> Result<(), Self::Error> {
-        if let Some(winner) = state.has_winner() {
+        if let Some(winner) = state.winner() {
             sqlx::query(
                 r#"
                         UPDATE games
@@ -169,17 +170,20 @@ impl engine_server::BackendStore<shared::State> for GameStore {
 
             tracing::info!("game {} saved, ingame time {}", game_id, state.time);
 
-            sqlx::query(
-                r#"
-                        UPDATE users
-                        SET premium = premium + $2
-                        WHERE user_id = $1
-                    "#,
-            )
-            .bind(winner.0)
-            .bind(WINNER_NUM_PREMIUM_DAYS * 24)
-            .execute(&self.db)
-            .await?;
+            for (user_id, premium_days) in state.rewarded_premium_days() {
+                sqlx::query(
+                    r#"
+                            UPDATE users
+                            SET premium = premium + $2
+                            WHERE user_id = $1
+                        "#,
+                )
+                .bind(user_id.0)
+                .bind(premium_days * 24)
+                .execute(&self.db)
+                .await?;
+            }
+            
         } else {
             sqlx::query(
                 r#"
@@ -313,9 +317,9 @@ pub struct ValhallaTemplate {
 }
 
 pub async fn get_valhalla(Extension(pool): Extension<SqlitePool>) -> Result<Response, ServerError> {
-    let users: Vec<(i64, String, i64, i64, i64, i64, time::PrimitiveDateTime)> = sqlx::query_as(
+    let users: Vec<(i64, String, i64, i64, i64, i64, time::PrimitiveDateTime, Option<i64>)> = sqlx::query_as(
         r#"
-                    SELECT user_id, username, premium, admin, COUNT(winner), guest, joined
+                    SELECT user_id, username, premium, admin, COUNT(winner), guest, joined, referrer
                     FROM users
                     LEFT JOIN games ON winner = user_id
                     GROUP BY user_id, username, premium, admin
@@ -328,13 +332,14 @@ pub async fn get_valhalla(Extension(pool): Extension<SqlitePool>) -> Result<Resp
     let mut users = users
         .into_iter()
         .map(
-            |(_id, username, premium, admin, games_won, guest, joined)| UserData {
+            |(_id, username, premium, admin, games_won, guest, joined, referrer)| UserData {
                 username,
                 premium: premium as u64,
                 admin: admin != 0,
                 games_won,
                 guest: guest != 0,
                 joined,
+                referrer: referrer.map(|id| UserId(id)),
             },
         )
         .filter(|user_data| user_data.games_won > 0)

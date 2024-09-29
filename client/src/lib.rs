@@ -8,7 +8,7 @@ use rand::RngCore;
 use rustrict::CensorStr;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, RewardType, Stats, Territory, Time, TradeType, TutorialRequirement, TutorialReward, TutorialStep, UserId, WorldEvent, DISMANTLING_DIVIDER, JOIN_TRIBE_LEVEL, MAX_EFFECTIVENESS, MAX_HEALTH, SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS
+    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, RewardType, Stats, Territory, Time, TradeType, TribeId, TutorialRequirement, TutorialReward, TutorialStep, UserId, WorldEvent, DISMANTLING_DIVIDER, JOIN_TRIBE_LEVEL, MAX_EFFECTIVENESS, MAX_HEALTH, SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS, WINNER_TRIBE_NUM_PREMIUM_DAYS
 };
 use std::str::FromStr;
 use strum::Display;
@@ -439,7 +439,7 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
                     orders.send_msg(Msg::AdLoaded);
                 }
 
-                if engine_shared::State::has_winner(state).is_some() {
+                if engine_shared::State::closed(state) {
                     orders.notify(subs::UrlRequested::new(Url::from_str("/game").unwrap()));
                 }
 
@@ -645,7 +645,7 @@ fn view(model: &Model) -> Node<Msg> {
                     Page::Quest(quest_id) => quest(model, state, user_id, quest_id),
                     Page::Trading => trades(model, state, user_id),
                     Page::Manager => manager(model, state, user_id),
-                    Page::Tribe => tribe(model, state, user_id),
+                    Page::Tribe => tribe(model, client_state, state, user_id),
 
                 }],
                 chat(model, state, user_id, client_state),
@@ -1057,6 +1057,13 @@ fn name(model: &Model, user_id: &shared::UserId, include_online_status: bool) ->
     }
 }
 
+fn tribe_name(tribe: TribeId, game_id: GameId) -> Node<Msg> {
+    let mut rng = Image::rng_from_str(&format!("{}-{}", tribe, game_id));
+    let tribe_name = format!("{} Tribe", Dwarf::name(&mut rng));
+    let tribe_color = ((rng.next_u32() % 192) as u8, (rng.next_u32() % 192) as u8, (rng.next_u32() % 192) as u8);
+    span![style![ St::Color => format!("rgb({}, {}, {})", tribe_color.0, tribe_color.1, tribe_color.2) ], tribe_name]
+}
+
 fn ranking(
     model: &Model,
     state: &shared::State,
@@ -1116,10 +1123,10 @@ fn ranking(
                         name(model, user_id, true)
                     ],
                     if let Some(tribe) = player.tribe.as_ref() {
-                        let mut rng = Image::rng_from_str(&format!("{}", tribe));
-                        let tribe_name = format!("{} Tribe", Dwarf::name(&mut rng));
-                        let tribe_color = ((rng.next_u32() % 128) as u8, (rng.next_u32() % 128) as u8, (rng.next_u32() % 128) as u8);
-                        td![style![ St::Color => format!("rgb({}, {}, {})", tribe_color.0, tribe_color.1, tribe_color.2) ], tribe_name]
+                        td![tribe_name(
+                            *tribe,
+                            model.game_id
+                        )]
                     } else {
                         td![]
                     },
@@ -1462,7 +1469,7 @@ fn dwarf_image(dwarf: Option<&Dwarf>, player: &Player) -> Vec<Node<Msg>> {
     }
 }
 
-fn dwarf_details(dwarf: Option<&Dwarf>, player: &Player) -> Vec<Node<Msg>> {
+fn dwarf_details(dwarf: Option<&Dwarf>, player: &Player, visit_mode: bool) -> Vec<Node<Msg>> {
     if let Some(dwarf) = dwarf {
         vec![
             h3![C!["title"], dwarf.actual_name()],
@@ -1483,9 +1490,15 @@ fn dwarf_details(dwarf: Option<&Dwarf>, player: &Player) -> Vec<Node<Msg>> {
                 } else {
                     String::new()
                 },
-                br![],
-                dwarf_occupation(dwarf, player),
-                health_bar(dwarf.health, MAX_HEALTH),
+                if visit_mode {
+                    Vec::new()
+                } else {
+                    vec![
+                        br![],
+                        dwarf_occupation(dwarf, player),
+                        health_bar(dwarf.health, MAX_HEALTH),
+                    ]
+                }
             ],
         ]
     } else {
@@ -1671,7 +1684,7 @@ fn dwarfs(
                         dwarf_image(Some(dwarf), player),
                         td![
                             C!["list-item-content", "grow"],
-                            dwarf_details(Some(dwarf), player),
+                            dwarf_details(Some(dwarf), player, visit_id.is_some()),
                             p![match mode {
                                 DwarfsMode::Overview if visit_id.is_some() => {
                                     Node::Empty
@@ -2043,7 +2056,7 @@ fn dwarf(
                                         dwarf_image(dwarf.apprentice.and_then(|apprentice| player.dwarfs.get(&apprentice)), player),
                                         td![
                                             C!["list-item-content", "grow"],
-                                            dwarf_details(dwarf.apprentice.and_then(|apprentice| player.dwarfs.get(&apprentice)), player),
+                                            dwarf_details(dwarf.apprentice.and_then(|apprentice| player.dwarfs.get(&apprentice)), player, false),
                                             button![
                                                 ev(Ev::Click, move |_| Msg::ChangePage(Page::Dwarfs(DwarfsMode::Select(DwarfsSelect::Apprentice(dwarf_id))))),
                                                 if dwarf.apprentice.and_then(|apprentice| player.dwarfs.get(&apprentice)).is_some() {
@@ -2082,7 +2095,7 @@ fn dwarf(
                                         dwarf_image(dwarf.mentor.and_then(|mentor| player.dwarfs.get(&mentor)), player),
                                         td![
                                             C!["list-item-content", "grow"],
-                                            dwarf_details(dwarf.mentor.and_then(|mentor| player.dwarfs.get(&mentor)), player),
+                                            dwarf_details(dwarf.mentor.and_then(|mentor| player.dwarfs.get(&mentor)), player, false),
                                             button![
                                                 ev(Ev::Click, move |_| Msg::ChangePage(Page::Dwarfs(DwarfsMode::Select(DwarfsSelect::Mentor(dwarf_id))))),
                                                 if dwarf.mentor.and_then(|mentor| player.dwarfs.get(&mentor)).is_some() {
@@ -2341,7 +2354,7 @@ fn quest(
                             dwarf_image(dwarf, player),
                             td![
                                 C!["list-item-content", "grow"],
-                                dwarf_details(dwarf, player),
+                                dwarf_details(dwarf, player, false),
                                 button![
                                     ev(Ev::Click, move |_| Msg::ChangePage(Page::Dwarfs(DwarfsMode::Select(DwarfsSelect::Quest(quest_id, dwarf_idx))))),
                                     if dwarf_id.is_some() {
@@ -3375,16 +3388,78 @@ fn trades(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
     }
 }
 
-fn tribe(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
+fn tribe(model: &Model, client_state: &ClientState<shared::State>, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
         if let Some(tribe_id) = player.tribe {
             //let tribe = state.tribes.get(&tribe_id).unwrap();
+            let username = &client_state
+                    .get_user_data(user_id)
+                    .map(|data| data.username.clone().censor())
+                    .unwrap_or_default();
 
             div![C!["content"],
+                div![C!["important"],
+                    strong!["Invite Players"],
+                    div![C!["image-aside", "small"],
+                        img![attrs! {At::Src => "/social.jpg"}],
+                        div![
+                            p![
+                                "Use this link to invite players to the game. If they register with this link they will be assigned to your tribe once they reach the required level."
+                            ],
+                            p![
+                                span![C!["invitation-link"], format!("https://dwarfs-in-exile.com/register?referrer={}", user_id.0)],
+                            ],
+                            button![
+                                id!["copy-invitation-link"],
+                                "Copy Link",
+                            ],
+                            Script![format!(
+                                r#"
+                                let button = document.getElementById("copy-invitation-link");
+    
+                                button.addEventListener("click", function() {{
+                                    navigator.clipboard.writeText("https://dwarfs-in-exile.com/register?referrer={}");
+    
+                                    button.textContent = "Copied!";
+                                }});
+                                "#, user_id.0)
+                            ],
+                            button![
+                                id!["share-invitation-link"],
+                                style! { "display" => "none" },
+                                "Share",
+                            ],
+                            Script![format!(
+                                r#"
+                                if (navigator.share) {{
+                                    let button = document.getElementById("share-invitation-link");
+    
+                                    button.style.display = "block";
+    
+                                    button.addEventListener("click", function() {{
+                                        navigator.share({{
+                                            title: "Play Dwarfs in Exile!",
+                                            text: "Join {} in their adventures and play Dwarfs in Exile now for free!",
+                                            url: "https://dwarfs-in-exile.com/register?referrer={}",
+                                        }});
+                                    }});
+                                }}
+                                "#, username, user_id.0)
+                            ],
+                        ]
+                        
+                    ]
+
+                ],
+            
                 h2!["Your Tribe"],
-                h3!["Territories"],
-                p!["Spend your fame points for your tribe to conquer territories. Controlling territories rewards you with powerful dwarfs that join your settlement more frequently."],
-                p!["If the winner of this world is from your tribe, you will earn a free premium account for a week, so make sure to support your tribe members."],
+                p!["Spend your fame points for your tribe to conquer territories. Controlling territories rewards you with powerful dwarfs that join your settlement more frequently. You can earn tribe points by winning quests that have a single winner with the most XP collected (red quests)."],
+                p![format!("If the winner of this world is from your tribe, you will earn a free premium account for {} days, so make sure to support your tribe members.", WINNER_TRIBE_NUM_PREMIUM_DAYS)],
+                p![strong!["You are member of the ", tribe_name(
+                    tribe_id,
+                    model.game_id
+                ), "."]],
+                p![strong![format!("Your Fame Points: {} FP", player.tribe_points)]],
                 table![C!["list"],
                 enum_iterator::all::<Territory>()
                     .map(|territory| {
@@ -3422,7 +3497,18 @@ fn tribe(_model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                                 } else {
                                     p!["Your tribe does not control this territory."]
                                 },
-                                tribe_bar(curr, max, rank, scores.len(), scores)
+                                tribe_bar(curr, max, rank, scores.len(), scores),
+                                button![
+                                    if player.tribe_points > 0 {
+                                        attrs! {}
+                                    } else {
+                                        attrs! {At::Disabled => "true"}
+                                    },
+                                    ev(Ev::Click, move |_| Msg::send_event(
+                                        ClientEvent::SpendTribePoint(territory)
+                                    )),
+                                    "Spend One Fame Point"
+                                ],
                             ],
                         ]
                     })

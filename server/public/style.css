@@ -814,7 +814,7 @@ summary > * {
     margin: 0;
 }
 
-td.current-user {
+tr.current-user td {
     background: rgba(255, 255, 255, 0.75);
 }
 
