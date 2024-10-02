@@ -2294,7 +2294,7 @@ fn quest(
                                 QuestType::ADwarfInDanger => p!["A dwarf was abducted by the orks. They didn't hurt him yet, but the elves tell you that he is in danger and needs to be freed as soon as possible. If you free him first, he may stay in your settlement!"],
                                 QuestType::ForTheKing => p!["Fight a ruthless battle to become the king over all the dwarfen settlements!"],
                                 QuestType::DrunkFishing => p!["Participate in the drunk fishing contest! The dwarf that is the most successful drunk fisher gets a reward."],
-                                QuestType::CollapsedCave => p!["A cave has collapsed and some dwarfs are trapped inside. Be the first to save is life and they will move into your settlement."],
+                                QuestType::CollapsedCave => p!["A cave has collapsed and some dwarfs are trapped inside. Be the first to save their life and they will move into your settlement."],
                                 QuestType::TheHiddenTreasure => p!["The first who finds the hidden treasure can keep it."],
                                 QuestType::CatStuckOnATree => p!["A cat is stuck on a tree. Help her get on the ground an she will gladly follow you home."],
                                 QuestType::AttackTheOrks => p!["The orc camp was sptted near the elven village in preparation for an attak. Attack them first and get a reward from the elves!"],
