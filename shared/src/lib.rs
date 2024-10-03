@@ -3160,7 +3160,7 @@ impl QuestType {
             Self::TheElvenMagician => Occupation::Gathering,
             Self::ExploreNewLands => Occupation::Exploring,
             Self::DeepInTheCaves => Occupation::Mining,
-            Self::MinersLuck => Occupation::Rockhounding,
+            Self::MinersLuck => Occupation::Mining,
             Self::AbandonedOrkCamp => Occupation::Exploring,
         }
     }
