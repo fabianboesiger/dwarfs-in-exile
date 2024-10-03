@@ -39,7 +39,7 @@ pub const MIN_MAX_DWARF_DIFFERENCE: u64 = 3;
 pub const TRADE_MONEY_MULTIPLIER: u64 = 10;
 pub const DISMANTLING_DIVIDER: u64 = 2;
 pub const NEW_PLAYER_DIVIDER: u64 = 8;
-pub const JOIN_TRIBE_LEVEL: u64 = 16;
+pub const JOIN_TRIBE_LEVEL: u64 = 30;
 
 pub type Money = u64;
 pub type Food = u64;
