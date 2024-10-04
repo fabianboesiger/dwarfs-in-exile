@@ -8,7 +8,7 @@ use rand::RngCore;
 use rustrict::CensorStr;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, RewardType, Stats, Territory, Time, TradeType, TribeId, TutorialRequirement, TutorialReward, TutorialStep, UserId, WorldEvent, DISMANTLING_DIVIDER, JOIN_TRIBE_LEVEL, MAX_EFFECTIVENESS, MAX_HEALTH, SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS, WINNER_TRIBE_NUM_PREMIUM_DAYS
+    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, RewardType, Stats, Territory, Time, TradeType, TribeId, TutorialRequirement, TutorialReward, TutorialStep, UserId, WorldEvent, DISMANTLING_DIVIDER, JOIN_TRIBE_LEVEL, MAX_EFFECTIVENESS, MAX_HEALTH, MIN_TRADE_VALUE, SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS, WINNER_TRIBE_NUM_PREMIUM_DAYS
 };
 use std::str::FromStr;
 use strum::Display;
@@ -3147,7 +3147,7 @@ fn inventory_options(
                 n.min(1),
                 n,
                 ClientEvent::Sell,
-                move |n| n > 0 && item.money_value(n) * TRADE_MONEY_MULTIPLIER == 0,
+                move |n| n > 0 && item.money_value(n) * TRADE_MONEY_MULTIPLIER < MIN_TRADE_VALUE,
                 None,
             ),
         ],

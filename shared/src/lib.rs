@@ -18,7 +18,7 @@ use strum::Display;
 #[cfg(not(debug_assertions))]
 pub const SPEED: u64 = 1;
 #[cfg(debug_assertions)]
-pub const SPEED: u64 = 20;
+pub const SPEED: u64 = 1;
 pub const ONE_MINUTE: u64 = 60;
 pub const ONE_HOUR: u64 = ONE_MINUTE * 60;
 pub const ONE_DAY: u64 = ONE_HOUR * 24;
@@ -40,6 +40,7 @@ pub const TRADE_MONEY_MULTIPLIER: u64 = 10;
 pub const DISMANTLING_DIVIDER: u64 = 2;
 pub const NEW_PLAYER_DIVIDER: u64 = 8;
 pub const JOIN_TRIBE_LEVEL: u64 = 30;
+pub const MIN_TRADE_VALUE: u64 = 100;
 
 pub type Money = u64;
 pub type Food = u64;
@@ -900,13 +901,15 @@ impl engine_shared::State for State {
                         }
                         ClientEvent::Sell(item, qty) => {
                             if qty > 0 {
-                                /*
+                                
                                 if let Some(trade_deal) =
                                     TradeDeal::from_player(user_id, player, item, qty)
                                 {
-                                    self.trade_deals.push(trade_deal);
+                                    self.trade_deals.insert(self.next_trade_id, trade_deal);
+                                    self.next_trade_id += 1;
                                 }
-                                */
+                                
+                                /*
                                 let qty = qty.min(player.inventory.items.get(&item).copied().unwrap_or(0));
                                 let items = Bundle::new().add(item, qty);
                                 let next_bid = item.money_value(qty) * TRADE_MONEY_MULTIPLIER;
@@ -924,6 +927,7 @@ impl engine_shared::State for State {
                                 }
 
                                 player.money += next_bid;
+                                */
                             }
                         }
                         ClientEvent::ReadLog => {
@@ -3345,7 +3349,7 @@ impl TradeDeal {
             return None;
         }
 
-        if next_bid == 0 {
+        if next_bid < MIN_TRADE_VALUE {
             return None;
         }
 
