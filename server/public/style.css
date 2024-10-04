@@ -290,8 +290,8 @@ header {
 .messages {
     overflow-y: auto;
     max-height: 384px;
-    word-break: break-all;
     border-top: 1px solid var(--ui-background-default);
+    overflow-wrap: anywhere;
 }
 
 .messages .username,
@@ -1099,6 +1099,10 @@ button.inline, .button.inline {
     padding: 4px;
 }
 
-.ranking td {
-    word-break: break-all;
+.table-wrapper {
+    overflow-x: auto;
 }
+
+/*.ranking td {
+    max-width: 128px;
+}*/

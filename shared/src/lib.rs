@@ -57,6 +57,15 @@ pub struct WorldSettings {
     pub world_speed: u64,
 }
 
+impl Default for WorldSettings {
+    fn default() -> Self {
+        Self {
+            start_countdown: 0,
+            world_speed: 1,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Hash)]
 pub enum Popup {
     NewDwarf(Dwarf),
@@ -199,7 +208,7 @@ impl TutorialStep {
 
     pub fn reward(&self) -> TutorialReward {
         match self {
-            TutorialStep::Welcome => TutorialReward::Money(1000),
+            TutorialStep::Welcome => TutorialReward::Items(Bundle::new().add(Item::CookedMeat, 50)),
             TutorialStep::Logging => TutorialReward::Items(Bundle::new().add(Item::Wood, 100)),
             TutorialStep::SettlementExpansion2 => {
                 TutorialReward::Items(Bundle::new().add(Item::Iron, 10).add(Item::Wood, 10))
@@ -217,8 +226,8 @@ impl TutorialStep {
             TutorialStep::SettlementExpansion5 => TutorialReward::Dwarfs(1),
             TutorialStep::SettlementExpansion7 => TutorialReward::Dwarfs(1),
             TutorialStep::SettlementExpansion9 => TutorialReward::Dwarfs(1),
-            TutorialStep::Quests => TutorialReward::Money(1000),
-            TutorialStep::MakeLove => TutorialReward::Money(1000),
+            TutorialStep::Quests => TutorialReward::Items(Bundle::new().add(Item::CookedMeat, 50)),
+            TutorialStep::MakeLove => TutorialReward::Items(Bundle::new().add(Item::CookedMeat, 50))
         }
     }
 }
@@ -296,7 +305,10 @@ pub struct State {
     pub event: Option<WorldEvent>,
     pub trade_deals: CustomMap<TradeId, TradeDeal>,
     pub tribes: CustomMap<TribeId, Tribe>,
+    #[serde(default)]
     pub settings: WorldSettings,
+    #[serde(default)]
+    pub start_countdown: u64,
 }
 
 impl Default for State {
@@ -305,6 +317,8 @@ impl Default for State {
         tribes.insert(0, Tribe::default());
         tribes.insert(1, Tribe::default());
         tribes.insert(2, Tribe::default());
+
+        let settings = WorldSettings { start_countdown: ONE_HOUR, world_speed: 1 };
 
 
         Self {
@@ -319,7 +333,8 @@ impl Default for State {
             event: None,
             trade_deals: CustomMap::default(),
             tribes,
-            settings: WorldSettings { start_countdown: ONE_DAY, world_speed: 1 }
+            start_countdown: settings.start_countdown,
+            settings,
         }
     }
 }
@@ -429,7 +444,7 @@ impl engine_shared::State for State {
     ) {
         let update_result = move || -> Option<()> {
             match event {
-                Event::ClientEvent(event, user_id) => {
+                Event::ClientEvent(event, user_id) if self.start_countdown == 0 => {
                     if !self.players.contains_key(&user_id) {
                         self.players.insert(
                             user_id,
@@ -919,10 +934,15 @@ impl engine_shared::State for State {
                         }
                     }
                 }
+                Event::ClientEvent(_, _) => {}
                 Event::ServerEvent(event) => {
                     match event {
                         ServerEvent::Tick => {
                             self.time += 1;
+
+                            if self.start_countdown > 0 {
+                                self.start_countdown -= 1;
+                            }
 
                             if matches!(self.event, Some(WorldEvent::Revolution)) {
                                 self.king = None;
