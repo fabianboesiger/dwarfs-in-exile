@@ -1514,39 +1514,43 @@ impl engine_shared::State for State {
                                             }
                                         }
                                         RewardMode::NewDwarfByChance(num_dwarfs) => {
+                                            let mut reward = CustomMap::new();
                                             for _ in 0..num_dwarfs {
                                                 if let Some(user_id) = quest.chance_by_score(rng) {
-                                                    if let Some(player) =
-                                                        self.players.get_mut(&user_id)
-                                                    {
-                                                        player.log.add(
-                                                            self.time,
-                                                            LogMsg::QuestCompletedDwarfs(
-                                                                quest.quest_type,
-                                                                Some(num_dwarfs),
-                                                            ),
-                                                        );
-                                                        player.new_dwarf(
-                                                            rng,
-                                                            &mut self.next_dwarf_id,
-                                                            self.time,
-                                                            Some(Stats::default()),
-                                                        );
-                                                    }
-                                                    for contestant_id in quest.contestants.keys() {
-                                                        if *contestant_id != user_id {
-                                                            let player = self
-                                                                .players
-                                                                .get_mut(contestant_id)?;
-                                                            player.log.add(
-                                                                self.time,
-                                                                LogMsg::QuestCompletedDwarfs(
-                                                                    quest.quest_type,
-                                                                    None,
-                                                                ),
-                                                            );
-                                                        }
-                                                    }
+                                                    *reward.entry(user_id).or_default() += 1;
+                                                }
+                                            }
+                                            for (user_id, num_dwarfs) in reward.iter() {
+                                                if let Some(player) =
+                                                    self.players.get_mut(user_id)
+                                                {
+                                                    player.log.add(
+                                                        self.time,
+                                                        LogMsg::QuestCompletedDwarfs(
+                                                            quest.quest_type,
+                                                            Some(*num_dwarfs),
+                                                        ),
+                                                    );
+                                                    player.new_dwarf(
+                                                        rng,
+                                                        &mut self.next_dwarf_id,
+                                                        self.time,
+                                                        Some(Stats::default()),
+                                                    );
+                                                }
+                                            }
+                                            for contestant_id in quest.contestants.keys() {
+                                                if !reward.contains_key(contestant_id) {
+                                                    let player = self
+                                                        .players
+                                                        .get_mut(contestant_id)?;
+                                                    player.log.add(
+                                                        self.time,
+                                                        LogMsg::QuestCompletedDwarfs(
+                                                            quest.quest_type,
+                                                            None,
+                                                        ),
+                                                    );
                                                 }
                                             }
                                         }
