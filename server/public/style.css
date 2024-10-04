@@ -290,7 +290,7 @@ header {
 .messages {
     overflow-y: auto;
     max-height: 384px;
-    line-break: anywhere;
+    word-break: break-all;
     border-top: 1px solid var(--ui-background-default);
 }
 
@@ -1097,4 +1097,8 @@ progress {
 button.inline, .button.inline {
     margin: 0;
     padding: 4px;
+}
+
+.ranking td {
+    word-break: break-all;
 }

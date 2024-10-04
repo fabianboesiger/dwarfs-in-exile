@@ -1037,7 +1037,12 @@ fn name(model: &Model, user_id: &shared::UserId, include_online_status: bool) ->
                 Node::Empty
             },
             if include_online_status {
-                span![
+                if player.is_online(state.time) {
+                    span![C!["online"], "●"]
+                } else {
+                    Node::Empty
+                }
+                /*span![
                     C![
                         "symbols",
                         if player.is_online(state.time) {
@@ -1047,7 +1052,7 @@ fn name(model: &Model, user_id: &shared::UserId, include_online_status: bool) ->
                         }
                     ],
                     "●"
-                ]
+                ]*/
             } else {
                 Node::Empty
             },
