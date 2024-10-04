@@ -1,2 +1,2 @@
 #!/bin/bash
-scp dwarfs-in-exile.com:/home/fabian/projects/dwarfs-in-exile/data.db ./server/data.db
+scp fabian@dwarfs-in-exile.com:/home/fabian/projects/dwarfs-in-exile/data.db ./server/data.db

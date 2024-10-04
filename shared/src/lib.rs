@@ -39,7 +39,7 @@ pub const MIN_MAX_DWARF_DIFFERENCE: u64 = 3;
 pub const TRADE_MONEY_MULTIPLIER: u64 = 10;
 pub const DISMANTLING_DIVIDER: u64 = 2;
 pub const NEW_PLAYER_DIVIDER: u64 = 8;
-pub const JOIN_TRIBE_LEVEL: u64 = 16;
+pub const JOIN_TRIBE_LEVEL: u64 = 30;
 
 pub type Money = u64;
 pub type Food = u64;
@@ -50,6 +50,12 @@ pub type Time = u64;
 pub type QuestId = u64;
 pub type TribeId = u64;
 pub type TradeId = u64;
+
+#[derive(Debug, Clone, Hash, Serialize, Deserialize)]
+pub struct WorldSettings {
+    pub start_countdown: u64,
+    pub world_speed: u64,
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash)]
 pub enum Popup {
@@ -290,6 +296,7 @@ pub struct State {
     pub event: Option<WorldEvent>,
     pub trade_deals: CustomMap<TradeId, TradeDeal>,
     pub tribes: CustomMap<TribeId, Tribe>,
+    pub settings: WorldSettings,
 }
 
 impl Default for State {
@@ -312,6 +319,7 @@ impl Default for State {
             event: None,
             trade_deals: CustomMap::default(),
             tribes,
+            settings: WorldSettings { start_countdown: ONE_DAY, world_speed: 1 }
         }
     }
 }
@@ -828,6 +836,7 @@ impl engine_shared::State for State {
                                 let quest = self.quests.get(&quest_id)?;
                                 if player.base.curr_level > quest.max_level
                                     || player.base.curr_level < quest.min_level
+                                    || player.base.curr_level < quest.quest_type.occupation().unlocked_at_level()
                                 {
                                     return None;
                                 }
@@ -988,7 +997,7 @@ impl engine_shared::State for State {
                                     self.event
                                         .map(|event| event.new_dwarfs_multiplier())
                                         .unwrap_or(1),
-                                    (ONE_DAY as u32 * 5) / (controlled_territories.len() as u32 + 1),
+                                    (ONE_DAY as u32 * 3) / (controlled_territories.len() as u32 + 1),
                                 ) {
                                     let added_stats = controlled_territories.choose(rng).cloned().unwrap_or(Stats::default());
 
@@ -1023,14 +1032,14 @@ impl engine_shared::State for State {
                                 // Chance for a new baby dwarf!
                                 let baby_dwarf_multiplier =
                                     if matches!(self.event, Some(WorldEvent::FullMoon)) {
-                                        5
+                                        3
                                     } else {
                                         1
                                     };
                                 if rng.gen_ratio(
                                     male_idle_dwarfs.min(female_idle_dwarfs) as u32
                                         * baby_dwarf_multiplier,
-                                    ONE_DAY as u32 / 4,
+                                    ONE_HOUR as u32 * 3,
                                 ) {
                                     player.new_dwarf(rng, &mut self.next_dwarf_id, self.time, None);
                                 }
@@ -3151,7 +3160,7 @@ impl QuestType {
             Self::TheElvenMagician => Occupation::Gathering,
             Self::ExploreNewLands => Occupation::Exploring,
             Self::DeepInTheCaves => Occupation::Mining,
-            Self::MinersLuck => Occupation::Rockhounding,
+            Self::MinersLuck => Occupation::Mining,
             Self::AbandonedOrkCamp => Occupation::Exploring,
         }
     }
