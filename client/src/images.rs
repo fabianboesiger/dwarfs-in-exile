@@ -194,6 +194,9 @@ pub enum Image {
     Plains,
     Swamp,
     Desert,
+    GodsBlessing,
+    HuntingTrip,
+    LoggingContest,
 }
 
 impl AsAtValue for Image {
@@ -414,6 +417,10 @@ impl From<QuestType> for Image {
             QuestType::DeepInTheCaves => Image::DeepInTheCaves,
             QuestType::MinersLuck => Image::MinersLuck,
             QuestType::AbandonedOrkCamp => Image::AbandonedOrkCamp,
+            QuestType::GodsBlessing => Image::GodsBlessing,
+            QuestType::LoggingContest => Image::LoggingContest,
+            QuestType::HuntingTrip => Image::HuntingTrip,
+            
         }
     }
 }

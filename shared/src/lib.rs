@@ -3024,6 +3024,9 @@ pub enum QuestType {
     DeepInTheCaves,
     MinersLuck,
     AbandonedOrkCamp,
+    GodsBlessing,
+    LoggingContest,
+    HuntingTrip,
 }
 
 impl std::fmt::Display for QuestType {
@@ -3058,6 +3061,9 @@ impl std::fmt::Display for QuestType {
             QuestType::DeepInTheCaves => write!(f, "Deep in the Caves"),
             QuestType::MinersLuck => write!(f, "Miner's Luck"),
             QuestType::AbandonedOrkCamp => write!(f, "Abandonned Ork Camp"),
+            QuestType::GodsBlessing => write!(f, "God's Blessing"),
+            QuestType::LoggingContest => write!(f, "Logging Contest"),
+            QuestType::HuntingTrip => write!(f, "Hunting Trip"),
         }
     }
 }
@@ -3110,6 +3116,11 @@ impl QuestType {
                     .add(Item::Wood, 1000)
                     .add(Item::Iron, 100),
             ),
+            Self::GodsBlessing => RewardMode::ItemsByChance(Bundle::new().add(Item::CrystalNecklace, 1)),
+            Self::LoggingContest => RewardMode::BestGetsAll(2000),
+            Self::HuntingTrip => RewardMode::ItemsByChance(Bundle::new()
+                    .add(Item::RawMeat, 300)
+            ),
         }
     }
 
@@ -3148,6 +3159,9 @@ impl QuestType {
             Self::DeepInTheCaves => ONE_HOUR * 4,
             Self::MinersLuck => ONE_HOUR * 4,
             Self::AbandonedOrkCamp => ONE_HOUR * 4,
+            Self::GodsBlessing => ONE_HOUR * 2,
+            Self::LoggingContest => ONE_HOUR * 2,
+            Self::HuntingTrip => ONE_HOUR * 4,
         }
     }
 
@@ -3182,6 +3196,9 @@ impl QuestType {
             Self::DeepInTheCaves => Occupation::Mining,
             Self::MinersLuck => Occupation::Mining,
             Self::AbandonedOrkCamp => Occupation::Exploring,
+            Self::GodsBlessing => Occupation::Mining,
+            Self::LoggingContest => Occupation::Logging,
+            Self::HuntingTrip => Occupation::Hunting,
         }
     }
 
@@ -3216,6 +3233,9 @@ impl QuestType {
             Self::DeepInTheCaves => 1,
             Self::MinersLuck => 1,
             Self::AbandonedOrkCamp => 1,
+            Self::GodsBlessing => 3,
+            Self::LoggingContest => 1,
+            Self::HuntingTrip => 1,
         }
     }
 
