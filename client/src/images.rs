@@ -197,6 +197,7 @@ pub enum Image {
     GodsBlessing,
     HuntingTrip,
     LoggingContest,
+    Rat,
 }
 
 impl AsAtValue for Image {
@@ -381,6 +382,7 @@ impl From<Item> for Image {
             Item::Fairy => Image::Fairy,
             Item::Dog => Image::Dog,
             Item::Wildcat => Image::Wildcat,
+            Item::Rat => Image::Rat,
         }
     }
 }

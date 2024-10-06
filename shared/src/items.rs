@@ -144,6 +144,7 @@ pub enum Item {
     Fairy,
     Dog,
     Wildcat,
+    Rat,
 }
 
 impl Craftable for Item {
@@ -538,6 +539,7 @@ impl Item {
             | Item::Kobold
             | Item::Fairy
             | Item::Dog
+            | Item::Rat
             | Item::Wildcat => Some(ItemType::Pet),
 
             Item::Apple
@@ -567,10 +569,9 @@ impl Item {
                 perception: 4,
                 ..Default::default()
             },
-            Item::Horse => Stats {
-                strength: 4,
-                agility: 4,
-                endurance: 4,
+            Item::Rat => Stats {
+                agility: 6,
+                intelligence: 6,
                 ..Default::default()
             },
             Item::Wildcat => Stats {
@@ -936,6 +937,9 @@ impl Item {
                     expected_ticks_per_drop: ONE_DAY * 7,
                 }),
                 Item::Fairy => Some(ItemProbability {
+                    expected_ticks_per_drop: ONE_DAY * 7,
+                }),
+                Item::Rat => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_DAY * 7,
                 }),
                 _ => None,
