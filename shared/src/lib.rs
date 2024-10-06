@@ -909,6 +909,10 @@ impl engine_shared::State for State {
                         ClientEvent::Sell(item, qty) => {
                             if qty > 0 {
 
+                                if item.item_type().is_none() {
+                                    return None;
+                                }
+
                                 if self.trade_deals.iter().filter(|(_, trade)| trade.creator == Some(user_id)).count() >= MAX_NUM_TRADES {
                                     return None;
                                 }

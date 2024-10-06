@@ -3171,31 +3171,36 @@ fn inventory_options(
         } else {
             Vec::new()
         },
-        vec![
-            h4!["Sell Item"],
-            p![format!(
-                "{}/{} active offers, minimum value: {} coins.",
-                num_trades,
-                MAX_NUM_TRADES,
-                MIN_TRADE_VALUE
-            )],
-            slider(
-                model,
-                item,
-                SliderType::Sell,
-                move |n| {
-                    format!(
-                        "Sell ({} coins)",
-                        item.money_value(n) * TRADE_MONEY_MULTIPLIER
-                    )
-                },
-                n.min(1),
-                n,
-                ClientEvent::Sell,
-                move |n| n == 0 || item.money_value(n) * TRADE_MONEY_MULTIPLIER < MIN_TRADE_VALUE || num_trades >= MAX_NUM_TRADES,
-                None,
-            ),
-        ],
+        if item.item_type().is_some() {
+            vec![
+                h4!["Sell Item"],
+                p![format!(
+                    "{}/{} active offers, minimum value: {} coins.",
+                    num_trades,
+                    MAX_NUM_TRADES,
+                    MIN_TRADE_VALUE
+                )],
+                slider(
+                    model,
+                    item,
+                    SliderType::Sell,
+                    move |n| {
+                        format!(
+                            "Sell ({} coins)",
+                            item.money_value(n) * TRADE_MONEY_MULTIPLIER
+                        )
+                    },
+                    n.min(1),
+                    n,
+                    ClientEvent::Sell,
+                    move |n| n == 0 || item.money_value(n) * TRADE_MONEY_MULTIPLIER < MIN_TRADE_VALUE || num_trades >= MAX_NUM_TRADES,
+                    None,
+                ),
+            ]
+        } else {
+            Vec::new()
+        }
+        
     ]
     .into_iter()
     .flatten()
