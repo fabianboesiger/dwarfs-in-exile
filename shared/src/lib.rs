@@ -39,8 +39,9 @@ pub const MIN_MAX_DWARF_DIFFERENCE: u64 = 3;
 pub const TRADE_MONEY_MULTIPLIER: u64 = 10;
 pub const DISMANTLING_DIVIDER: u64 = 2;
 pub const NEW_PLAYER_DIVIDER: u64 = 8;
-pub const JOIN_TRIBE_LEVEL: u64 = 30;
+pub const JOIN_TRIBE_LEVEL: u64 = 20;
 pub const MIN_TRADE_VALUE: u64 = 100;
+pub const MAX_NUM_TRADES: usize = 5;
 
 pub type Money = u64;
 pub type Food = u64;
@@ -901,6 +902,10 @@ impl engine_shared::State for State {
                         }
                         ClientEvent::Sell(item, qty) => {
                             if qty > 0 {
+
+                                if self.trade_deals.iter().filter(|(_, trade)| trade.creator == Some(user_id)).count() >= MAX_NUM_TRADES {
+                                    return None;
+                                }
                                 
                                 if let Some(trade_deal) =
                                     TradeDeal::from_player(user_id, player, item, qty)
@@ -956,7 +961,7 @@ impl engine_shared::State for State {
                                 if rng.gen_ratio(1, ONE_DAY as u32 / 4) {
                                     self.event = None;
                                 }
-                            } else if rng.gen_ratio(1, ONE_DAY as u32 / 4) {
+                            } else if rng.gen_ratio(1, ONE_DAY as u32 / 2) {
                                 self.event = Some(enum_iterator::all().choose(rng).unwrap());
                             }
 
@@ -1697,6 +1702,10 @@ impl engine_shared::State for State {
                                         let max_level = (selected_level + rng.gen_range(5..=15)).min(100);
                                         (min_level, max_level)
                                     };
+
+                                if selected_quest.occupation().unlocked_at_level() < max_level {
+                                    continue;
+                                }
 
                                 let quest = Quest::new(selected_quest, min_level, max_level);
 
@@ -3201,7 +3210,7 @@ impl QuestType {
             Self::Socializing => Occupation::Idling,
             Self::TheElvenMagician => Occupation::Gathering,
             Self::ExploreNewLands => Occupation::Exploring,
-            Self::DeepInTheCaves => Occupation::Mining,
+            Self::DeepInTheCaves => Occupation::Rockhounding,
             Self::MinersLuck => Occupation::Mining,
             Self::AbandonedOrkCamp => Occupation::Exploring,
             Self::GodsBlessing => Occupation::Mining,

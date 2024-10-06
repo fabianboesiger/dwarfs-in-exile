@@ -8,7 +8,7 @@ use rand::RngCore;
 use rustrict::CensorStr;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, RewardType, Stats, Territory, Time, TradeType, TribeId, TutorialRequirement, TutorialReward, TutorialStep, UserId, WorldEvent, DISMANTLING_DIVIDER, JOIN_TRIBE_LEVEL, MAX_EFFECTIVENESS, MAX_HEALTH, MIN_TRADE_VALUE, SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS, WINNER_TRIBE_NUM_PREMIUM_DAYS
+    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, RewardType, Stats, Territory, Time, TradeType, TribeId, TutorialRequirement, TutorialReward, TutorialStep, UserId, WorldEvent, DISMANTLING_DIVIDER, JOIN_TRIBE_LEVEL, MAX_EFFECTIVENESS, MAX_HEALTH, MAX_NUM_TRADES, MIN_TRADE_VALUE, SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS, WINNER_TRIBE_NUM_PREMIUM_DAYS
 };
 use std::str::FromStr;
 use strum::Display;
@@ -2954,6 +2954,7 @@ fn inventory_options(
     item: Item,
     n: u64,
     is_premium: bool,
+    num_trades: usize,
 ) -> Vec<Node<Msg>> {
     vec![
         if let Some((level, requires)) = item.requires() {
@@ -3134,6 +3135,12 @@ fn inventory_options(
         },
         vec![
             h4!["Sell Item"],
+            p![format!(
+                "{}/{} active offers, minimum value: {} coins.",
+                num_trades,
+                MAX_NUM_TRADES,
+                MIN_TRADE_VALUE
+            )],
             slider(
                 model,
                 item,
@@ -3147,7 +3154,7 @@ fn inventory_options(
                 n.min(1),
                 n,
                 ClientEvent::Sell,
-                move |n| n > 0 && item.money_value(n) * TRADE_MONEY_MULTIPLIER < MIN_TRADE_VALUE,
+                move |n| n == 0 || item.money_value(n) * TRADE_MONEY_MULTIPLIER < MIN_TRADE_VALUE || num_trades >= MAX_NUM_TRADES,
                 None,
             ),
         ],
@@ -3173,6 +3180,8 @@ fn inventory(
         let items: Bundle<Item> = enum_iterator::all::<Item>()
             .map(|t| (t, player.inventory.items.get(&t).copied().unwrap_or(0)))
             .collect();
+
+        let num_trades = state.trade_deals.iter().filter(|(_, trade)| trade.creator == Some(*user_id)).count();
 
         div![
             div![
@@ -3323,7 +3332,7 @@ fn inventory(
                     } else {
                         td![
                             C!["list-item-content"],
-                            inventory_options(model, player, item, n, is_premium)
+                            inventory_options(model, player, item, n, is_premium, num_trades)
                         ]
                     }
                 ]})
