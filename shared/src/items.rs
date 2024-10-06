@@ -145,6 +145,10 @@ pub enum Item {
     Dog,
     Wildcat,
     Rat,
+    AncientSpellbook,
+    RhinoHornPowder,
+    BearClawPowder,
+    TigerFangPowder,
 }
 
 impl Craftable for Item {
@@ -233,7 +237,7 @@ impl Craftable for Item {
             Item::Soup => Some((24, Bundle::new().add(Item::Potato, 3).add(Item::Carrot, 3))),
 
             Item::Crossbow => Some((
-                21,
+                19,
                 Bundle::new()
                     .add(Item::Wood, 5)
                     .add(Item::Iron, 10)
@@ -420,6 +424,26 @@ impl Craftable for Item {
                     .add(Item::Fabric, 50)
                     .add(Item::String, 50),
             )),
+
+            Item::BearClawPowder => Some((
+                24,
+                Bundle::new()
+                    .add(Item::BearClaw, 1)
+                    .add(Item::Bone, 20)
+            )),
+            Item::RhinoHornPowder => Some((
+                26,
+                Bundle::new()
+                    .add(Item::RhinoHorn, 1)
+                    .add(Item::Bone, 20)
+            )),
+            Item::TigerFangPowder => Some((
+                28,
+                Bundle::new()
+                    .add(Item::TigerFang, 1)
+                    .add(Item::Bone, 20)
+            )),
+
             _ => None,
         }
     }
@@ -440,13 +464,14 @@ pub enum ItemType {
     Pet,
     Food,
     Jewelry,
+    Consumable,
 }
 
 impl ItemType {
     pub fn equippable(&self) -> bool {
         matches!(
             self,
-            Self::Tool | Self::Clothing | Self::Pet | Self::Jewelry
+            Self::Tool | Self::Clothing | Self::Pet | Self::Jewelry | Self::Consumable
         )
     }
 }
@@ -459,6 +484,7 @@ impl std::fmt::Display for ItemType {
             ItemType::Pet => write!(f, "Pet"),
             ItemType::Food => write!(f, "Food"),
             ItemType::Jewelry => write!(f, "Jewelry"),
+            ItemType::Consumable => write!(f, "Consumable"),
         }
     }
 }
@@ -551,12 +577,36 @@ impl Item {
             | Item::BakedPotato
             | Item::Soup
             | Item::ApplePie => Some(ItemType::Food),
+
+            Item::AncientSpellbook
+            | Item::RhinoHornPowder
+            | Item::BearClawPowder
+            | Item::TigerFangPowder
+            => Some(ItemType::Consumable),
+
+            _ => None,
+        }
+    }
+
+    pub fn consumable_duration(self) -> Option<u64> {
+        match self {
+            Item::AncientSpellbook => Some(ONE_HOUR),
+            Item::RhinoHornPowder => Some(ONE_DAY),
+            Item::TigerFangPowder => Some(ONE_DAY),
+            Item::BearClawPowder => Some(ONE_DAY),
             _ => None,
         }
     }
 
     pub fn provides_stats(self) -> Stats {
         match self {
+            Item::AncientSpellbook => Stats {
+                strength: 10,
+                endurance: 10,
+                agility: 10,
+                intelligence: 10,
+                perception: 10,
+            },
             Item::LeatherArmor => Stats {
                 ..Default::default()
             },
@@ -725,7 +775,7 @@ impl Item {
             (Item::Pitchfork, Occupation::Farming) => 6,
             (Item::ChainMail, Occupation::Fighting) => 8,
             (Item::LeatherArmor, Occupation::Fighting) => 4,
-            (Item::RhinoHornPants, Occupation::Fighting) => 6,
+            (Item::RhinoHornPants, Occupation::Fighting) => 2,
             (Item::Bird, Occupation::Mining | Occupation::Rockhounding) => 3,
             (Item::Kobold, Occupation::Mining | Occupation::Rockhounding) => 10,
             (Item::Parrot, Occupation::Exploring) => 5,
@@ -912,6 +962,9 @@ impl Item {
                 Item::Parrot => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_DAY * 3,
                 }),
+                Item::Rat => Some(ItemProbability {
+                    expected_ticks_per_drop: ONE_DAY * 3,
+                }),
                 Item::Wildcat => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_DAY * 5,
                 }),
@@ -939,7 +992,7 @@ impl Item {
                 Item::Fairy => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_DAY * 7,
                 }),
-                Item::Rat => Some(ItemProbability {
+                Item::AncientSpellbook => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_DAY * 7,
                 }),
                 _ => None,

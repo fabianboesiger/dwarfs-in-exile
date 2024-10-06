@@ -1525,12 +1525,20 @@ fn dwarf_image(dwarf: Option<&Dwarf>, player: &Player) -> Vec<Node<Msg>> {
                     ]
                 } else {
                     Node::Empty
+                },
+                if let Some(consumable) = dwarf.equipment.get(&ItemType::Consumable) {
+                    img![
+                        C!["list-item-image-corner", "consumable"],
+                        attrs! {At::Src => Image::from(*consumable).as_at_value()},
+                    ]
+                } else {
+                    Node::Empty
                 }
             ],
             td![div![
                 C!["list-item-image-col"],
                 enum_iterator::all::<ItemType>()
-                    .filter(ItemType::equippable)
+                    .filter(|item_type| item_type.equippable() && *item_type != ItemType::Consumable)
                     .map(|item_type| {
                         let equipment = dwarf.equipment.get(&item_type);
                         if let Some(equipment) = equipment {
@@ -1613,6 +1621,11 @@ fn item_details(item: Item, n: u64) -> Vec<Node<Msg>> {
                 } else {
                     Node::Empty
                 },
+                if let Some(duration) = item.consumable_duration() {
+                    span![C!["short-info"], format!("Lasts for {}", fmt_time(duration, false))]
+                } else {
+                    Node::Empty
+                },
                 /*if item.money_value() > 0 {
                     span![C!["short-info"], format!("{} Coins", item.money_value())]
                 } else {
@@ -1636,6 +1649,22 @@ fn item_details(item: Item, n: u64) -> Vec<Node<Msg>> {
                     Vec::new()
                 },
             ],
+            {
+                let description = match item {
+                    Item::RhinoHornPowder => Some("Increases the fertility of a dwarf while idling."),
+                    Item::BearClawPowder => Some("Stops a dwarf from losing health while active."),
+                    Item::TigerFangPowder => Some("Stops a dwarf from aging while active."),
+                    Item::Rat => Some("Not very useful, but very cute."),
+                    Item::RhinoHornPants => Some("Increadibly potent, wear with caution."),
+                    _ => None
+                };
+
+                if let Some(description) = description {
+                   p![description]
+                } else {
+                    Node::Empty
+                }
+            },
             // Show stats
             if !item.provides_stats().is_zero() {
                 div![h4!["Provides"], stats(&item.provides_stats()),]
@@ -1974,6 +2003,11 @@ fn dwarf(
                 ],
                 div![
                     h3!["Equipment"],
+                    if let Some(consumable) = dwarf.equipment.get(&ItemType::Consumable) {
+                        p![format!("The consumable item {} lasts for {}.", consumable, fmt_time(dwarf.consumable_timer, true))]
+                    } else {
+                        Node::Empty
+                    },
                     table![C!["list"],
                         enum_iterator::all::<ItemType>().filter(ItemType::equippable).map(|item_type| {
                             let equipment = dwarf.equipment.get(&item_type);

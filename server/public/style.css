@@ -862,6 +862,11 @@ a {
     outline: 1px solid rgba(255, 255, 255, 0.5);
 }
 
+.list-item-image-corner.consumable {
+    top: 0px;
+    left: 80px;
+}
+
 .slider {
     display: flex;
     flex-wrap: nowrap;

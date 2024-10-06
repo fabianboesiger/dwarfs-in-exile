@@ -198,6 +198,10 @@ pub enum Image {
     HuntingTrip,
     LoggingContest,
     Rat,
+    AncientSpellbook,
+    TigerFangPowder,
+    BearClawPowder,
+    RhinoHornPowder,
 }
 
 impl AsAtValue for Image {
@@ -383,6 +387,10 @@ impl From<Item> for Image {
             Item::Dog => Image::Dog,
             Item::Wildcat => Image::Wildcat,
             Item::Rat => Image::Rat,
+            Item::AncientSpellbook => Image::AncientSpellbook,
+            Item::TigerFangPowder => Image::TigerFangPowder,
+            Item::BearClawPowder => Image::BearClawPowder,
+            Item::RhinoHornPowder => Image::RhinoHornPowder,
         }
     }
 }

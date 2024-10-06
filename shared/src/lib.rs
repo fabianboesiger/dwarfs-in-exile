@@ -605,7 +605,7 @@ impl engine_shared::State for State {
                                                 **num > 0
                                                     && item
                                                         .item_type()
-                                                        .map(|item_type| item_type.equippable())
+                                                        .map(|item_type| item_type.equippable() && item_type != ItemType::Consumable)
                                                         .unwrap_or(false)
                                                     && dwarf
                                                         .equipment
@@ -807,7 +807,8 @@ impl engine_shared::State for State {
                             }
                         }
                         ClientEvent::ChangeEquipment(dwarf_id, item_type, item) => {
-                            let equipment = &mut player.dwarfs.get_mut(&dwarf_id)?.equipment;
+                            let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
+                            let equipment = &mut dwarf.equipment;
 
                             let old_item = if let Some(item) = item {
                                 if item
@@ -821,12 +822,17 @@ impl engine_shared::State for State {
                                         .items
                                         .remove_checked(Bundle::new().add(item, 1))
                                 {
+                                    if item_type == ItemType::Consumable {
+                                        dwarf.consumable_timer = item.consumable_duration().unwrap_or_default();
+                                    }
                                     equipment.insert(item_type, item)
                                 } else {
                                     None
                                 }
-                            } else {
+                            } else if item_type != ItemType::Consumable {
                                 equipment.swap_remove(&item_type)
+                            } else {
+                                None
                             };
 
                             if let Some(old_item) = old_item {
@@ -1058,16 +1064,32 @@ impl engine_shared::State for State {
                                     })
                                     .count();
 
+                                let pairs = male_idle_dwarfs.min(female_idle_dwarfs);
+
                                 // Chance for a new baby dwarf!
-                                let baby_dwarf_multiplier =
+                                let baby_dwarf_multiplier_event =
                                     if matches!(self.event, Some(WorldEvent::FullMoon)) {
                                         3
                                     } else {
                                         1
                                     };
+
+                                let baby_dwarf_multiplier_consumable = player
+                                    .dwarfs
+                                    .values()
+                                    .filter(|dwarf| {
+                                        dwarf.occupation == Occupation::Idling
+                                            && dwarf.is_adult()
+                                    })
+                                    .fold(1, |acc, d| acc * match d.equipment.get(&ItemType::Consumable) {
+                                        Some(&Item::RhinoHornPowder) => 3,
+                                        Some(&Item::RhinoHornPants) => 2,
+                                        _ => 1,
+                                    });
+
                                 if rng.gen_ratio(
-                                    male_idle_dwarfs.min(female_idle_dwarfs) as u32
-                                        * baby_dwarf_multiplier,
+                                    pairs as u32
+                                        * baby_dwarf_multiplier_event * baby_dwarf_multiplier_consumable,
                                     ONE_HOUR as u32 * 3,
                                 ) {
                                     player.new_dwarf(rng, &mut self.next_dwarf_id, self.time, None);
@@ -1086,10 +1108,22 @@ impl engine_shared::State for State {
                                     player.dwarfs.iter_mut().collect::<Vec<_>>();
                                 sorted_by_health.sort_by_key(|(_, dwarf)| dwarf.health);
                                 for (dwarf_id, dwarf) in sorted_by_health {
-                                    dwarf.decr_health(
-                                        dwarf.actual_occupation().health_cost_per_tick()
-                                            * health_cost_multiplier,
-                                    );
+                                    if dwarf.consumable_timer > 0 {
+                                        dwarf.consumable_timer -= 1;
+                                    } else {
+                                        dwarf.equipment.swap_remove(&ItemType::Consumable);
+                                    }
+
+                                    match dwarf.equipment.get(&ItemType::Consumable) {
+                                        Some(&Item::BearClawPowder) => {},
+                                        _ => {
+                                            dwarf.decr_health(
+                                                dwarf.actual_occupation().health_cost_per_tick()
+                                                    * health_cost_multiplier,
+                                            );
+                                        },
+                                    }
+                                    
                                     if dwarf.actual_occupation() == Occupation::Idling {
                                         if player.base.food > 0 {
                                             if dwarf.health <= MAX_HEALTH - MAX_HEALTH / 1000 {
@@ -1111,7 +1145,13 @@ impl engine_shared::State for State {
 
                                     if !dwarf.dead() {
                                         let is_adult_before = dwarf.is_adult();
-                                        dwarf.age_seconds += AGE_SECONDS_PER_TICK;
+
+                                        match dwarf.equipment.get(&ItemType::Consumable) {
+                                            Some(&Item::TigerFangPowder) => {},
+                                            _ => {
+                                                dwarf.age_seconds += AGE_SECONDS_PER_TICK;
+                                            },
+                                        }
 
                                         if dwarf.age_years() > 200 && rng.gen_ratio(1, ONE_DAY as u32 * 5) {
                                             dwarf.health = 0;
@@ -2371,6 +2411,8 @@ pub struct Dwarf {
     pub apprentice: Option<DwarfId>,
     #[serde(default)]
     pub released: bool,
+    #[serde(default)]
+    pub consumable_timer: u64,
 }
 
 impl Dwarf {
@@ -2474,6 +2516,7 @@ impl Dwarf {
             mentor: None,
             apprentice: None,
             released: false,
+            consumable_timer: 0,
         }
     }
 
@@ -2496,6 +2539,7 @@ impl Dwarf {
             mentor: None,
             apprentice: None,
             released: false,
+            consumable_timer: 0,
         }
     }
 
