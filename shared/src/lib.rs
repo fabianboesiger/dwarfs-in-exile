@@ -18,7 +18,7 @@ use strum::Display;
 #[cfg(not(debug_assertions))]
 pub const SPEED: u64 = 1;
 #[cfg(debug_assertions)]
-pub const SPEED: u64 = 1;
+pub const SPEED: u64 = 10;
 pub const ONE_MINUTE: u64 = 60;
 pub const ONE_HOUR: u64 = ONE_MINUTE * 60;
 pub const ONE_DAY: u64 = ONE_HOUR * 24;
@@ -1032,7 +1032,11 @@ impl engine_shared::State for State {
                                     self.event
                                         .map(|event| event.new_dwarfs_multiplier())
                                         .unwrap_or(1),
-                                    (ONE_DAY as u32 * 3) / (controlled_territories.len() as u32 + 1),
+                                    if controlled_territories.len() == 0 {
+                                        ONE_DAY as u32 * 5
+                                     } else {
+                                        (ONE_DAY as u32) / (controlled_territories.len() as u32)
+                                     } ,
                                 ) {
                                     let added_stats = controlled_territories.choose(rng).cloned().unwrap_or(Stats::default());
 
@@ -1082,15 +1086,14 @@ impl engine_shared::State for State {
                                             && dwarf.is_adult()
                                     })
                                     .fold(1, |acc, d| acc * match d.equipment.get(&ItemType::Consumable) {
-                                        Some(&Item::RhinoHornPowder) => 3,
-                                        Some(&Item::RhinoHornPants) => 2,
+                                        Some(&Item::RhinoHornPowder) => 2,
                                         _ => 1,
                                     });
 
                                 if rng.gen_ratio(
                                     pairs as u32
                                         * baby_dwarf_multiplier_event * baby_dwarf_multiplier_consumable,
-                                    ONE_HOUR as u32 * 3,
+                                    ONE_HOUR as u32 * 4,
                                 ) {
                                     player.new_dwarf(rng, &mut self.next_dwarf_id, self.time, None);
                                 }
@@ -1743,7 +1746,7 @@ impl engine_shared::State for State {
                                         (min_level, max_level)
                                     };
 
-                                if selected_quest.occupation().unlocked_at_level() < max_level {
+                                if max_level < selected_quest.occupation().unlocked_at_level() {
                                     continue;
                                 }
 

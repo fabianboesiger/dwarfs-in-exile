@@ -307,7 +307,11 @@ fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
         println!("url path {:?}", url.path());
 
         if url.path().first().map(|s| s.as_str()) == Some("game") {
-            url_request.unhandled()
+            if let Some(_game_id) = url.path().get(1) {
+                url_request.unhandled()
+            } else {
+                url_request.handled()
+            }
         } else {
             url_request.handled()
         }
@@ -1555,7 +1559,7 @@ fn dwarf_image(dwarf: Option<&Dwarf>, player: &Player) -> Vec<Node<Msg>> {
             td![div![
                 C!["list-item-image-col"],
                 enum_iterator::all::<ItemType>()
-                    .filter(ItemType::equippable)
+                    .filter(|item_type| item_type.equippable() && *item_type != ItemType::Consumable)
                     .map(|_| { div![C!["placeholder"]] })
             ]],
         ]
@@ -1631,7 +1635,7 @@ fn item_details(item: Item, n: u64) -> Vec<Node<Msg>> {
                 } else {
                     Node::Empty
                 },*/
-                if cfg!(debug_assertions) {
+                /*if cfg!(debug_assertions) {
                     vec![
                         span![
                             C!["short-info"],
@@ -1647,7 +1651,7 @@ fn item_details(item: Item, n: u64) -> Vec<Node<Msg>> {
                     ]
                 } else {
                     Vec::new()
-                },
+                },*/
             ],
             {
                 let description = match item {
