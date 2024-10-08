@@ -1049,7 +1049,7 @@ impl engine_shared::State for State {
                                 // Let the dwarfs eat!
                                 let health_cost_multiplier = match self.event {
                                     Some(WorldEvent::Plague) => {
-                                        (1 + player.dwarfs.len() as u64 / 20).min(5)
+                                        (1 + player.dwarfs.len() as u64 / 10).min(5)
                                     }
                                     _ => 1,
                                 };
@@ -2003,12 +2003,14 @@ impl Player {
         let mut health_cost_per_tick = 0;
 
         let health_cost_multiplier = match state.event {
-            Some(WorldEvent::Plague) => (1 + self.dwarfs.len() as u64 / 20).min(5),
+            Some(WorldEvent::Plague) => (1 + self.dwarfs.len() as u64 / 10).min(5),
             _ => 1,
         };
 
+        let least_health_avaliable = self.dwarfs.values().map(|d| d.health).min().unwrap_or_default();
+        health_available += least_health_avaliable;
+       
         for dwarf in self.dwarfs.values() {
-            health_available += dwarf.health;
             health_cost_per_tick +=
                 dwarf.actual_occupation().health_cost_per_tick() * health_cost_multiplier;
         }
