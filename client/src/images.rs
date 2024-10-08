@@ -194,6 +194,14 @@ pub enum Image {
     Plains,
     Swamp,
     Desert,
+    GodsBlessing,
+    HuntingTrip,
+    LoggingContest,
+    Rat,
+    AncientSpellbook,
+    TigerFangPowder,
+    BearClawPowder,
+    RhinoHornPowder,
 }
 
 impl AsAtValue for Image {
@@ -378,6 +386,11 @@ impl From<Item> for Image {
             Item::Fairy => Image::Fairy,
             Item::Dog => Image::Dog,
             Item::Wildcat => Image::Wildcat,
+            Item::Rat => Image::Rat,
+            Item::AncientSpellbook => Image::AncientSpellbook,
+            Item::TigerFangPowder => Image::TigerFangPowder,
+            Item::BearClawPowder => Image::BearClawPowder,
+            Item::RhinoHornPowder => Image::RhinoHornPowder,
         }
     }
 }
@@ -414,6 +427,10 @@ impl From<QuestType> for Image {
             QuestType::DeepInTheCaves => Image::DeepInTheCaves,
             QuestType::MinersLuck => Image::MinersLuck,
             QuestType::AbandonedOrkCamp => Image::AbandonedOrkCamp,
+            QuestType::GodsBlessing => Image::GodsBlessing,
+            QuestType::LoggingContest => Image::LoggingContest,
+            QuestType::HuntingTrip => Image::HuntingTrip,
+            
         }
     }
 }

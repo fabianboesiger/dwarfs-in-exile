@@ -18,7 +18,7 @@ use strum::Display;
 #[cfg(not(debug_assertions))]
 pub const SPEED: u64 = 1;
 #[cfg(debug_assertions)]
-pub const SPEED: u64 = 20;
+pub const SPEED: u64 = 10;
 pub const ONE_MINUTE: u64 = 60;
 pub const ONE_HOUR: u64 = ONE_MINUTE * 60;
 pub const ONE_DAY: u64 = ONE_HOUR * 24;
@@ -27,7 +27,7 @@ pub const LOOT_CRATE_COST: Money = 1000;
 pub const FREE_LOOT_CRATE: u64 = ONE_DAY;
 pub const WINNER_NUM_PREMIUM_DAYS: i64 = 30;
 pub const WINNER_TRIBE_NUM_PREMIUM_DAYS: i64 = 7;
-pub const FEMALE_PROBABILITY: f64 = 1.0 / 3.0;
+pub const FEMALE_PROBABILITY: f64 = 0.5;
 pub const MAX_LEVEL: u64 = 100;
 pub const AGE_SECONDS_PER_TICK: u64 = 365 * 24;
 pub const ADULT_AGE: u64 = 20;
@@ -39,7 +39,9 @@ pub const MIN_MAX_DWARF_DIFFERENCE: u64 = 3;
 pub const TRADE_MONEY_MULTIPLIER: u64 = 10;
 pub const DISMANTLING_DIVIDER: u64 = 2;
 pub const NEW_PLAYER_DIVIDER: u64 = 8;
-pub const JOIN_TRIBE_LEVEL: u64 = 30;
+pub const JOIN_TRIBE_LEVEL: u64 = 20;
+pub const MIN_TRADE_VALUE: u64 = 100;
+pub const MAX_NUM_TRADES: usize = 5;
 
 pub type Money = u64;
 pub type Food = u64;
@@ -55,6 +57,15 @@ pub type TradeId = u64;
 pub struct WorldSettings {
     pub start_countdown: u64,
     pub world_speed: u64,
+}
+
+impl Default for WorldSettings {
+    fn default() -> Self {
+        Self {
+            start_countdown: 0,
+            world_speed: 1,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash)]
@@ -199,7 +210,7 @@ impl TutorialStep {
 
     pub fn reward(&self) -> TutorialReward {
         match self {
-            TutorialStep::Welcome => TutorialReward::Money(1000),
+            TutorialStep::Welcome => TutorialReward::Items(Bundle::new().add(Item::CookedMeat, 50)),
             TutorialStep::Logging => TutorialReward::Items(Bundle::new().add(Item::Wood, 100)),
             TutorialStep::SettlementExpansion2 => {
                 TutorialReward::Items(Bundle::new().add(Item::Iron, 10).add(Item::Wood, 10))
@@ -217,8 +228,8 @@ impl TutorialStep {
             TutorialStep::SettlementExpansion5 => TutorialReward::Dwarfs(1),
             TutorialStep::SettlementExpansion7 => TutorialReward::Dwarfs(1),
             TutorialStep::SettlementExpansion9 => TutorialReward::Dwarfs(1),
-            TutorialStep::Quests => TutorialReward::Money(1000),
-            TutorialStep::MakeLove => TutorialReward::Money(1000),
+            TutorialStep::Quests => TutorialReward::Items(Bundle::new().add(Item::CookedMeat, 50)),
+            TutorialStep::MakeLove => TutorialReward::Items(Bundle::new().add(Item::CookedMeat, 50))
         }
     }
 }
@@ -296,7 +307,10 @@ pub struct State {
     pub event: Option<WorldEvent>,
     pub trade_deals: CustomMap<TradeId, TradeDeal>,
     pub tribes: CustomMap<TribeId, Tribe>,
+    #[serde(default)]
     pub settings: WorldSettings,
+    #[serde(default)]
+    pub start_countdown: u64,
 }
 
 impl Default for State {
@@ -305,6 +319,8 @@ impl Default for State {
         tribes.insert(0, Tribe::default());
         tribes.insert(1, Tribe::default());
         tribes.insert(2, Tribe::default());
+
+        let settings = WorldSettings { start_countdown: ONE_HOUR, world_speed: 1 };
 
 
         Self {
@@ -319,7 +335,8 @@ impl Default for State {
             event: None,
             trade_deals: CustomMap::default(),
             tribes,
-            settings: WorldSettings { start_countdown: ONE_DAY, world_speed: 1 }
+            start_countdown: settings.start_countdown,
+            settings,
         }
     }
 }
@@ -429,7 +446,7 @@ impl engine_shared::State for State {
     ) {
         let update_result = move || -> Option<()> {
             match event {
-                Event::ClientEvent(event, user_id) => {
+                Event::ClientEvent(event, user_id) if self.start_countdown == 0 => {
                     if !self.players.contains_key(&user_id) {
                         self.players.insert(
                             user_id,
@@ -588,7 +605,7 @@ impl engine_shared::State for State {
                                                 **num > 0
                                                     && item
                                                         .item_type()
-                                                        .map(|item_type| item_type.equippable())
+                                                        .map(|item_type| item_type.equippable() && item_type != ItemType::Consumable)
                                                         .unwrap_or(false)
                                                     && dwarf
                                                         .equipment
@@ -790,7 +807,8 @@ impl engine_shared::State for State {
                             }
                         }
                         ClientEvent::ChangeEquipment(dwarf_id, item_type, item) => {
-                            let equipment = &mut player.dwarfs.get_mut(&dwarf_id)?.equipment;
+                            let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
+                            let equipment = &mut dwarf.equipment;
 
                             let old_item = if let Some(item) = item {
                                 if item
@@ -804,12 +822,17 @@ impl engine_shared::State for State {
                                         .items
                                         .remove_checked(Bundle::new().add(item, 1))
                                 {
+                                    if item_type == ItemType::Consumable {
+                                        dwarf.consumable_timer = item.consumable_duration().unwrap_or_default();
+                                    }
                                     equipment.insert(item_type, item)
                                 } else {
                                     None
                                 }
-                            } else {
+                            } else if item_type != ItemType::Consumable {
                                 equipment.swap_remove(&item_type)
+                            } else {
+                                None
                             };
 
                             if let Some(old_item) = old_item {
@@ -885,13 +908,23 @@ impl engine_shared::State for State {
                         }
                         ClientEvent::Sell(item, qty) => {
                             if qty > 0 {
-                                /*
+
+                                if item.item_type().is_none() {
+                                    return None;
+                                }
+
+                                if self.trade_deals.iter().filter(|(_, trade)| trade.creator == Some(user_id)).count() >= MAX_NUM_TRADES {
+                                    return None;
+                                }
+                                
                                 if let Some(trade_deal) =
                                     TradeDeal::from_player(user_id, player, item, qty)
                                 {
-                                    self.trade_deals.push(trade_deal);
+                                    self.trade_deals.insert(self.next_trade_id, trade_deal);
+                                    self.next_trade_id += 1;
                                 }
-                                */
+                                
+                                /*
                                 let qty = qty.min(player.inventory.items.get(&item).copied().unwrap_or(0));
                                 let items = Bundle::new().add(item, qty);
                                 let next_bid = item.money_value(qty) * TRADE_MONEY_MULTIPLIER;
@@ -909,6 +942,7 @@ impl engine_shared::State for State {
                                 }
 
                                 player.money += next_bid;
+                                */
                             }
                         }
                         ClientEvent::ReadLog => {
@@ -919,10 +953,15 @@ impl engine_shared::State for State {
                         }
                     }
                 }
+                Event::ClientEvent(_, _) => {}
                 Event::ServerEvent(event) => {
                     match event {
                         ServerEvent::Tick => {
                             self.time += 1;
+
+                            if self.start_countdown > 0 {
+                                self.start_countdown -= 1;
+                            }
 
                             if matches!(self.event, Some(WorldEvent::Revolution)) {
                                 self.king = None;
@@ -932,7 +971,7 @@ impl engine_shared::State for State {
                                 if rng.gen_ratio(1, ONE_DAY as u32 / 4) {
                                     self.event = None;
                                 }
-                            } else if rng.gen_ratio(1, ONE_DAY as u32 / 4) {
+                            } else if rng.gen_ratio(1, ONE_DAY as u32 / 2) {
                                 self.event = Some(enum_iterator::all().choose(rng).unwrap());
                             }
 
@@ -997,7 +1036,11 @@ impl engine_shared::State for State {
                                     self.event
                                         .map(|event| event.new_dwarfs_multiplier())
                                         .unwrap_or(1),
-                                    (ONE_DAY as u32 * 3) / (controlled_territories.len() as u32 + 1),
+                                    if controlled_territories.len() == 0 {
+                                        ONE_DAY as u32 * 5
+                                     } else {
+                                        (ONE_DAY as u32) / (controlled_territories.len() as u32)
+                                     } ,
                                 ) {
                                     let added_stats = controlled_territories.choose(rng).cloned().unwrap_or(Stats::default());
 
@@ -1029,17 +1072,32 @@ impl engine_shared::State for State {
                                     })
                                     .count();
 
+                                let pairs = male_idle_dwarfs.min(female_idle_dwarfs);
+
                                 // Chance for a new baby dwarf!
-                                let baby_dwarf_multiplier =
+                                let baby_dwarf_multiplier_event =
                                     if matches!(self.event, Some(WorldEvent::FullMoon)) {
                                         3
                                     } else {
                                         1
                                     };
+
+                                let baby_dwarf_multiplier_consumable = player
+                                    .dwarfs
+                                    .values()
+                                    .filter(|dwarf| {
+                                        dwarf.occupation == Occupation::Idling
+                                            && dwarf.is_adult()
+                                    })
+                                    .fold(1, |acc, d| acc * match d.equipment.get(&ItemType::Consumable) {
+                                        Some(&Item::RhinoHornPowder) => 2,
+                                        _ => 1,
+                                    });
+
                                 if rng.gen_ratio(
-                                    male_idle_dwarfs.min(female_idle_dwarfs) as u32
-                                        * baby_dwarf_multiplier,
-                                    ONE_HOUR as u32 * 3,
+                                    pairs as u32
+                                        * baby_dwarf_multiplier_event * baby_dwarf_multiplier_consumable,
+                                    ONE_HOUR as u32 * 4,
                                 ) {
                                     player.new_dwarf(rng, &mut self.next_dwarf_id, self.time, None);
                                 }
@@ -1057,10 +1115,22 @@ impl engine_shared::State for State {
                                     player.dwarfs.iter_mut().collect::<Vec<_>>();
                                 sorted_by_health.sort_by_key(|(_, dwarf)| dwarf.health);
                                 for (dwarf_id, dwarf) in sorted_by_health {
-                                    dwarf.decr_health(
-                                        dwarf.actual_occupation().health_cost_per_tick()
-                                            * health_cost_multiplier,
-                                    );
+                                    if dwarf.consumable_timer > 0 {
+                                        dwarf.consumable_timer -= 1;
+                                    } else {
+                                        dwarf.equipment.swap_remove(&ItemType::Consumable);
+                                    }
+
+                                    match dwarf.equipment.get(&ItemType::Consumable) {
+                                        Some(&Item::BearClawPowder) => {},
+                                        _ => {
+                                            dwarf.decr_health(
+                                                dwarf.actual_occupation().health_cost_per_tick()
+                                                    * health_cost_multiplier,
+                                            );
+                                        },
+                                    }
+                                    
                                     if dwarf.actual_occupation() == Occupation::Idling {
                                         if player.base.food > 0 {
                                             if dwarf.health <= MAX_HEALTH - MAX_HEALTH / 1000 {
@@ -1082,7 +1152,13 @@ impl engine_shared::State for State {
 
                                     if !dwarf.dead() {
                                         let is_adult_before = dwarf.is_adult();
-                                        dwarf.age_seconds += AGE_SECONDS_PER_TICK;
+
+                                        match dwarf.equipment.get(&ItemType::Consumable) {
+                                            Some(&Item::TigerFangPowder) => {},
+                                            _ => {
+                                                dwarf.age_seconds += AGE_SECONDS_PER_TICK;
+                                            },
+                                        }
 
                                         if dwarf.age_years() > 200 && rng.gen_ratio(1, ONE_DAY as u32 * 5) {
                                             dwarf.health = 0;
@@ -1494,39 +1570,43 @@ impl engine_shared::State for State {
                                             }
                                         }
                                         RewardMode::NewDwarfByChance(num_dwarfs) => {
+                                            let mut reward = CustomMap::new();
                                             for _ in 0..num_dwarfs {
                                                 if let Some(user_id) = quest.chance_by_score(rng) {
-                                                    if let Some(player) =
-                                                        self.players.get_mut(&user_id)
-                                                    {
-                                                        player.log.add(
-                                                            self.time,
-                                                            LogMsg::QuestCompletedDwarfs(
-                                                                quest.quest_type,
-                                                                Some(num_dwarfs),
-                                                            ),
-                                                        );
-                                                        player.new_dwarf(
-                                                            rng,
-                                                            &mut self.next_dwarf_id,
-                                                            self.time,
-                                                            Some(Stats::default()),
-                                                        );
-                                                    }
-                                                    for contestant_id in quest.contestants.keys() {
-                                                        if *contestant_id != user_id {
-                                                            let player = self
-                                                                .players
-                                                                .get_mut(contestant_id)?;
-                                                            player.log.add(
-                                                                self.time,
-                                                                LogMsg::QuestCompletedDwarfs(
-                                                                    quest.quest_type,
-                                                                    None,
-                                                                ),
-                                                            );
-                                                        }
-                                                    }
+                                                    *reward.entry(user_id).or_default() += 1;
+                                                }
+                                            }
+                                            for (user_id, num_dwarfs) in reward.iter() {
+                                                if let Some(player) =
+                                                    self.players.get_mut(user_id)
+                                                {
+                                                    player.log.add(
+                                                        self.time,
+                                                        LogMsg::QuestCompletedDwarfs(
+                                                            quest.quest_type,
+                                                            Some(*num_dwarfs),
+                                                        ),
+                                                    );
+                                                    player.new_dwarf(
+                                                        rng,
+                                                        &mut self.next_dwarf_id,
+                                                        self.time,
+                                                        Some(Stats::default()),
+                                                    );
+                                                }
+                                            }
+                                            for contestant_id in quest.contestants.keys() {
+                                                if !reward.contains_key(contestant_id) {
+                                                    let player = self
+                                                        .players
+                                                        .get_mut(contestant_id)?;
+                                                    player.log.add(
+                                                        self.time,
+                                                        LogMsg::QuestCompletedDwarfs(
+                                                            quest.quest_type,
+                                                            None,
+                                                        ),
+                                                    );
                                                 }
                                             }
                                         }
@@ -1669,6 +1749,10 @@ impl engine_shared::State for State {
                                         let max_level = (selected_level + rng.gen_range(5..=15)).min(100);
                                         (min_level, max_level)
                                     };
+
+                                if max_level < selected_quest.occupation().unlocked_at_level() {
+                                    continue;
+                                }
 
                                 let quest = Quest::new(selected_quest, min_level, max_level);
 
@@ -2336,6 +2420,8 @@ pub struct Dwarf {
     pub apprentice: Option<DwarfId>,
     #[serde(default)]
     pub released: bool,
+    #[serde(default)]
+    pub consumable_timer: u64,
 }
 
 impl Dwarf {
@@ -2439,6 +2525,7 @@ impl Dwarf {
             mentor: None,
             apprentice: None,
             released: false,
+            consumable_timer: 0,
         }
     }
 
@@ -2461,6 +2548,7 @@ impl Dwarf {
             mentor: None,
             apprentice: None,
             released: false,
+            consumable_timer: 0,
         }
     }
 
@@ -3006,6 +3094,9 @@ pub enum QuestType {
     DeepInTheCaves,
     MinersLuck,
     AbandonedOrkCamp,
+    GodsBlessing,
+    LoggingContest,
+    HuntingTrip,
 }
 
 impl std::fmt::Display for QuestType {
@@ -3040,6 +3131,9 @@ impl std::fmt::Display for QuestType {
             QuestType::DeepInTheCaves => write!(f, "Deep in the Caves"),
             QuestType::MinersLuck => write!(f, "Miner's Luck"),
             QuestType::AbandonedOrkCamp => write!(f, "Abandonned Ork Camp"),
+            QuestType::GodsBlessing => write!(f, "God's Blessing"),
+            QuestType::LoggingContest => write!(f, "Logging Contest"),
+            QuestType::HuntingTrip => write!(f, "Hunting Trip"),
         }
     }
 }
@@ -3092,6 +3186,11 @@ impl QuestType {
                     .add(Item::Wood, 1000)
                     .add(Item::Iron, 100),
             ),
+            Self::GodsBlessing => RewardMode::ItemsByChance(Bundle::new().add(Item::CrystalNecklace, 1)),
+            Self::LoggingContest => RewardMode::BestGetsAll(2000),
+            Self::HuntingTrip => RewardMode::ItemsByChance(Bundle::new()
+                    .add(Item::RawMeat, 300)
+            ),
         }
     }
 
@@ -3130,6 +3229,9 @@ impl QuestType {
             Self::DeepInTheCaves => ONE_HOUR * 4,
             Self::MinersLuck => ONE_HOUR * 4,
             Self::AbandonedOrkCamp => ONE_HOUR * 4,
+            Self::GodsBlessing => ONE_HOUR * 2,
+            Self::LoggingContest => ONE_HOUR * 2,
+            Self::HuntingTrip => ONE_HOUR * 4,
         }
     }
 
@@ -3161,9 +3263,12 @@ impl QuestType {
             Self::Socializing => Occupation::Idling,
             Self::TheElvenMagician => Occupation::Gathering,
             Self::ExploreNewLands => Occupation::Exploring,
-            Self::DeepInTheCaves => Occupation::Mining,
+            Self::DeepInTheCaves => Occupation::Rockhounding,
             Self::MinersLuck => Occupation::Mining,
             Self::AbandonedOrkCamp => Occupation::Exploring,
+            Self::GodsBlessing => Occupation::Mining,
+            Self::LoggingContest => Occupation::Logging,
+            Self::HuntingTrip => Occupation::Hunting,
         }
     }
 
@@ -3198,6 +3303,9 @@ impl QuestType {
             Self::DeepInTheCaves => 1,
             Self::MinersLuck => 1,
             Self::AbandonedOrkCamp => 1,
+            Self::GodsBlessing => 3,
+            Self::LoggingContest => 1,
+            Self::HuntingTrip => 1,
         }
     }
 
@@ -3303,7 +3411,7 @@ impl TradeDeal {
             return None;
         }
 
-        if next_bid == 0 {
+        if next_bid < MIN_TRADE_VALUE {
             return None;
         }
 

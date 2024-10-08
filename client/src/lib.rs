@@ -8,7 +8,7 @@ use rand::RngCore;
 use rustrict::CensorStr;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, RewardType, Stats, Territory, Time, TradeType, TribeId, TutorialRequirement, TutorialReward, TutorialStep, UserId, WorldEvent, DISMANTLING_DIVIDER, JOIN_TRIBE_LEVEL, MAX_EFFECTIVENESS, MAX_HEALTH, SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS, WINNER_TRIBE_NUM_PREMIUM_DAYS
+    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, RewardType, Stats, Territory, Time, TradeType, TribeId, TutorialRequirement, TutorialReward, TutorialStep, UserId, WorldEvent, DISMANTLING_DIVIDER, JOIN_TRIBE_LEVEL, MAX_EFFECTIVENESS, MAX_HEALTH, MAX_NUM_TRADES, MIN_TRADE_VALUE, SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS, WINNER_TRIBE_NUM_PREMIUM_DAYS
 };
 use std::str::FromStr;
 use strum::Display;
@@ -307,7 +307,11 @@ fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
         println!("url path {:?}", url.path());
 
         if url.path().first().map(|s| s.as_str()) == Some("game") {
-            url_request.unhandled()
+            if let Some(_game_id) = url.path().get(1) {
+                url_request.unhandled()
+            } else {
+                url_request.handled()
+            }
         } else {
             url_request.handled()
         }
@@ -622,6 +626,7 @@ fn view(model: &Model) -> Node<Msg> {
             confirm(model, state, user_id),
             popup(model, state, user_id),
             tutorial(model, state, user_id),
+            start_popup(model, client_state, state, user_id),
             div![
                 if inert {
                     attrs! { "inert" => "true" }
@@ -680,41 +685,44 @@ fn popup(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node
                                 ],
                                 div![
                                     C!["panel-content"],
-                                    h3![id!["popup-title"], "A New Dwarf has Arrived"],
-                                    h4![C!["title"], dwarf.actual_name()],
-                                    p![
-                                        C!["subtitle"],
-                                        format!(
-                                            "{}, {} Years old.",
-                                            if dwarf.is_female { "Female" } else { "Male" },
-                                            dwarf.age_years()
-                                        ),
-                                    ],
-                                    p![
-                                        h4!["Stats"],
-                                        table![tbody![
-                                            tr![th![], th!["Inherent"]],
-                                            tr![
-                                                th!["Strength"],
-                                                td![stars(dwarf.stats.strength, true)],
-                                            ],
-                                            tr![
-                                                th!["Endurance"],
-                                                td![stars(dwarf.stats.endurance, true)],
-                                            ],
-                                            tr![
-                                                th!["Agility"],
-                                                td![stars(dwarf.stats.agility, true)],
-                                            ],
-                                            tr![
-                                                th!["Intelligence"],
-                                                td![stars(dwarf.stats.intelligence, true)],
-                                            ],
-                                            tr![
-                                                th!["Perception"],
-                                                td![stars(dwarf.stats.perception, true)],
-                                            ],
-                                        ]]
+                                    div![
+                                        C!["panel-scrollable"],
+                                        h3![id!["popup-title"], "A New Dwarf has Arrived"],
+                                        h4![C!["title"], dwarf.actual_name()],
+                                        p![
+                                            C!["subtitle"],
+                                            format!(
+                                                "{}, {} Years old.",
+                                                if dwarf.is_female { "Female" } else { "Male" },
+                                                dwarf.age_years()
+                                            ),
+                                        ],
+                                        p![
+                                            h4!["Stats"],
+                                            table![tbody![
+                                                tr![th![], th!["Inherent"]],
+                                                tr![
+                                                    th!["Strength"],
+                                                    td![stars(dwarf.stats.strength, true)],
+                                                ],
+                                                tr![
+                                                    th!["Endurance"],
+                                                    td![stars(dwarf.stats.endurance, true)],
+                                                ],
+                                                tr![
+                                                    th!["Agility"],
+                                                    td![stars(dwarf.stats.agility, true)],
+                                                ],
+                                                tr![
+                                                    th!["Intelligence"],
+                                                    td![stars(dwarf.stats.intelligence, true)],
+                                                ],
+                                                tr![
+                                                    th!["Perception"],
+                                                    td![stars(dwarf.stats.perception, true)],
+                                                ],
+                                            ]]
+                                        ],
                                     ],
                                     button![
                                         ev(Ev::Click, move |_| Msg::send_event(
@@ -737,59 +745,62 @@ fn popup(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node
                                 ],
                                 div![
                                     C!["panel-content"],
-                                    h3![C!["title"], format!("You Received {} {}", qty, item)],
-                                    p![
-                                        C!["subtitle"],
-                                        if let Some(item_type) = item.item_type() {
-                                            span![C!["short-info"], format!("{item_type}")]
-                                        } else {
-                                            span![C!["short-info"], "Item"]
-                                        },
-                                        span![C!["short-info"], format!("{}", item.item_rarity())],
-                                        if let Some(nutrition) = item.nutritional_value() {
-                                            span![C!["short-info"], format!("{} Food", nutrition)]
-                                        } else {
-                                            Node::Empty
-                                        },
-                                    ],
-                                    p![
-                                        if !item.provides_stats().is_zero() {
-                                            div![h4!["Provides"], stats(&item.provides_stats()),]
-                                        } else {
-                                            Node::Empty
-                                        },
-                                        if enum_iterator::all::<Occupation>()
-                                            .filter(|occupation| {
-                                                let usefulness = item.usefulness_for(*occupation);
-                                                usefulness > 0
-                                            })
-                                            .count()
-                                            > 0
-                                        {
-                                            div![
-                                                h4!["Utility"],
-                                                itertools::intersperse(
-                                                    enum_iterator::all::<Occupation>().filter_map(
-                                                        |occupation| {
-                                                            let usefulness = item
-                                                                .usefulness_for(occupation)
-                                                                as i8;
-                                                            if usefulness > 0 {
-                                                                Some(span![
-                                                                    format!("{} ", occupation),
-                                                                    stars(usefulness, true)
-                                                                ])
-                                                            } else {
-                                                                None
+                                    div![
+                                        C!["panel-scrollable"],
+                                        h3![C!["title"], format!("You Received {} {}", qty, item)],
+                                        p![
+                                            C!["subtitle"],
+                                            if let Some(item_type) = item.item_type() {
+                                                span![C!["short-info"], format!("{item_type}")]
+                                            } else {
+                                                span![C!["short-info"], "Item"]
+                                            },
+                                            span![C!["short-info"], format!("{}", item.item_rarity())],
+                                            if let Some(nutrition) = item.nutritional_value() {
+                                                span![C!["short-info"], format!("{} Food", nutrition)]
+                                            } else {
+                                                Node::Empty
+                                            },
+                                        ],
+                                        p![
+                                            if !item.provides_stats().is_zero() {
+                                                div![h4!["Provides"], stats(&item.provides_stats()),]
+                                            } else {
+                                                Node::Empty
+                                            },
+                                            if enum_iterator::all::<Occupation>()
+                                                .filter(|occupation| {
+                                                    let usefulness = item.usefulness_for(*occupation);
+                                                    usefulness > 0
+                                                })
+                                                .count()
+                                                > 0
+                                            {
+                                                div![
+                                                    h4!["Utility"],
+                                                    itertools::intersperse(
+                                                        enum_iterator::all::<Occupation>().filter_map(
+                                                            |occupation| {
+                                                                let usefulness = item
+                                                                    .usefulness_for(occupation)
+                                                                    as i8;
+                                                                if usefulness > 0 {
+                                                                    Some(span![
+                                                                        format!("{} ", occupation),
+                                                                        stars(usefulness, true)
+                                                                    ])
+                                                                } else {
+                                                                    None
+                                                                }
                                                             }
-                                                        }
-                                                    ),
-                                                    br![]
-                                                )
-                                            ]
-                                        } else {
-                                            Node::Empty
-                                        },
+                                                        ),
+                                                        br![]
+                                                    )
+                                                ]
+                                            } else {
+                                                Node::Empty
+                                            },
+                                        ],
                                     ],
                                     button![
                                         ev(Ev::Click, move |_| Msg::send_event(
@@ -950,6 +961,75 @@ fn tutorial(model: &Model, state: &shared::State, user_id: &shared::UserId) -> N
     }
 }
 
+fn start_popup(_model: &Model, client_state: &ClientState<shared::State>, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
+    if state.start_countdown > 0 {
+        let username = &client_state
+            .get_user_data(user_id)
+            .map(|data| data.username.clone().censor())
+            .unwrap_or_default();
+
+        div![
+            C!["panel-wrapper"],
+            attrs!{ At::Role => "dialog", At::AriaLabelledBy => "popup-title", "aria-modal" => "true" },
+            div![
+                id!["tutorial-panel"],
+                C!["panel"],
+                img![C!["panel-image"], attrs! { At::Src => "/logo.jpg" } ],
+                div![C!["panel-content"],
+                    div![
+                        C!["panel-scrollable"],
+                        h3![id!["popup-title"], "Game Starting Soon"],
+                        p![format!("The game will start in {}.", fmt_time(state.start_countdown, true))],
+                        p!["Make sure to invite your friends before the game starts!"],
+                        p![
+                            span![C!["invitation-link"], format!("https://dwarfs-in-exile.com/register?referrer={}", user_id.0)],
+                        ],
+                    ],
+                    button![
+                        id!["copy-invitation-link"],
+                        "Copy Link",
+                    ],
+                    Script![format!(
+                        r#"
+                        let button = document.getElementById("copy-invitation-link");
+
+                        button.addEventListener("click", function() {{
+                            navigator.clipboard.writeText("https://dwarfs-in-exile.com/register?referrer={}");
+
+                            button.textContent = "Copied!";
+                        }});
+                        "#, user_id.0)
+                    ],
+                    button![
+                        id!["share-invitation-link"],
+                        style! { "display" => "none" },
+                        "Share",
+                    ],
+                    Script![format!(
+                        r#"
+                        if (navigator.share) {{
+                            let button = document.getElementById("share-invitation-link");
+
+                            button.style.display = "block";
+
+                            button.addEventListener("click", function() {{
+                                navigator.share({{
+                                    title: "Play Dwarfs in Exile!",
+                                    text: "Join {} in their adventures and play Dwarfs in Exile now for free!",
+                                    url: "https://dwarfs-in-exile.com/register?referrer={}",
+                                }});
+                            }});
+                        }}
+                        "#, username, user_id.0)
+                    ],
+                ]
+            ]
+        ]
+    } else {
+        Node::Empty
+    }
+}
+
 fn confirm(model: &Model, _state: &shared::State, _user_id: &shared::UserId) -> Node<Msg> {
     if let Some(client_event) = &model.confirm {
         div![
@@ -1037,7 +1117,12 @@ fn name(model: &Model, user_id: &shared::UserId, include_online_status: bool) ->
                 Node::Empty
             },
             if include_online_status {
-                span![
+                if player.is_online(state.time) {
+                    span![C!["online"], "●"]
+                } else {
+                    Node::Empty
+                }
+                /*span![
                     C![
                         "symbols",
                         if player.is_online(state.time) {
@@ -1047,7 +1132,7 @@ fn name(model: &Model, user_id: &shared::UserId, include_online_status: bool) ->
                         }
                     ],
                     "●"
-                ]
+                ]*/
             } else {
                 Node::Empty
             },
@@ -1103,52 +1188,56 @@ fn ranking(
 
         h2!["Ranking"],
         p![format!("To win this game, you need to meet two conditions. First, expand your settlement until you reach level 100. Second, become the king of this world. If both conditions are met, the game will be over and you will be the winner. As a reward, you get gifted a free premium account for {} days.", WINNER_NUM_PREMIUM_DAYS)],
+        
+        div![
+            C!["table-wrapper"],
+            table![
+                C!["ranking"],
+                tr![
+                    th!["Rank"],
+                    th!["Username"],
+                    th!["Tribe"],
+                    th!["Level"],
+                    th![]
+                ],
+                players.iter().enumerate().map(|(i, (user_id, player))| {
+                    let rank = i + 1;
+                    let current_user = *current_user_id == **user_id;
 
-        table![
-            C!["ranking"],
-            tr![
-                th!["Rank"],
-                th!["Username"],
-                th!["Tribe"],
-                th!["Level"],
-                th![]
-            ],
-            players.iter().enumerate().map(|(i, (user_id, player))| {
-                let rank = i + 1;
-                let current_user = *current_user_id == **user_id;
-
-                tr![C![if current_user { "current-user" } else { "" }],
-                    td![rank],
-                    td![
-                        name(model, user_id, true)
-                    ],
-                    if let Some(tribe) = player.tribe.as_ref() {
-                        td![tribe_name(
-                            *tribe,
-                            model.game_id
-                        )]
-                    } else {
-                        td![]
-                    },
-                    td![player.base.curr_level],
-                    td![
-                        if !current_user {
-                            a![
-                                C!["button", "inline"],
-                                attrs! { At::Href => format!("{}/visit/{}", model.base_path(), user_id.0) },
-                                format!(
-                                    "Visit",
-                                ),
-                            ]
+                    tr![C![if current_user { "current-user" } else { "" }],
+                        td![rank],
+                        td![
+                            name(model, user_id, true)
+                        ],
+                        if let Some(tribe) = player.tribe.as_ref() {
+                            td![tribe_name(
+                                *tribe,
+                                model.game_id
+                            )]
                         } else {
-                            Node::Empty
-                        }
+                            td![]
+                        },
+                        td![player.base.curr_level],
+                        td![
+                            if !current_user {
+                                a![
+                                    C!["button", "inline"],
+                                    attrs! { At::Href => format!("{}/visit/{}", model.base_path(), user_id.0) },
+                                    format!(
+                                        "Visit",
+                                    ),
+                                ]
+                            } else {
+                                Node::Empty
+                            }
 
-                        
+                            
+                        ]
                     ]
-                ]
-            })
+                })
+            ]
         ]
+        
     ]
 }
 
@@ -1440,12 +1529,20 @@ fn dwarf_image(dwarf: Option<&Dwarf>, player: &Player) -> Vec<Node<Msg>> {
                     ]
                 } else {
                     Node::Empty
+                },
+                if let Some(consumable) = dwarf.equipment.get(&ItemType::Consumable) {
+                    img![
+                        C!["list-item-image-corner", "consumable"],
+                        attrs! {At::Src => Image::from(*consumable).as_at_value()},
+                    ]
+                } else {
+                    Node::Empty
                 }
             ],
             td![div![
                 C!["list-item-image-col"],
                 enum_iterator::all::<ItemType>()
-                    .filter(ItemType::equippable)
+                    .filter(|item_type| item_type.equippable() && *item_type != ItemType::Consumable)
                     .map(|item_type| {
                         let equipment = dwarf.equipment.get(&item_type);
                         if let Some(equipment) = equipment {
@@ -1462,7 +1559,7 @@ fn dwarf_image(dwarf: Option<&Dwarf>, player: &Player) -> Vec<Node<Msg>> {
             td![div![
                 C!["list-item-image-col"],
                 enum_iterator::all::<ItemType>()
-                    .filter(ItemType::equippable)
+                    .filter(|item_type| item_type.equippable() && *item_type != ItemType::Consumable)
                     .map(|_| { div![C!["placeholder"]] })
             ]],
         ]
@@ -1528,12 +1625,17 @@ fn item_details(item: Item, n: u64) -> Vec<Node<Msg>> {
                 } else {
                     Node::Empty
                 },
+                if let Some(duration) = item.consumable_duration() {
+                    span![C!["short-info"], format!("Lasts for {}", fmt_time(duration, false))]
+                } else {
+                    Node::Empty
+                },
                 /*if item.money_value() > 0 {
                     span![C!["short-info"], format!("{} Coins", item.money_value())]
                 } else {
                     Node::Empty
                 },*/
-                if cfg!(debug_assertions) {
+                /*if cfg!(debug_assertions) {
                     vec![
                         span![
                             C!["short-info"],
@@ -1549,8 +1651,24 @@ fn item_details(item: Item, n: u64) -> Vec<Node<Msg>> {
                     ]
                 } else {
                     Vec::new()
-                },
+                },*/
             ],
+            {
+                let description = match item {
+                    Item::RhinoHornPowder => Some("Increases the fertility of a dwarf while idling."),
+                    Item::BearClawPowder => Some("Stops a dwarf from losing health while active."),
+                    Item::TigerFangPowder => Some("Stops a dwarf from aging while active."),
+                    Item::Rat => Some("Not very useful, but very cute."),
+                    Item::RhinoHornPants => Some("Increadibly potent, wear with caution."),
+                    _ => None
+                };
+
+                if let Some(description) = description {
+                   p![description]
+                } else {
+                    Node::Empty
+                }
+            },
             // Show stats
             if !item.provides_stats().is_zero() {
                 div![h4!["Provides"], stats(&item.provides_stats()),]
@@ -1889,6 +2007,11 @@ fn dwarf(
                 ],
                 div![
                     h3!["Equipment"],
+                    if let Some(consumable) = dwarf.equipment.get(&ItemType::Consumable) {
+                        p![format!("The consumable item {} lasts for {}.", consumable, fmt_time(dwarf.consumable_timer, true))]
+                    } else {
+                        Node::Empty
+                    },
                     table![C!["list"],
                         enum_iterator::all::<ItemType>().filter(ItemType::equippable).map(|item_type| {
                             let equipment = dwarf.equipment.get(&item_type);
@@ -2314,6 +2437,9 @@ fn quest(
                                 QuestType::DeepInTheCaves => p!["Deep in the caves of the forbidden lands, mythical creatures are said to live. Explore the caves and find out what is hidden there."],
                                 QuestType::MinersLuck => p!["You are feeling lucky today. Go mining and see what you can find."],
                                 QuestType::AbandonedOrkCamp => p!["The orks have abandoned their camp. Explore it and see if you can find anything of use."],
+                                QuestType::HuntingTrip => p!["Go hunting and earn a reward."],
+                                QuestType::LoggingContest => p!["Participate in the logging contest and earn a reward."],
+                                QuestType::GodsBlessing => p!["Build a church and god may bless you with some nice bling."],
                             },
                         ],
                         h3!["Rewards"],
@@ -2866,6 +2992,7 @@ fn inventory_options(
     item: Item,
     n: u64,
     is_premium: bool,
+    num_trades: usize,
 ) -> Vec<Node<Msg>> {
     vec![
         if let Some((level, requires)) = item.requires() {
@@ -3044,25 +3171,36 @@ fn inventory_options(
         } else {
             Vec::new()
         },
-        vec![
-            h4!["Sell Item"],
-            slider(
-                model,
-                item,
-                SliderType::Sell,
-                move |n| {
-                    format!(
-                        "Sell ({} coins)",
-                        item.money_value(n) * TRADE_MONEY_MULTIPLIER
-                    )
-                },
-                n.min(1),
-                n,
-                ClientEvent::Sell,
-                move |n| n > 0 && item.money_value(n) * TRADE_MONEY_MULTIPLIER == 0,
-                None,
-            ),
-        ],
+        if item.item_type().is_some() {
+            vec![
+                h4!["Sell Item"],
+                p![format!(
+                    "{}/{} active offers, minimum value: {} coins.",
+                    num_trades,
+                    MAX_NUM_TRADES,
+                    MIN_TRADE_VALUE
+                )],
+                slider(
+                    model,
+                    item,
+                    SliderType::Sell,
+                    move |n| {
+                        format!(
+                            "Sell ({} coins)",
+                            item.money_value(n) * TRADE_MONEY_MULTIPLIER
+                        )
+                    },
+                    n.min(1),
+                    n,
+                    ClientEvent::Sell,
+                    move |n| n == 0 || item.money_value(n) * TRADE_MONEY_MULTIPLIER < MIN_TRADE_VALUE || num_trades >= MAX_NUM_TRADES,
+                    None,
+                ),
+            ]
+        } else {
+            Vec::new()
+        }
+        
     ]
     .into_iter()
     .flatten()
@@ -3085,6 +3223,8 @@ fn inventory(
         let items: Bundle<Item> = enum_iterator::all::<Item>()
             .map(|t| (t, player.inventory.items.get(&t).copied().unwrap_or(0)))
             .collect();
+
+        let num_trades = state.trade_deals.iter().filter(|(_, trade)| trade.creator == Some(*user_id)).count();
 
         div![
             div![
@@ -3235,7 +3375,7 @@ fn inventory(
                     } else {
                         td![
                             C!["list-item-content"],
-                            inventory_options(model, player, item, n, is_premium)
+                            inventory_options(model, player, item, n, is_premium, num_trades)
                         ]
                     }
                 ]})

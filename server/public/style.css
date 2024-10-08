@@ -194,6 +194,7 @@ header {
 .content {
     background: rgba(255, 255, 255, 0.5);
     backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
 }
 
 .content,
@@ -290,8 +291,8 @@ header {
 .messages {
     overflow-y: auto;
     max-height: 384px;
-    line-break: anywhere;
     border-top: 1px solid var(--ui-background-default);
+    overflow-wrap: anywhere;
 }
 
 .messages .username,
@@ -400,6 +401,7 @@ input[type="checkbox"] {
     z-index: 10000;
     background: white;
     backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     border-radius: 8px;
     box-shadow: 0 0 8px;
     padding: 8px;
@@ -539,6 +541,7 @@ h4,
     vertical-align: middle;
     background: rgba(255, 255, 255, 0.5);
     backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
 }
 
 .received-item-image {
@@ -862,6 +865,11 @@ a {
     outline: 1px solid rgba(255, 255, 255, 0.5);
 }
 
+.list-item-image-corner.consumable {
+    top: 0px;
+    left: 80px;
+}
+
 .slider {
     display: flex;
     flex-wrap: nowrap;
@@ -1098,3 +1106,11 @@ button.inline, .button.inline {
     margin: 0;
     padding: 4px;
 }
+
+.table-wrapper {
+    overflow-x: auto;
+}
+
+/*.ranking td {
+    max-width: 128px;
+}*/
