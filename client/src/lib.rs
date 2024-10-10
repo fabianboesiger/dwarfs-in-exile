@@ -667,6 +667,13 @@ fn view(model: &Model) -> Node<Msg> {
     }
 }
 
+fn username(client_state: &ClientState<shared::State>, user_id: &shared::UserId) -> String {
+    client_state
+        .get_user_data(user_id)
+        .map(|data| data.username.clone().censor())
+        .unwrap_or_default()
+}
+
 fn popup(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
         if let Some(popup) = player.popups.front() {
@@ -963,10 +970,7 @@ fn tutorial(model: &Model, state: &shared::State, user_id: &shared::UserId) -> N
 
 fn start_popup(_model: &Model, client_state: &ClientState<shared::State>, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     if state.start_countdown > 0 {
-        let username = &client_state
-            .get_user_data(user_id)
-            .map(|data| data.username.clone().censor())
-            .unwrap_or_default();
+        let username = username(client_state, user_id);
 
         div![
             C!["panel-wrapper"],
@@ -1184,6 +1188,31 @@ fn ranking(
                 },
             ]
         ],
+
+        if let Some((user_id, dwarf_id)) = state.eldest {
+            if let Some(player) = state.players.get(&user_id) {
+                if let Some(dwarf) = player.dwarfs.get(&dwarf_id) {
+                    div![
+                        C!["important"],
+                        strong!["The Dwarfen Eldest"],
+                        div![C!["image-aside", "small"],
+                            img![attrs! {At::Src => Image::from_dwarf(dwarf).as_at_value()}],
+                                div![
+                                    p![format!("Pay respect to the Dwarfen Eldest {} of player {}! They are the oldest dwarf in this world with an age of {} years.",
+                                        dwarf.actual_name(), username(client_state, &user_id), dwarf.age_years())],
+                                ]
+                            
+                        ]
+                    ]
+                } else {
+                    Node::Empty
+                }
+            } else {
+                Node::Empty
+            }
+        } else {
+            Node::Empty
+        },
     
 
         h2!["Ranking"],
@@ -1660,6 +1689,7 @@ fn item_details(item: Item, n: u64) -> Vec<Node<Msg>> {
                     Item::TigerFangPowder => Some("Stops a dwarf from aging while active."),
                     Item::Rat => Some("Not very useful, but very cute."),
                     Item::RhinoHornPants => Some("Increadibly potent, wear with caution."),
+                    Item::BlessingOfTheGods | Item::KnowledgeOfTheEldest => Some("Doubles a dwarfs earned XP in questing."),
                     _ => None
                 };
 
@@ -2439,7 +2469,7 @@ fn quest(
                                 QuestType::AbandonedOrkCamp => p!["The orks have abandoned their camp. Explore it and see if you can find anything of use."],
                                 QuestType::HuntingTrip => p!["Go hunting and earn a reward."],
                                 QuestType::LoggingContest => p!["Participate in the logging contest and earn a reward."],
-                                QuestType::GodsBlessing => p!["Build a church and god may bless you with some nice bling."],
+                                QuestType::GodsBlessing => p!["Build a temple and god may bless you with some nice bling."],
                             },
                         ],
                         h3!["Rewards"],
@@ -3532,10 +3562,7 @@ fn tribe(model: &Model, client_state: &ClientState<shared::State>, state: &share
     if let Some(player) = state.players.get(user_id) {
         if let Some(tribe_id) = player.tribe {
             //let tribe = state.tribes.get(&tribe_id).unwrap();
-            let username = &client_state
-                    .get_user_data(user_id)
-                    .map(|data| data.username.clone().censor())
-                    .unwrap_or_default();
+            let username = username(client_state, user_id);
 
             div![C!["content"],
                 div![C!["important"],
@@ -3630,7 +3657,7 @@ fn tribe(model: &Model, client_state: &ClientState<shared::State>, state: &share
                                     format!("{}", territory)
                                 ],
                                 p![C!["subtitle"],
-                                    format!("Provides additional dwarfs with maxed out {}.", stats_simple(&territory.provides_stats()))
+                                    format!("Provides additional dwarfs that are good in {}, as well as occasional item drops of {}.", territory.best_for_occupation().iter().join(", "), territory.drop())
                                 ],
                                 if rank == 1 {
                                     p!["Your tribe controls this territory."]
@@ -3687,10 +3714,7 @@ fn chat(
                     div![
                         C!["messages"],
                         state.chat.messages.iter().map(|(user_id, message, time)| {
-                            let username = &client_state
-                                .get_user_data(user_id)
-                                .map(|data| data.username.clone().censor())
-                                .unwrap_or_default();
+                            let username = username(client_state, user_id);
                             p![
                                 C!["message"],
                                 span![C!["time"], format!("{} ago, ", fmt_time(state.time - time, false))],
@@ -3838,7 +3862,7 @@ fn history(
                                 }
                                 LogMsg::DwarfUpgrade(name, stat) => {
                                     span![format!(
-                                        "Your dwarf {} has improved his {} stat while working.",
+                                        "Your dwarf {} has improved their {} stat while working.",
                                         name, stat
                                     )]
                                 }

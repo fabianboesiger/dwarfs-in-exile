@@ -149,6 +149,14 @@ pub enum Item {
     RhinoHornPowder,
     BearClawPowder,
     TigerFangPowder,
+    BlessingOfTheGods,
+    KnowledgeOfTheEldest,
+    ForestArtifact,
+    DesertArtifact,
+    PlainsArtifact,
+    MountainsArtifact,
+    SwampArtifact,
+    RevolutionarySpirit,
 }
 
 impl Craftable for Item {
@@ -582,7 +590,14 @@ impl Item {
             | Item::RhinoHornPowder
             | Item::BearClawPowder
             | Item::TigerFangPowder
-            => Some(ItemType::Consumable),
+            | Item::BlessingOfTheGods
+            | Item::KnowledgeOfTheEldest
+            | Item::ForestArtifact
+            | Item::DesertArtifact
+            | Item::PlainsArtifact
+            | Item::MountainsArtifact
+            | Item::SwampArtifact
+            | Item::RevolutionarySpirit => Some(ItemType::Consumable),
 
             _ => None,
         }
@@ -591,9 +606,16 @@ impl Item {
     pub fn consumable_duration(self) -> Option<u64> {
         match self {
             Item::AncientSpellbook => Some(ONE_HOUR),
+            Item::BlessingOfTheGods => Some(ONE_HOUR),
             Item::RhinoHornPowder => Some(ONE_DAY),
             Item::TigerFangPowder => Some(ONE_DAY),
             Item::BearClawPowder => Some(ONE_DAY),
+            Item::RevolutionarySpirit => Some(ONE_HOUR),
+            Item::ForestArtifact => Some(ONE_DAY),
+            Item::DesertArtifact => Some(ONE_DAY),
+            Item::PlainsArtifact => Some(ONE_DAY),
+            Item::MountainsArtifact => Some(ONE_DAY),
+            Item::SwampArtifact => Some(ONE_DAY),
             _ => None,
         }
     }
@@ -727,6 +749,11 @@ impl Item {
                 intelligence: 2,
                 ..Default::default()
             },
+            Item::RevolutionarySpirit => Stats {
+                strength: 10,
+                endurance: 10,
+                ..Default::default()
+            },
             _ => Stats::default(),
         }
     }
@@ -826,6 +853,12 @@ impl Item {
             (Item::MiningGear, Occupation::Mining) => 10,
             (Item::LoggingGear, Occupation::Logging) => 10,
             (Item::Fairy, Occupation::Exploring) => 10,
+            (Item::ForestArtifact, Occupation::Logging | Occupation::Hunting) => 5,
+            (Item::MountainsArtifact, Occupation::Mining | Occupation::Rockhounding) => 5,
+            (Item::PlainsArtifact, Occupation::Farming | Occupation::Fighting) => 5,
+            (Item::SwampArtifact, Occupation::Fishing | Occupation::Gathering) => 5,
+            (Item::DesertArtifact, Occupation::Exploring) => 5,
+            (Item::RevolutionarySpirit, Occupation::Fighting) => 10,
             _ => 0,
         }
     }

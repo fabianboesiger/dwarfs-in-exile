@@ -202,6 +202,14 @@ pub enum Image {
     TigerFangPowder,
     BearClawPowder,
     RhinoHornPowder,
+    KnowledgeOfTheEldest,
+    RevolutionarySpirit,
+    BlessingOfTheGods,
+    ForestArtifact,
+    DesertArtifact,
+    SwampArtifact,
+    MountainsArtifact,
+    PlainsArtifact,
 }
 
 impl AsAtValue for Image {
@@ -391,6 +399,14 @@ impl From<Item> for Image {
             Item::TigerFangPowder => Image::TigerFangPowder,
             Item::BearClawPowder => Image::BearClawPowder,
             Item::RhinoHornPowder => Image::RhinoHornPowder,
+            Item::KnowledgeOfTheEldest => Image::KnowledgeOfTheEldest,
+            Item::RevolutionarySpirit => Image::RevolutionarySpirit,
+            Item::BlessingOfTheGods => Image::BlessingOfTheGods,
+            Item::ForestArtifact => Image::ForestArtifact,
+            Item::DesertArtifact => Image::DesertArtifact,
+            Item::SwampArtifact => Image::SwampArtifact,
+            Item::MountainsArtifact => Image::MountainsArtifact,
+            Item::PlainsArtifact => Image::PlainsArtifact,
         }
     }
 }

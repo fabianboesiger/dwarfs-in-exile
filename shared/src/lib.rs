@@ -311,6 +311,8 @@ pub struct State {
     pub settings: WorldSettings,
     #[serde(default)]
     pub start_countdown: u64,
+    #[serde(default)]
+    pub eldest: Option<(UserId, DwarfId)>,
 }
 
 impl Default for State {
@@ -337,6 +339,7 @@ impl Default for State {
             tribes,
             start_countdown: settings.start_countdown,
             settings,
+            eldest: None,
         }
     }
 }
@@ -963,6 +966,37 @@ impl engine_shared::State for State {
                                 self.start_countdown -= 1;
                             }
 
+                            // Find the dwarfen eldest.
+                            if let Some((user_id, dwarf_id)) = self.eldest {
+                                let mut exists = false;
+                                if let Some(player) = self.players.get_mut(&user_id) {
+                                    if let Some(_dwarf) = player.dwarfs.get_mut(&dwarf_id) {
+                                        exists = true;
+                                    }
+
+                                    if exists {
+                                        if rng.gen_ratio(1, ONE_DAY as u32) {
+                                            player.inventory.add(Bundle::new().add(Item::KnowledgeOfTheEldest, 1), self.time);
+                                        }
+                                    }
+                                }
+                                if !exists {
+                                    self.eldest = None;
+                                }
+                            } else {
+                                let mut eldest = None;
+                                let mut age = 0;
+                                for (user_id, player) in &self.players {
+                                    for (dwarf_id, dwarf) in &player.dwarfs {
+                                        if dwarf.age_seconds >= age {
+                                            age = dwarf.age_seconds;
+                                            eldest = Some((*user_id, *dwarf_id));
+                                        }
+                                    }
+                                }
+                                self.eldest = eldest;
+                            }
+
                             if matches!(self.event, Some(WorldEvent::Revolution)) {
                                 self.king = None;
                             };
@@ -1006,6 +1040,16 @@ impl engine_shared::State for State {
                                         player.tribe = Some(fewest_members_tribe_id);
                                     }
                                 }
+                                
+                                // Revolutionary spirit drops.
+                                if Some(*user_id) != self.king {
+                                    if rng.gen_ratio(
+                                        1,
+                                        ONE_DAY as u32 * 3,
+                                    ) {
+                                        player.inventory.add(Bundle::new().add(Item::RevolutionarySpirit, 1), self.time);
+                                    }
+                                }
 
                                 // Chance for a new dwarf!
                                 let controlled_territories = enum_iterator::all::<Territory>()
@@ -1029,20 +1073,37 @@ impl engine_shared::State for State {
                                             false
                                         }
                                     })
-                                    .map(|territory| territory.provides_stats())
+                                    .map(|territory| territory)
                                     .collect::<Vec<_>>();
+                                    
+                                // Drops for territories.
+                                if !controlled_territories.is_empty() {
+                                    if rng.gen_ratio(
+                                        1,
+                                            ONE_DAY as u32 * 3 / (controlled_territories.len() as u32 + 1)
+                                    ) {
+                                        let t = controlled_territories
+                                            .choose(rng)
+                                            .unwrap();
+    
+                                        let item = t.drop();
+
+                                        player.inventory.add(Bundle::new().add(item, 1), self.time);
+                                    }
+                                }
 
                                 if rng.gen_ratio(
                                     self.event
                                         .map(|event| event.new_dwarfs_multiplier())
                                         .unwrap_or(1),
-                                    if controlled_territories.len() == 0 {
-                                        ONE_DAY as u32 * 5
-                                     } else {
-                                        (ONE_DAY as u32) / (controlled_territories.len() as u32)
-                                     } ,
+                                        ONE_DAY as u32 * 5 / (controlled_territories.len() as u32 + 1)
                                 ) {
-                                    let added_stats = controlled_territories.choose(rng).cloned().unwrap_or(Stats::default());
+                                    let added_stats = controlled_territories.iter()
+                                        .flat_map(|t| t.best_for_occupation())
+                                        .collect::<Vec<_>>()
+                                        .choose(rng)
+                                        .map(|o| o.requires_stats())
+                                        .unwrap_or(Stats::default());
 
                                     player.new_dwarf(
                                         rng,
@@ -2697,6 +2758,7 @@ impl Occupation {
         }
     }
 
+    
     pub fn requires_stats(self) -> Stats {
         match self {
             Occupation::Idling => Stats {
@@ -3010,9 +3072,13 @@ impl Quest {
                     let dwarf = player.dwarfs.get(dwarf_id)?;
 
                     if dwarf.actual_occupation() == self.quest_type.occupation() {
-                        for _ in 0..10 {}
-                        contestant.achieved_score +=
-                            dwarf.numerator_effectiveness(&player.dwarfs) / 100;
+                        if matches!(dwarf.equipment.get(&ItemType::Consumable), Some(&Item::KnowledgeOfTheEldest | &Item::BlessingOfTheGods)) {
+                            contestant.achieved_score +=
+                                dwarf.numerator_effectiveness(&player.dwarfs) / 50;
+                        } else {
+                            contestant.achieved_score +=
+                                dwarf.numerator_effectiveness(&player.dwarfs) / 100;
+                        }
                     }
                 }
             }
@@ -3131,7 +3197,7 @@ impl std::fmt::Display for QuestType {
             QuestType::DeepInTheCaves => write!(f, "Deep in the Caves"),
             QuestType::MinersLuck => write!(f, "Miner's Luck"),
             QuestType::AbandonedOrkCamp => write!(f, "Abandonned Ork Camp"),
-            QuestType::GodsBlessing => write!(f, "God's Blessing"),
+            QuestType::GodsBlessing => write!(f, "In the Light of the Gods"),
             QuestType::LoggingContest => write!(f, "Logging Contest"),
             QuestType::HuntingTrip => write!(f, "Hunting Trip"),
         }
@@ -3186,7 +3252,7 @@ impl QuestType {
                     .add(Item::Wood, 1000)
                     .add(Item::Iron, 100),
             ),
-            Self::GodsBlessing => RewardMode::ItemsByChance(Bundle::new().add(Item::CrystalNecklace, 1)),
+            Self::GodsBlessing => RewardMode::ItemsByChance(Bundle::new().add(Item::BlessingOfTheGods, 1)),
             Self::LoggingContest => RewardMode::BestGetsAll(2000),
             Self::HuntingTrip => RewardMode::ItemsByChance(Bundle::new()
                     .add(Item::RawMeat, 300)
@@ -3511,6 +3577,7 @@ pub enum Territory {
 }
 
 impl Territory {
+    /* 
     pub fn provides_stats(self) -> Stats {
         match self {
             Territory::Mountains => Stats {
@@ -3538,6 +3605,27 @@ impl Territory {
                 intelligence: 10,
                 ..Default::default()
             },
+        }
+    }
+    */
+
+    pub fn best_for_occupation(self) -> &'static [Occupation] {
+        match self {
+            Territory::Mountains => &[Occupation::Mining, Occupation::Rockhounding],
+            Territory::Forest => &[Occupation::Logging, Occupation::Hunting],
+            Territory::Plains => &[Occupation::Farming, Occupation::Fighting],
+            Territory::Swamp => &[Occupation::Fishing, Occupation::Gathering],
+            Territory::Desert => &[Occupation::Exploring],
+        }
+    }
+
+    pub fn drop(self) -> Item {
+        match self {
+            Territory::Mountains => Item::MountainsArtifact,
+            Territory::Forest => Item::ForestArtifact,
+            Territory::Plains => Item::PlainsArtifact,
+            Territory::Swamp => Item::SwampArtifact,
+            Territory::Desert => Item::DesertArtifact,
         }
     }
 }
