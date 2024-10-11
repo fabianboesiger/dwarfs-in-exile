@@ -25,6 +25,12 @@ jobs:
       run: cargo install cargo-make
     - name: Build
       run: ./build-release
+    - name: Compress Images
+      id: calibre
+      uses: calibreapp/image-actions@main
+      with:
+        githubToken: ${{ secrets.GITHUB_TOKEN }}
+        compressOnly: true
     - name: Make Backup
       uses: appleboy/ssh-action@v1.0.3
       with:
