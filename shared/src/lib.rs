@@ -967,34 +967,25 @@ impl engine_shared::State for State {
                             }
 
                             // Find the dwarfen eldest.
+                            let mut eldest = None;
+                            let mut age = 0;
+                            for (user_id, player) in &self.players {
+                                for (dwarf_id, dwarf) in &player.dwarfs {
+                                    if dwarf.age_seconds >= age {
+                                        age = dwarf.age_seconds;
+                                        eldest = Some((*user_id, *dwarf_id));
+                                    }
+                                }
+                            }
+                            self.eldest = eldest;
                             if let Some((user_id, dwarf_id)) = self.eldest {
-                                let mut exists = false;
                                 if let Some(player) = self.players.get_mut(&user_id) {
                                     if let Some(_dwarf) = player.dwarfs.get_mut(&dwarf_id) {
-                                        exists = true;
-                                    }
-
-                                    if exists {
                                         if rng.gen_ratio(1, ONE_DAY as u32) {
                                             player.inventory.add(Bundle::new().add(Item::KnowledgeOfTheEldest, 1), self.time);
                                         }
                                     }
                                 }
-                                if !exists {
-                                    self.eldest = None;
-                                }
-                            } else {
-                                let mut eldest = None;
-                                let mut age = 0;
-                                for (user_id, player) in &self.players {
-                                    for (dwarf_id, dwarf) in &player.dwarfs {
-                                        if dwarf.age_seconds >= age {
-                                            age = dwarf.age_seconds;
-                                            eldest = Some((*user_id, *dwarf_id));
-                                        }
-                                    }
-                                }
-                                self.eldest = eldest;
                             }
 
                             if matches!(self.event, Some(WorldEvent::Revolution)) {
