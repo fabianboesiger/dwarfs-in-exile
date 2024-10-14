@@ -2104,26 +2104,49 @@ fn dwarf(
                                         Vec::new()
                                     }
                                 ],
-                                td![C!["list-item-content"],
-                                    button![
-                                        ev(Ev::Click, move |_| Msg::ChangePage(Page::Inventory(
-                                            InventoryMode::Select(InventorySelect::Equipment(
-                                                dwarf_id, item_type
-                                            ))
-                                        ))),
-                                        "Change"
-                                    ],
-                                    if equipment.is_some() {
+                                if item_type == ItemType::Consumable {
+                                    td![C!["list-item-content"],
                                         button![
-                                            ev(Ev::Click, move |_| Msg::ChangeEquipment(
-                                                dwarf_id, item_type, None
-                                            )),
-                                            "Unequip"
-                                        ]
-                                    } else {
-                                        Node::Empty
-                                    }
-                                ]
+                                            ev(Ev::Click, move |_| Msg::ChangePage(Page::Inventory(
+                                                InventoryMode::Select(InventorySelect::Equipment(
+                                                    dwarf_id, item_type
+                                                ))
+                                            ))),
+                                            "Use"
+                                        ],
+                                        if equipment.is_some() {
+                                            button![
+                                                ev(Ev::Click, move |_| Msg::ChangeEquipment(
+                                                    dwarf_id, item_type, None
+                                                )),
+                                                "Discard"
+                                            ]
+                                        } else {
+                                            Node::Empty
+                                        }
+                                    ]
+                                } else {
+                                    td![C!["list-item-content"],
+                                        button![
+                                            ev(Ev::Click, move |_| Msg::ChangePage(Page::Inventory(
+                                                InventoryMode::Select(InventorySelect::Equipment(
+                                                    dwarf_id, item_type
+                                                ))
+                                            ))),
+                                            "Change"
+                                        ],
+                                        if equipment.is_some() {
+                                            button![
+                                                ev(Ev::Click, move |_| Msg::ChangeEquipment(
+                                                    dwarf_id, item_type, None
+                                                )),
+                                                "Unequip"
+                                            ]
+                                        } else {
+                                            Node::Empty
+                                        }
+                                    ]
+                                }
                             ]
                         })
                     ]

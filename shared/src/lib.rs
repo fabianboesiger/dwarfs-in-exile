@@ -833,17 +833,17 @@ impl engine_shared::State for State {
                                 } else {
                                     None
                                 }
-                            } else if item_type != ItemType::Consumable {
-                                equipment.swap_remove(&item_type)
                             } else {
                                 None
                             };
 
                             if let Some(old_item) = old_item {
-                                player
-                                    .inventory
-                                    .items
-                                    .add_checked(Bundle::new().add(old_item, 1));
+                                if old_item.item_type() != Some(ItemType::Consumable) {
+                                    player
+                                        .inventory
+                                        .items
+                                        .add_checked(Bundle::new().add(old_item, 1));
+                                }
                             }
                         }
                         ClientEvent::OpenLootCrate => {
@@ -3077,7 +3077,7 @@ impl Quest {
             self.preparation_time -= 1;
             return Some(());
         }
-        
+
         if self.time_left > 0 {
             self.time_left -= 1;
             for (user_id, contestant) in self.contestants.iter_mut() {
