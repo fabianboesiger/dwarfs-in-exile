@@ -3707,7 +3707,11 @@ fn tribe(model: &Model, client_state: &ClientState<shared::State>, state: &share
                     .map(|territory| {
                         let scores = territory_scores
                             .iter()
-                            .filter(|((t, t_id), _)| *t == territory && (king_tribe.is_none() || Some(*t_id) == king_tribe || *t_id == tribe_id))
+                            .filter(|((t, t_id), _)| *t == territory && (
+                                king_tribe.is_none()
+                                || Some(*t_id) == king_tribe
+                                || *t_id == tribe_id
+                                || (if let Some(king_tribe) = king_tribe { tribe_id == king_tribe && state.tribes.iter().find(|(t_id, _)| **t_id != king_tribe).map(|(t_id, _)| t_id) == Some(t_id) } else { false }) ))
                             .map(|(_, s)| *s)
                             .collect::<Vec<_>>();
 
