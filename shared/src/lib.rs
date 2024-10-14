@@ -42,6 +42,7 @@ pub const NEW_PLAYER_DIVIDER: u64 = 8;
 pub const JOIN_TRIBE_LEVEL: u64 = 20;
 pub const MIN_TRADE_VALUE: u64 = 100;
 pub const MAX_NUM_TRADES: usize = 5;
+pub const QUEST_PREPARATION_TIME: u64 = ONE_HOUR;
 
 pub type Money = u64;
 pub type Food = u64;
@@ -1011,6 +1012,30 @@ impl engine_shared::State for State {
                                 .filter_map(|(user_id, player)| player.tribe.map(|tribe_id| (*user_id, tribe_id)))
                                 .collect::<CustomMap<_, _>>();
 
+
+                            let king_tribe = if let Some(king) = self.king {
+                                self.players.get(&king).and_then(|player| player.tribe)
+                            } else {
+                                None
+                            };
+
+                            let territory_scores =  enum_iterator::all::<Territory>()
+                                .flat_map(|territory| {
+                                    self.tribes.iter().map(|(tribe_id, _)| {
+                                        let score = if king_tribe.is_none() || Some(*tribe_id) == king_tribe {
+                                            self.tribes.get(tribe_id).unwrap().territories.get(&territory).copied().unwrap_or(0)
+                                        } else {
+                                            self.tribes.iter()
+                                                .filter(|(t_id, _)| **t_id != king_tribe.unwrap())
+                                                .map(|(_, t)| t.territories.get(&territory).copied().unwrap_or(0))
+                                                .sum()
+                                        };
+                                    
+                                        ((territory, *tribe_id), score)
+                                    }).collect::<Vec<_>>()
+                                })
+                                .collect::<CustomMap<_, _>>();
+
                             for (user_id, player) in self.players.iter_mut() {
                                 let is_premium = user_data
                                     .get(user_id)
@@ -1046,12 +1071,11 @@ impl engine_shared::State for State {
                                 let controlled_territories = enum_iterator::all::<Territory>()
                                     .filter(|territory| {
                                         if let Some(tribe_id) = player.tribe {
-                                            let score = self.tribes.get(&tribe_id).unwrap().territories.get(territory).copied().unwrap_or(0);
-                                            let scores = self.tribes
-                                                .values()
-                                                .map(|tribe| {
-                                                    tribe.territories.get(territory).copied().unwrap_or_default()
-                                                })
+                                            let score = territory_scores.get(&(*territory, tribe_id)).copied().unwrap_or_default();
+                                            let scores = territory_scores
+                                                .iter()
+                                                .filter(|((t,t_id), _)| *t == *territory && (king_tribe.is_none() || Some(*t_id) == king_tribe || *t_id == tribe_id))
+                                                .map(|(_, s)| *s)
                                                 .collect::<Vec<_>>();
 
                                             let under_control = scores
@@ -2988,19 +3012,12 @@ pub struct Quest {
     pub contestants: CustomMap<UserId, Contestant>,
     pub time_left: u64,
     pub quest_type: QuestType,
-    #[serde(default = "min_level")]
     pub min_level: u64,
-    #[serde(default = "max_level")]
     pub max_level: u64,
+    #[serde(default)]
+    pub preparation_time: u64,
 }
 
-const fn max_level() -> u64 {
-    100
-}
-
-const fn min_level() -> u64 {
-    100
-}
 
 impl Quest {
     pub fn new(quest_type: QuestType, min_level: u64, max_level: u64) -> Self {
@@ -3010,6 +3027,7 @@ impl Quest {
             quest_type,
             min_level,
             max_level,
+            preparation_time: QUEST_PREPARATION_TIME,
         }
     }
 
@@ -3055,6 +3073,11 @@ impl Quest {
     }
 
     pub fn run(&mut self, players: &CustomMap<UserId, Player>) -> Option<()> {
+        if self.preparation_time > 0 {
+            self.preparation_time -= 1;
+            return Some(());
+        }
+        
         if self.time_left > 0 {
             self.time_left -= 1;
             for (user_id, contestant) in self.contestants.iter_mut() {

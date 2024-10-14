@@ -2345,7 +2345,7 @@ fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                     quest.contestants.is_empty()
                 } else {
                     true
-                }) && ((player.base.curr_level <= quest.max_level && player.base.curr_level >= quest.min_level) || quest.contestants.contains_key(user_id))
+                }) && ((player.base.curr_level <= quest.max_level && player.base.curr_level >= quest.min_level && player.base.curr_level >= quest.quest_type.occupation().unlocked_at_level()) || quest.contestants.contains_key(user_id))
             }).map(|(quest_id, quest)| {
                 tr![
                     C!["list-item-row", match quest.quest_type.reward_mode().reward_type() {
@@ -2362,7 +2362,12 @@ fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                         h3![C!["title"], format!("{}", quest.quest_type)],
                         p![
                             C!["subtitle"],
-                            format!("{} remaining |  Requires {} | Level {} - {}", fmt_time(quest.time_left, true), quest.quest_type.occupation(), quest.min_level, quest.max_level)
+                            if quest.preparation_time > 0 {
+                                format!("Starts in {}", fmt_time(quest.preparation_time, true))
+                            } else {
+                                format!("Ends in {}", fmt_time(quest.time_left, true))
+                            },
+                            format!(" | Requires {} | Level {} - {}", quest.quest_type.occupation(), quest.min_level, quest.max_level)
                         ],
                         if let Some(contestant) = quest.contestants.get(user_id) {
                             let rank = quest
@@ -2414,7 +2419,11 @@ fn quest(
                 div![C!["image-aside"],
                     img![attrs! {At::Src => Image::from(quest.quest_type).as_at_value()}],
                     div![
-                        p![C!["subtitle"], format!("{} remaining.", fmt_time(quest.time_left, true))],
+                        p![C!["subtitle"], if quest.preparation_time > 0 {
+                            format!("Starts in {}.", fmt_time(quest.preparation_time, true))
+                        } else {
+                            format!("Ends in {}.", fmt_time(quest.time_left, true))
+                        }],
                         if let Some(contestant) = quest.contestants.get(user_id) {
                             let rank = quest.contestants.values().filter(|c| c.achieved_score >= contestant.achieved_score).count();
                             let mut contestants = quest.contestants.values().map(|c| c.achieved_score).collect::<Vec<_>>();
@@ -3564,6 +3573,47 @@ fn tribe(model: &Model, client_state: &ClientState<shared::State>, state: &share
             //let tribe = state.tribes.get(&tribe_id).unwrap();
             let username = username(client_state, user_id);
 
+
+
+            let king_tribe = if let Some(king) = state.king {
+                state.players.get(&king).and_then(|player| player.tribe)
+            } else {
+                None
+            };
+
+            let alliance_message = if let Some(king_tribe) = king_tribe {
+                if king_tribe == tribe_id {
+                    span!["Your tribe is the king tribe and fights against all the other tribes."]
+                } else {
+                    span![
+                        "Your tribe is allied with the ",
+                        state.tribes.iter().filter(|(id, _)| **id != tribe_id && **id != king_tribe).map(|(id, _)| tribe_name(*id, model.game_id)),
+                        " against ",
+                        tribe_name(king_tribe, model.game_id),
+                        "."
+                    ]
+                }
+            } else {
+                span!["There is currently no alliance between any tribes."]
+            };
+
+            let territory_scores =  enum_iterator::all::<Territory>()
+                .flat_map(|territory| {
+                    state.tribes.iter().map(|(tribe_id, _)| {
+                        let score = if king_tribe.is_none() || Some(*tribe_id) == king_tribe {
+                            state.tribes.get(tribe_id).unwrap().territories.get(&territory).copied().unwrap_or(0)
+                        } else {
+                            state.tribes.iter()
+                                .filter(|(t_id, _)| **t_id != king_tribe.unwrap())
+                                .map(|(_, t)| t.territories.get(&territory).copied().unwrap_or(0))
+                                .sum()
+                        };
+                    
+                        ((territory, *tribe_id), score)
+                    }).collect::<Vec<_>>()
+                })
+                .collect::<CustomMap<_, _>>();
+
             div![C!["content"],
                 div![C!["important"],
                     strong!["Invite Players"],
@@ -3626,20 +3676,21 @@ fn tribe(model: &Model, client_state: &ClientState<shared::State>, state: &share
                     tribe_id,
                     model.game_id
                 ), "."]],
+                p![strong![alliance_message]],
                 p![strong![format!("Your Fame Points: {} FP", player.tribe_points)]],
                 table![C!["list"],
+
                 enum_iterator::all::<Territory>()
                     .map(|territory| {
-                        let scores =state.tribes
-                            .values()
-                            .map(|tribe| {
-                                tribe.territories.get(&territory).copied().unwrap_or_default()
-                            })
+                        let scores = territory_scores
+                            .iter()
+                            .filter(|((t, t_id), _)| *t == territory && (king_tribe.is_none() || Some(*t_id) == king_tribe || *t_id == tribe_id))
+                            .map(|(_, s)| *s)
                             .collect::<Vec<_>>();
 
                         let max = scores.iter().max().copied().unwrap_or_default(); 
 
-                        let curr = state.tribes.get(&tribe_id).unwrap().territories.get(&territory).copied().unwrap_or_default();
+                        let curr = territory_scores.get(&(territory, tribe_id)).copied().unwrap_or(0);
 
                         let rank = scores
                             .iter()
