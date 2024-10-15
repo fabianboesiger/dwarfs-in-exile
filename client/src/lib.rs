@@ -2783,7 +2783,7 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                                 WorldEvent::Tornado => p!["Tornadoes sweep accross the forbidden lands. The tornadoes makes it harder to log, gather and farm. Be aware of your resource production! There is also a higher chance that new dwarfs arrive in your settlement during this event."],
                                 WorldEvent::Carnival => p!["The carnival is in town! During the carnival, the dwarfs are in a festive mood and have less time to work. The carnival also increases the chance of new dwarfs arriving in your settlement."],
                                 WorldEvent::FullMoon => p!["The full moon is shining bright. During the full moon, the dwarfs can't sleep and thus work less efficiently. As they won't sleep well anyway, there is a chance for more children being born."],
-                                WorldEvent::Revolution => p!["The dwarfs are revolting! During a revolution, the dwarfs work less efficiently and any king is overthown immediately."],
+                                WorldEvent::Revolution => p!["The dwarfs are revolting! During a revolution, the dwarfs work less efficiently and any king is overthrown immediately."],
                             }
                         ]
                     ]

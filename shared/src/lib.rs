@@ -834,7 +834,7 @@ impl engine_shared::State for State {
                                     None
                                 }
                             } else {
-                                None
+                                equipment.swap_remove(&item_type)
                             };
 
                             if let Some(old_item) = old_item {
