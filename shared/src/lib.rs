@@ -3045,9 +3045,10 @@ impl Quest {
 
     pub fn split_by_score(&self, num: u64) -> Vec<(UserId, u64)> {
         let total_score: u64 = self.contestants.values().map(|c| c.achieved_score).sum();
+
         self.contestants
             .iter()
-            .map(|(user_id, c)| (*user_id, num * c.achieved_score / total_score))
+            .map(|(user_id, c)| if total_score == 0 { (*user_id, 0) } else { (*user_id, num * c.achieved_score / total_score) })
             .collect()
     }
 
