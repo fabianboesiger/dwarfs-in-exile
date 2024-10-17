@@ -581,12 +581,24 @@ impl engine_shared::State for State {
                             for dwarf_id in &dwarf_ids {
                                 let dwarf = player.dwarfs.get_mut(dwarf_id)?;
                                 if dwarf.can_be_managed() || to_optimize_dwarf_id.is_some() {
-                                    for (_, item) in dwarf.equipment.drain(..) {
+                                    for item_type in enum_iterator::all::<ItemType>() {
+                                        if item_type.equippable() && item_type != ItemType::Consumable {
+                                            if let Some(item) = dwarf.equipment.swap_remove(&item_type) {
+                                                player
+                                                    .inventory
+                                                    .items
+                                                    .add_checked(Bundle::new().add(item, 1));
+                                            }
+                                        }
+   
+
+                                    }
+                                    /*for (_, item) in dwarf.equipment.drain(..) {
                                         player
                                             .inventory
                                             .items
                                             .add_checked(Bundle::new().add(item, 1));
-                                    }
+                                    }*/
                                 }
                             }
 
