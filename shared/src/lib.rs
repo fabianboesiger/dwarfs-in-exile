@@ -934,7 +934,7 @@ impl engine_shared::State for State {
                                 }
                                 
                                 if let Some(trade_deal) =
-                                    TradeDeal::from_player(user_id, player, item, qty)
+                                    TradeDeal::from_player(user_id, player, item, qty, self.next_trade_id)
                                 {
                                     self.trade_deals.insert(self.next_trade_id, trade_deal);
                                     self.next_trade_id += 1;
@@ -1025,11 +1025,16 @@ impl engine_shared::State for State {
                                 .collect::<CustomMap<_, _>>();
 
 
+                            /*
                             let king_tribe = if let Some(king) = self.king {
                                 self.players.get(&king).and_then(|player| player.tribe)
                             } else {
                                 None
                             };
+                            */
+                            let king_tribe = self.tribes.iter()
+                                .max_by_key(|(_, t)| t.territories.values().sum::<u64>())
+                                .map(|(t_id, _)| *t_id);
 
                             let territory_scores =  enum_iterator::all::<Territory>()
                                 .flat_map(|territory| {
@@ -1871,7 +1876,7 @@ impl engine_shared::State for State {
                                 .count()
                                 < num_trades
                             {
-                                self.trade_deals.insert(self.next_trade_id, TradeDeal::new(rng, max_player_level));
+                                self.trade_deals.insert(self.next_trade_id, TradeDeal::new(rng, max_player_level, self.next_trade_id));
                                 self.next_trade_id += 1;
                             }
                         }
@@ -2115,6 +2120,8 @@ pub struct AutoFunctions {
     pub auto_sell: CustomSet<Item>,
     #[serde(default = "CustomSet::new")]
     pub auto_dismantle: CustomSet<Item>,
+    #[serde(default = "CustomMap::new")]
+    pub auto_bid: CustomMap<TradeId, Money>,
 }
 
 impl Default for AutoFunctions {
@@ -2125,6 +2132,7 @@ impl Default for AutoFunctions {
             auto_store: CustomSet::new(),
             auto_sell: CustomSet::new(),
             auto_dismantle: CustomSet::new(),
+            auto_bid: CustomMap::new(),
         }
     }
 }
@@ -3425,10 +3433,10 @@ impl QuestType {
             QuestType::MinersLuck => 100,
             */
             QuestType::FeastForAGuest => Some(10),
-            QuestType::FreeTheVillage => Some(15),
-            QuestType::ADwarfGotLost => Some(20),
-            QuestType::ADwarfInDanger => Some(25),
-            QuestType::AttackTheOrks => Some(30),
+            QuestType::FreeTheVillage => Some(40),
+            QuestType::ADwarfGotLost => Some(30),
+            QuestType::ADwarfInDanger => Some(30),
+            QuestType::AttackTheOrks => Some(40),
             QuestType::FreeTheDwarf => Some(40),
             QuestType::CrystalsForTheElves => Some(50),
             QuestType::TheElvenMagician => Some(60),
@@ -3450,6 +3458,7 @@ pub struct TradeDeal {
     pub user_trade_type: TradeType,
     #[serde(default)]
     pub creator: Option<UserId>,
+    pub trade_id: TradeId,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -3459,7 +3468,7 @@ pub enum TradeType {
 }
 
 impl TradeDeal {
-    pub fn new(rng: &mut impl Rng, max_player_level: u64) -> Self {
+    pub fn new(rng: &mut impl Rng, max_player_level: u64, trade_id: TradeId) -> Self {
         let item = enum_iterator::all::<Item>()
             .filter(|item| {
                 (if let Some((level, _)) = item.requires() {
@@ -3488,10 +3497,11 @@ impl TradeDeal {
             highest_bidder: None,
             creator: None,
             user_trade_type: TradeType::Buy,
+            trade_id,
         }
     }
 
-    pub fn from_player(user_id: UserId, player: &mut Player, item: Item, qty: u64) -> Option<Self> {
+    pub fn from_player(user_id: UserId, player: &mut Player, item: Item, qty: u64, trade_id: TradeId) -> Option<Self> {
         let qty = qty.min(player.inventory.items.get(&item).copied().unwrap_or(0));
         let time_left = ((qty * item.item_rarity_num()) / 10)
             .max(ONE_MINUTE * 20)
@@ -3518,6 +3528,7 @@ impl TradeDeal {
             highest_bidder: None,
             creator: Some(user_id),
             user_trade_type: TradeType::Buy,
+            trade_id,
         })
     }
 
@@ -3525,6 +3536,10 @@ impl TradeDeal {
         if self.time_left > 0 {
             self.time_left -= 1;
             if self.time_left == 0 || self.next_bid <= 1 {
+                for player in players.values_mut() {
+                    player.auto_functions.auto_bid.swap_remove(&self.trade_id);
+                }
+
                 if let Some((best_bidder_user_id, best_bidder_money)) = self.highest_bidder {
                     let p = players.get_mut(&best_bidder_user_id)?;
                     p.inventory.add(self.items.clone(), time);
@@ -3583,7 +3598,28 @@ impl TradeDeal {
                 }
             }
         }
-
+        
+        // Auto bidding.
+        loop {
+            let mut max_bid_user_id = None;
+            for (player_user_id, player) in players.iter() {
+                if self.creator != Some(*player_user_id) {
+                    if let Some(max_bid) = player.auto_functions.auto_bid.get(&self.trade_id) {
+                        if *max_bid >= self.next_bid {
+                            max_bid_user_id = Some(*player_user_id);
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            if let Some(max_bid_user_id) = max_bid_user_id {
+                self.bid(players, max_bid_user_id, time);
+            } else {
+                break;
+            }
+        }
+        
         Some(())
     }
 }

@@ -3597,16 +3597,20 @@ fn tribe(model: &Model, client_state: &ClientState<shared::State>, state: &share
             let username = username(client_state, user_id);
 
 
-
+            /*
             let king_tribe = if let Some(king) = state.king {
                 state.players.get(&king).and_then(|player| player.tribe)
             } else {
                 None
             };
+            */
+            let king_tribe = state.tribes.iter()
+                    .max_by_key(|(_, t)| t.territories.values().sum::<u64>())
+                    .map(|(t_id, _)| *t_id);
 
             let alliance_message = if let Some(king_tribe) = king_tribe {
                 if king_tribe == tribe_id {
-                    span!["Your tribe is the king tribe and fights against all the other tribes."]
+                    span!["Your tribe is the leading tribe and fights against all the other tribes."]
                 } else {
                     span![
                         "Your tribe is allied with the ",
