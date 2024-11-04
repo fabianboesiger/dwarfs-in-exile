@@ -323,7 +323,7 @@ impl Default for State {
         tribes.insert(1, Tribe::default());
         tribes.insert(2, Tribe::default());
 
-        let settings = WorldSettings { start_countdown: ONE_HOUR, world_speed: 1 };
+        let settings = WorldSettings { start_countdown: ONE_HOUR * 8, world_speed: 1 };
 
 
         Self {
@@ -1680,12 +1680,15 @@ impl engine_shared::State for State {
                                                             Some(*num_dwarfs),
                                                         ),
                                                     );
-                                                    player.new_dwarf(
-                                                        rng,
-                                                        &mut self.next_dwarf_id,
-                                                        self.time,
-                                                        Some(Stats::default()),
-                                                    );
+                                                    for _ in 0..*num_dwarfs {
+                                                        player.new_dwarf(
+                                                            rng,
+                                                            &mut self.next_dwarf_id,
+                                                            self.time,
+                                                            Some(Stats::default()),
+                                                        );
+                                                    }
+       
                                                 }
                                             }
                                             for contestant_id in quest.contestants.keys() {
