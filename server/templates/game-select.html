@@ -10,8 +10,8 @@
           <p>Visit the hall of our heroes to find our top players so far.</p>
           <a href="/valhalla" class="button">Visit Valhalla</a>
         {% else %}
-        {% for id in current_worlds %}
-          <a href="/game/{{id}}" class="button">World {{id}}</a>
+        {% for (id, game_mode) in current_worlds %}
+          <a href="/game/{{id}}" class="button">World {{id}} ({{game_mode}})</a>
         {% endfor %}
         {% endif %}
 

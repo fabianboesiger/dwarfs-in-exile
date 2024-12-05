@@ -210,6 +210,7 @@ pub enum Image {
     SwampArtifact,
     MountainsArtifact,
     PlainsArtifact,
+    HireDwarf,
 }
 
 impl AsAtValue for Image {

@@ -31,6 +31,13 @@
             {% endfor %}
         </table>
         <form action="/admin/create-world" method="POST">
+            <div>
+                <label for="game-mode">Game Mode</label>
+                <select name="game_mode">
+                    <option value="Ranked">Ranked</option>
+                    <option value="Speed">Speed</option>
+                </select>
+            </div>
             <input type="submit" value="Create new World">
         </form>
         

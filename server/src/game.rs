@@ -11,9 +11,10 @@ use axum::{
 use engine_shared::{utils::custom_map::CustomMap, GameId};
 use futures_util::{sink::SinkExt, stream::StreamExt};
 use serde::{Deserialize, Serialize};
-use shared::{ClientEvent, UserData, UserId};
+use shared::{ClientEvent, GameMode, UserData, UserId};
 use sqlx::SqlitePool;
 use tower_sessions::Session;
+use engine_shared::{State, Settings};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PartialEventData {
@@ -67,9 +68,12 @@ impl GameStore {
                 .fetch_one(&pool_clone)
                 .await;
 
+                // TODO
+                /*
                 if result.map(|result| result.0 != 0).unwrap_or(false) {
                     game_state_clone.create().await.unwrap();
                 }
+                */
             });
         }
 
@@ -81,14 +85,18 @@ impl GameStore {
 impl engine_server::BackendStore<shared::State> for GameStore {
     type Error = ServerError;
 
-    async fn create_game(&self) -> Result<GameId, Self::Error> {
+    async fn create_game(&self, gamemode: GameMode) -> Result<GameId, Self::Error> {
+        let data: Vec<u8> = rmp_serde::to_vec(&shared::State::new(gamemode)).unwrap();
+
         let (id,): (i64,) = sqlx::query_as(
             r#"
-                INSERT INTO games (data, winner)
-                VALUES (NULL, NULL)
+                INSERT INTO games (data, winner, game_mode)
+                VALUES ($1, NULL, $2)
                 RETURNING id
             "#,
         )
+        .bind(data)
+        .bind(gamemode.to_string())
         .fetch_one(&self.db)
         .await?;
 
@@ -110,7 +118,7 @@ impl engine_server::BackendStore<shared::State> for GameStore {
         let state: shared::State = result
             .map(|(data,)| {
                 data.map(|data| rmp_serde::from_slice(&data[..]).unwrap())
-                    .unwrap_or_default()
+                    .unwrap()
             })
             .unwrap();
 
@@ -170,18 +178,20 @@ impl engine_server::BackendStore<shared::State> for GameStore {
 
             tracing::info!("game {} saved, ingame time {}", game_id, state.time);
 
-            for (user_id, premium_days) in state.rewarded_premium_days() {
-                sqlx::query(
-                    r#"
-                            UPDATE users
-                            SET premium = premium + $2
-                            WHERE user_id = $1
-                        "#,
-                )
-                .bind(user_id.0)
-                .bind(premium_days * 24)
-                .execute(&self.db)
-                .await?;
+            if state.settings().is_ranked() {
+                for (user_id, premium_days) in state.rewarded_premium_days() {
+                    sqlx::query(
+                        r#"
+                                UPDATE users
+                                SET premium = premium + $2
+                                WHERE user_id = $1
+                            "#,
+                    )
+                    .bind(user_id.0)
+                    .bind(premium_days * 24)
+                    .execute(&self.db)
+                    .await?;
+                }
             }
             
         } else {
@@ -279,7 +289,7 @@ pub async fn get_game(
 #[derive(Template, Default)]
 #[template(path = "game-select.html")]
 pub struct GameSelectTemplate {
-    current_worlds: Vec<GameId>,
+    current_worlds: Vec<(GameId, String)>,
 }
 
 pub async fn get_game_select(
@@ -291,9 +301,9 @@ pub async fn get_game_select(
         .await?
         .ok_or(ServerError::InvalidSession)?;
 
-    let result: Vec<(GameId,)> = sqlx::query_as(
+    let result: Vec<(GameId,String,)> = sqlx::query_as(
         r#"
-                SELECT id
+                SELECT id, game_mode
                 FROM games
                 WHERE closed = 0
             "#,
@@ -301,10 +311,10 @@ pub async fn get_game_select(
     .fetch_all(&pool)
     .await?;
 
-    let current_worlds: Vec<GameId> = result.into_iter().map(|(id,)| id).collect();
+    let current_worlds: Vec<(GameId, String)> = result.into_iter().map(|(id, game_mode,)| (id, game_mode)).collect();
 
     if current_worlds.len() == 1 {
-        Ok(Redirect::temporary(&format!("/game/{}", current_worlds[0])).into_response())
+        Ok(Redirect::temporary(&format!("/game/{}", current_worlds[0].0)).into_response())
     } else {
         Ok(GameSelectTemplate { current_worlds }.into_response())
     }
