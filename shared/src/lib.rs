@@ -18,7 +18,7 @@ use strum::Display;
 #[cfg(not(debug_assertions))]
 pub const SPEED: u64 = 1;
 #[cfg(debug_assertions)]
-pub const SPEED: u64 = 10;
+pub const SPEED: u64 = 1;
 pub const ONE_MINUTE: u64 = 60;
 pub const ONE_HOUR: u64 = ONE_MINUTE * 60;
 pub const ONE_DAY: u64 = ONE_HOUR * 24;
@@ -1051,7 +1051,7 @@ impl engine_shared::State for State {
                             if let Some((user_id, dwarf_id)) = self.eldest {
                                 if let Some(player) = self.players.get_mut(&user_id) {
                                     if let Some(_dwarf) = player.dwarfs.get_mut(&dwarf_id) {
-                                        if rng.gen_ratio(self.settings.world_speed as u32, ONE_DAY as u32) {
+                                        if gen_ratio_valid(rng, self.settings.world_speed as u32, ONE_DAY as u32) {
                                             player.inventory.add(Bundle::new().add(Item::KnowledgeOfTheEldest, 1), self.time);
                                         }
                                     }
@@ -1063,10 +1063,10 @@ impl engine_shared::State for State {
                             };
 
                             if self.event.is_some() {
-                                if rng.gen_ratio(self.settings.world_speed as u32, ONE_DAY as u32 / 4) {
+                                if gen_ratio_valid(rng, self.settings.world_speed as u32, ONE_DAY as u32 / 4) {
                                     self.event = None;
                                 }
-                            } else if rng.gen_ratio(self.settings.world_speed as u32, ONE_DAY as u32 / 2) {
+                            } else if gen_ratio_valid(rng, self.settings.world_speed as u32, ONE_DAY as u32 / 2) {
                                 self.event = Some(enum_iterator::all().choose(rng).unwrap());
                             }
 
@@ -1133,7 +1133,7 @@ impl engine_shared::State for State {
                                 
                                 // Revolutionary spirit drops.
                                 if Some(*user_id) != self.king {
-                                    if rng.gen_ratio(
+                                    if gen_ratio_valid(rng, 
                                         self.settings.world_speed as u32,
                                         ONE_DAY as u32 * 3,
                                     ) {
@@ -1167,7 +1167,7 @@ impl engine_shared::State for State {
                                     
                                 // Drops for territories.
                                 if !controlled_territories.is_empty() {
-                                    if rng.gen_ratio(
+                                    if gen_ratio_valid(rng, 
                                         self.settings.world_speed as u32,
                                             ONE_DAY as u32 * 3 / (controlled_territories.len() as u32 + 1)
                                     ) {
@@ -1181,7 +1181,7 @@ impl engine_shared::State for State {
                                     }
                                 }
 
-                                if rng.gen_ratio(
+                                if gen_ratio_valid(rng, 
                                     self.event
                                         .map(|event| event.new_dwarfs_multiplier())
                                         .unwrap_or(1) * self.settings.world_speed as u32,
@@ -1244,7 +1244,7 @@ impl engine_shared::State for State {
                                         _ => 1,
                                     });
 
-                                if rng.gen_ratio(
+                                if gen_ratio_valid(rng, 
                                     pairs as u32
                                         * baby_dwarf_multiplier_event * baby_dwarf_multiplier_consumable * self.settings.world_speed as u32,
                                     ONE_HOUR as u32 * 4,
@@ -1311,7 +1311,7 @@ impl engine_shared::State for State {
                                             },
                                         }
 
-                                        if dwarf.age_years() > 200 && rng.gen_ratio(self.settings.world_speed as u32, ONE_DAY as u32 * 5) {
+                                        if dwarf.age_years() > 200 && gen_ratio_valid(rng, self.settings.world_speed as u32, ONE_DAY as u32 * 5) {
                                             dwarf.health = 0;
                                         }
                                         if !is_adult_before && dwarf.is_adult() {
@@ -1354,7 +1354,7 @@ impl engine_shared::State for State {
                                     let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
 
                                     if !dwarf.dead() {
-                                        if rng.gen_ratio(
+                                        if gen_ratio_valid(rng, 
                                             improvement_occupation.requires_stats().agility as u32
                                                 * improvement_multiplier as u32
                                                 * self.settings.world_speed as u32,
@@ -1370,7 +1370,7 @@ impl engine_shared::State for State {
                                                 ),
                                             );
                                         }
-                                        if rng.gen_ratio(
+                                        if gen_ratio_valid(rng, 
                                             improvement_occupation.requires_stats().endurance
                                                 as u32 * self.settings.world_speed as u32
                                                 * improvement_multiplier as u32,
@@ -1386,7 +1386,7 @@ impl engine_shared::State for State {
                                                 ),
                                             );
                                         }
-                                        if rng.gen_ratio(
+                                        if gen_ratio_valid(rng, 
                                             improvement_occupation.requires_stats().strength as u32
                                                 * improvement_multiplier as u32 * self.settings.world_speed as u32,
                                             IMPROVEMENT_DURATION,
@@ -1401,7 +1401,7 @@ impl engine_shared::State for State {
                                                 ),
                                             );
                                         }
-                                        if rng.gen_ratio(
+                                        if gen_ratio_valid(rng, 
                                             improvement_occupation.requires_stats().intelligence
                                                 as u32
                                                 * improvement_multiplier as u32,
@@ -1417,7 +1417,7 @@ impl engine_shared::State for State {
                                                 ),
                                             );
                                         }
-                                        if rng.gen_ratio(
+                                        if gen_ratio_valid(rng, 
                                             improvement_occupation.requires_stats().perception
                                                 as u32
                                                 * improvement_multiplier as u32,
@@ -2766,7 +2766,7 @@ impl Dwarf {
         denominator_mul: u64,
     ) -> bool {
         let denominator = (MAX_EFFECTIVENESS / (MIN_MAX_DWARF_DIFFERENCE - 1)) * denominator_mul;
-        rng.gen_ratio(
+        gen_ratio_valid(rng, 
             (self.numerator_effectiveness(dwarfs) / 100) as u32 * settings.world_speed as u32,
             (denominator / 100) as u32,
         )
@@ -3763,4 +3763,17 @@ impl Territory {
             Territory::Desert => Item::DesertArtifact,
         }
     }
+}
+
+fn gen_ratio_valid(rng: &mut impl Rng, numerator: u32, denominator: u32) -> bool {
+    if numerator == 0 {
+        return false;
+    }
+    if denominator == 0 {
+        return true;
+    }
+    if numerator > denominator {
+        return true;
+    }
+    rng.gen_ratio(numerator, denominator)
 }
