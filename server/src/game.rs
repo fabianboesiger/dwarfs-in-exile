@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use askama::Template;
 use askama_axum::{IntoResponse, Response};
 use axum::{
@@ -37,9 +39,9 @@ impl GameStore {
     }
 
     pub async fn load_all(self) -> Result<GameState, ServerError> {
-        let open_worlds: Vec<(GameId,)> = sqlx::query_as(
+        let open_worlds: Vec<(GameId, String)> = sqlx::query_as(
             r#"
-                    SELECT id
+                    SELECT id, game_mode
                     FROM games
                     WHERE closed = 0
                 "#,
@@ -50,7 +52,7 @@ impl GameStore {
         let pool = self.db.clone();
         let game_state = GameState::new(self);
 
-        for (id,) in open_worlds {
+        for (id, game_mode) in open_worlds {
             let game_finished = game_state.load(id).await?;
             let game_state_clone = game_state.clone();
             let pool_clone = pool.clone();
@@ -67,13 +69,10 @@ impl GameStore {
                 )
                 .fetch_one(&pool_clone)
                 .await;
-
-                // TODO
-                /*
+            
                 if result.map(|result| result.0 != 0).unwrap_or(false) {
-                    game_state_clone.create().await.unwrap();
+                    game_state_clone.create(GameMode::from_str(&game_mode).unwrap_or(GameMode::Ranked)).await.unwrap();
                 }
-                */
             });
         }
 
@@ -332,6 +331,7 @@ pub async fn get_valhalla(Extension(pool): Extension<SqlitePool>) -> Result<Resp
                     SELECT user_id, username, premium, admin, COUNT(winner), guest, joined, referrer
                     FROM users
                     LEFT JOIN games ON winner = user_id
+                    WHERE game_mode IS NULL OR game_mode = 'Ranked'
                     GROUP BY user_id, username, premium, admin
                 "#,
     )

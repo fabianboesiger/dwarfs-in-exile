@@ -58,6 +58,7 @@ pub type TradeId = u64;
 pub enum GameMode {
     Ranked,
     Speed,
+    Infinite,
 }
 
 impl engine_shared::Settings for GameMode {
@@ -90,6 +91,13 @@ impl From<GameMode> for WorldSettings {
                 world_speed: 5,
                 ranked: false,
                 infinite: false,
+                game_mode: value,
+            },
+            GameMode::Infinite => WorldSettings {
+                start_countdown: if cfg!(debug_assertions) { 0 } else { ONE_HOUR * 24 },
+                world_speed: 1,
+                ranked: false,
+                infinite: true,
                 game_mode: value,
             },
         }
@@ -455,6 +463,10 @@ impl State {
     }
 
     pub fn winner(&self) -> Option<UserId> {
+        if self.settings.infinite {
+            return None;
+        }
+
         for (user_id, player) in &self.players {
             if player.base.curr_level == 100 && self.king == Some(*user_id) {
                 return Some(*user_id);
@@ -875,7 +887,7 @@ impl engine_shared::State for State {
                         ClientEvent::UpgradeBase => {
                             if let Some(requires) = player.base.upgrade_cost() {
                                 if player.inventory.items.remove_checked(requires) {
-                                    player.base.upgrade();
+                                    player.base.upgrade(&self.settings);
                                 }
                             }
                         }
@@ -1942,6 +1954,9 @@ impl engine_shared::State for State {
                                 self.trade_deals.insert(self.next_trade_id, TradeDeal::new(rng, max_player_level, self.next_trade_id));
                                 self.next_trade_id += 1;
                             }
+
+                            // Only keep players that were recently active or have any dwarfs left.
+                            self.players.retain(|_, player| player.dwarfs.len() > 0 || player.is_active(self.time));
                         }
                     }
                 }
@@ -2977,8 +2992,8 @@ impl Base {
         None
     }
 
-    pub fn upgrade(&mut self) {
-        if self.curr_level < MAX_LEVEL && self.build_time == 0 {
+    pub fn upgrade(&mut self, settings: &WorldSettings) {
+        if (self.curr_level < MAX_LEVEL || settings.infinite) && self.build_time == 0 {
             self.build_time = self.build_time_ticks();
         }
     }

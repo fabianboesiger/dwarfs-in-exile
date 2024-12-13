@@ -10,6 +10,11 @@
           <p>Visit the hall of our heroes to find our top players so far.</p>
           <a href="/valhalla" class="button">Visit Valhalla</a>
         {% else %}
+        <ul>
+          <li><strong>Ranked</strong> worlds start every second week on wednesdays. Winning the world rewards you with free premium hours.</li>
+          <li><strong>Speed</strong> worlds run much faster than ranked worlds and start each friday. They do not reward any free premium hours.</li>
+          <li><strong>Infinite</strong> worlds run at the same speed as ranked worlds, but do not have end and do not reward any free premium hours.</li>
+        </ul>
         {% for (id, game_mode) in current_worlds %}
           <a href="/game/{{id}}" class="button">World {{id}} ({{game_mode}})</a>
         {% endfor %}

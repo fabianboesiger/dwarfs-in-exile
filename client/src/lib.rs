@@ -8,7 +8,7 @@ use rand::RngCore;
 use rustrict::CensorStr;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, HireDwarfType, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, RewardType, Stats, Territory, Time, TradeType, TribeId, TutorialRequirement, TutorialReward, TutorialStep, UserId, WorldEvent, DISMANTLING_DIVIDER, JOIN_TRIBE_LEVEL, MAX_EFFECTIVENESS, MAX_HEALTH, MAX_NUM_TRADES, MIN_TRADE_VALUE, SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS, WINNER_TRIBE_NUM_PREMIUM_DAYS
+    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, GameMode, Health, HireDwarfType, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, RewardType, Stats, Territory, Time, TradeType, TribeId, TutorialRequirement, TutorialReward, TutorialStep, UserId, WorldEvent, DISMANTLING_DIVIDER, JOIN_TRIBE_LEVEL, MAX_EFFECTIVENESS, MAX_HEALTH, MAX_NUM_TRADES, MIN_TRADE_VALUE, SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS, WINNER_TRIBE_NUM_PREMIUM_DAYS
 };
 use std::str::FromStr;
 use strum::Display;
@@ -1216,7 +1216,11 @@ fn ranking(
     
 
         h2!["Ranking"],
-        p![format!("To win this game, you need to meet two conditions. First, expand your settlement until you reach level 100. Second, become the king of this world. If both conditions are met, the game will be over and you will be the winner. As a reward, you get gifted a free premium account for {} days.", WINNER_NUM_PREMIUM_DAYS)],
+        match state.settings.game_mode {
+            GameMode::Ranked => p![format!("To win this game, you need to meet two conditions. First, expand your settlement until you reach level 100. Second, become the king of this world. If both conditions are met, the game will be over and you will be the winner. As a reward, you get gifted a free premium account for {} days.", WINNER_NUM_PREMIUM_DAYS)],
+            GameMode::Speed => p![format!("To win this game, you need to meet two conditions. First, expand your settlement until you reach level 100. Second, become the king of this world. If both conditions are met, the game will be over and you will be the winner.")],
+            GameMode::Infinite => p![format!("You are playing in the infinite world. There is no limit on the maximum level.")],
+        },
         
         div![
             C!["table-wrapper"],
@@ -3698,7 +3702,14 @@ fn tribe(model: &Model, client_state: &ClientState<shared::State>, state: &share
             
                 h2!["Your Tribe"],
                 p!["Spend your fame points for your tribe to conquer territories. Controlling territories rewards you with powerful dwarfs that join your settlement more frequently. You can earn tribe points by winning quests that have a single winner with the most XP collected (red quests)."],
-                p![format!("If the winner of this world is from your tribe, you will earn a free premium account for {} days, so make sure to support your tribe members.", WINNER_TRIBE_NUM_PREMIUM_DAYS)],
+                
+                match state.settings.game_mode {
+                    GameMode::Ranked => p![format!("If the winner of this world is from your tribe, you will earn a free premium account for {} days, so make sure to support your tribe members.", WINNER_TRIBE_NUM_PREMIUM_DAYS)],
+                    GameMode::Speed => p![],
+                    GameMode::Infinite => p![],
+                },
+                
+                
                 p![strong!["You are member of the ", tribe_name(
                     tribe_id,
                     model.game_id
