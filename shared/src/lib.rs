@@ -275,6 +275,7 @@ pub struct UserData {
     pub guest: bool,
     pub joined: time::PrimitiveDateTime,
     pub referrer: Option<UserId>,
+    pub skins: Vec<i64>,
 }
 
 impl engine_shared::UserData for UserData {}

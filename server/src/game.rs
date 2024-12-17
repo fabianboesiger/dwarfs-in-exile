@@ -8,6 +8,7 @@ use axum::{
     response::Redirect,
     Extension,
 };
+use engine_server::BackendStore;
 use engine_shared::{utils::custom_map::CustomMap, GameId};
 use futures_util::{sink::SinkExt, stream::StreamExt};
 use serde::{Deserialize, Serialize};
@@ -118,7 +119,7 @@ impl engine_server::BackendStore<shared::State> for GameStore {
     }
 
     async fn load_user_data(&self) -> Result<CustomMap<UserId, UserData>, Self::Error> {
-        let users: Vec<(i64, String, i64, i64, i64, i64, time::PrimitiveDateTime, Option<i64>)> =
+        let users: Vec<(i64, String, i64, i64, i64, i64, time::PrimitiveDateTime, Option<i64>, sqlx::types::Json<Vec<i64>>)> =
             sqlx::query_as(
                 r#"
                         SELECT user_id, username, premium, admin, COUNT(winner), guest, joined, referrer
@@ -133,7 +134,7 @@ impl engine_server::BackendStore<shared::State> for GameStore {
 
         let users = users
             .into_iter()
-            .map(|(id, username, premium, admin, games_won, guest, joined, referrer)| {
+            .map(|(id, username, premium, admin, games_won, guest, joined, referrer, skins)| {
                 (
                     id.into(),
                     UserData {
@@ -144,6 +145,7 @@ impl engine_server::BackendStore<shared::State> for GameStore {
                         guest: guest != 0,
                         joined,
                         referrer: referrer.map(|id| UserId(id)),
+                        skins: skins.0,
                     },
                 )
             })
@@ -317,31 +319,11 @@ pub struct ValhallaTemplate {
 }
 
 pub async fn get_valhalla(Extension(pool): Extension<SqlitePool>) -> Result<Response, ServerError> {
-    let users: Vec<(i64, String, i64, i64, i64, i64, time::PrimitiveDateTime, Option<i64>)> = sqlx::query_as(
-        r#"
-                    SELECT user_id, username, premium, admin, COUNT(winner), guest, joined, referrer
-                    FROM users
-                    LEFT JOIN games ON winner = user_id
-                    GROUP BY user_id, username, premium, admin
-                "#,
-    )
-    .fetch_all(&pool)
-    .await
-    .unwrap();
-
-    let mut users = users
+    let mut users = GameStore::new(pool).load_user_data().await?
         .into_iter()
-        .map(
-            |(_id, username, premium, admin, games_won, guest, joined, referrer)| UserData {
-                username,
-                premium: premium as u64,
-                admin: admin != 0,
-                games_won,
-                guest: guest != 0,
-                joined,
-                referrer: referrer.map(|id| UserId(id)),
-            },
-        )
+        .map(|(_, user_data)| {
+            user_data
+        })
         .filter(|user_data| user_data.games_won > 0)
         .collect::<Vec<_>>();
 

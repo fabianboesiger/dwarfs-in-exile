@@ -2779,7 +2779,7 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                 img![attrs! {At::Src => Image::from(player.base.village_type()).as_at_value()}],
                 if let Some(requires) = player.base.upgrade_cost() {
                     div![
-                        p!["Upgrade your settlement to increase the maximum population and unlock new occupations for your dwarfs. New dwarfs can be collected by doing quests, or they can simply wander into to your settlement from time to time."],
+                        p!["Upgrade your settlement to increase the maximum population and unlock new occupations for your dwarfs. New dwarfs can be collected by doing quests, or they can simply wander into your settlement from time to time."],
                         h4!["Next Unlocks"],
                         div![
                             C!["next-unlocks"],

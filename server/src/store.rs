@@ -25,13 +25,13 @@ pub struct StoreEntry {
 
 #[cfg(not(debug_assertions))]
 static STORE_ENTRIES: &[StoreEntry] = &[
-    StoreEntry {
+    /*StoreEntry {
         buy_button_id: "buy_btn_1PfOoiCJSYyq6ul4DXYS01wg",
         publishable_key: "pk_live_51PclDhCJSYyq6ul4z8Wmuf3h9PVDP9vXOyGhZqc4dy3JvkltdKYUt51oeD2x1K23XxEy1qeU6D80GBx3TpEE9VNN00osxE1rXe",
         product_id: "prod_QWRhg5DjHRbafp",
         name: "Premium Account (One Week)",
         product: Product::Premium(7),
-    },
+    },*/
     StoreEntry {
         buy_button_id: "buy_btn_1PfOogCJSYyq6ul4UGNJGWVk",
         publishable_key: "pk_live_51PclDhCJSYyq6ul4z8Wmuf3h9PVDP9vXOyGhZqc4dy3JvkltdKYUt51oeD2x1K23XxEy1qeU6D80GBx3TpEE9VNN00osxE1rXe",
@@ -50,13 +50,13 @@ static STORE_ENTRIES: &[StoreEntry] = &[
 
 #[cfg(debug_assertions)]
 static STORE_ENTRIES: &[StoreEntry] = &[
-    StoreEntry {
+    /*StoreEntry {
         buy_button_id: "buy_btn_1Pcq8OCJSYyq6ul45QglYe5M",
         publishable_key: "pk_test_51PclDhCJSYyq6ul4shd76Uo28pNWY617Ae8OTV0NXhxZoKCIKEhLkiZRKNnLG635zpSIKJS8eGLPNaKqFtatiZLA00KocaOW8X",
         product_id: "prod_QTnWStL89MpI6m",
         name: "Premium Account (One Week)",
         product: Product::Premium(7),
-    },
+    },*/
     StoreEntry {
         buy_button_id: "buy_btn_1Pcq8tCJSYyq6ul4f4jhctou",
         publishable_key: "pk_test_51PclDhCJSYyq6ul4shd76Uo28pNWY617Ae8OTV0NXhxZoKCIKEhLkiZRKNnLG635zpSIKJS8eGLPNaKqFtatiZLA00KocaOW8X",
@@ -159,6 +159,7 @@ where
 #[derive(Debug, Clone, Copy)]
 enum Product {
     Premium(i64),
+    Skin(i64),
 }
 
 #[axum::debug_handler]
@@ -255,6 +256,36 @@ pub async fn handle_webhook(
                         .execute(&pool)
                         .await
                         .unwrap();
+
+                        game_state.new_server_connection().await.updated_user_data();
+
+                        tracing::info!(
+                            "updated premium usage hours for user with id: {}",
+                            user_id
+                        );
+                    },
+                    Product::Skin(skin) => {
+                        let quantity = line_item
+                                .quantity
+                                .ok_or(ServerError::StripeErrorMissingData(format!(
+                                    "missing quantity, {session:?}"
+                                )))? as i64;
+
+                        for _ in 0..quantity {
+                            sqlx::query(
+                                r#"
+                                    UPDATE users
+                                    SET skins = json_insert(skins, '$[#]', $1)
+                                    WHERE user_id = $2
+                                "#,
+                                )
+                                .bind(skin)
+                                .bind(user_id)
+                                .execute(&pool)
+                                .await
+                                .unwrap();
+                        }
+   
 
                         game_state.new_server_connection().await.updated_user_data();
 
