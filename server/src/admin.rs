@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use crate::{game::GameState, ServerError};
 use askama::Template;
 use askama_axum::Response;
@@ -7,6 +9,7 @@ use axum::{
 };
 use bcrypt::hash;
 use serde::Deserialize;
+use shared::GameMode;
 use sqlx::SqlitePool;
 use tower_sessions::Session;
 
@@ -21,6 +24,11 @@ pub struct ManageUser {
 #[derive(Debug, Deserialize, Default)]
 pub struct Settings {
     free_premium: i64,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct CreateWorldSettings {
+    game_mode: String,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -259,6 +267,7 @@ pub async fn post_create_world(
     session: Session,
     Extension(pool): Extension<SqlitePool>,
     Extension(game_state): Extension<GameState>,
+    Form(settings): Form<CreateWorldSettings>,
 ) -> Result<Response, ServerError> {
     let user_id = session
         .get::<i64>(crate::USER_ID_KEY)
@@ -282,7 +291,8 @@ pub async fn post_create_world(
         return Err(ServerError::NoAdminPermissions);
     }
 
-    game_state.create().await?;
+
+    game_state.create(GameMode::from_str(&settings.game_mode).unwrap()).await?;
 
     Ok(Redirect::to("/admin").into_response())
 }

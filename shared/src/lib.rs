@@ -18,7 +18,7 @@ use strum::Display;
 #[cfg(not(debug_assertions))]
 pub const SPEED: u64 = 1;
 #[cfg(debug_assertions)]
-pub const SPEED: u64 = 10;
+pub const SPEED: u64 = 1;
 pub const ONE_MINUTE: u64 = 60;
 pub const ONE_HOUR: u64 = ONE_MINUTE * 60;
 pub const ONE_DAY: u64 = ONE_HOUR * 24;
@@ -42,6 +42,7 @@ pub const NEW_PLAYER_DIVIDER: u64 = 8;
 pub const JOIN_TRIBE_LEVEL: u64 = 20;
 pub const MIN_TRADE_VALUE: u64 = 100;
 pub const MAX_NUM_TRADES: usize = 5;
+pub const QUEST_PREPARATION_TIME: u64 = ONE_HOUR;
 
 pub type Money = u64;
 pub type Food = u64;
@@ -53,17 +54,52 @@ pub type QuestId = u64;
 pub type TribeId = u64;
 pub type TradeId = u64;
 
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash, strum::EnumString, strum::Display)]
+pub enum GameMode {
+    Ranked,
+    Speed,
+    Infinite,
+}
+
+impl engine_shared::Settings for GameMode {
+    fn is_ranked(&self) -> bool {
+        matches!(self, GameMode::Ranked)
+    }
+}
+
 #[derive(Debug, Clone, Hash, Serialize, Deserialize)]
 pub struct WorldSettings {
     pub start_countdown: u64,
     pub world_speed: u64,
+    pub ranked: bool,
+    pub infinite: bool,
+    pub game_mode: GameMode,
 }
 
-impl Default for WorldSettings {
-    fn default() -> Self {
-        Self {
-            start_countdown: 0,
-            world_speed: 1,
+impl From<GameMode> for WorldSettings {
+    fn from(value: GameMode) -> Self {
+        match value {
+            GameMode::Ranked => WorldSettings {
+                start_countdown: if cfg!(debug_assertions) { 0 } else { ONE_HOUR * 24 },
+                world_speed: 1,
+                ranked: true,
+                infinite: false,
+                game_mode: value,
+            },
+            GameMode::Speed => WorldSettings {
+                start_countdown: if cfg!(debug_assertions) { 0 } else { ONE_HOUR * 24 },
+                world_speed: 5,
+                ranked: false,
+                infinite: false,
+                game_mode: value,
+            },
+            GameMode::Infinite => WorldSettings {
+                start_countdown: if cfg!(debug_assertions) { 0 } else { ONE_HOUR * 24 },
+                world_speed: 1,
+                ranked: false,
+                infinite: true,
+                game_mode: value,
+            },
         }
     }
 }
@@ -289,7 +325,7 @@ pub enum HireDwarfType {
 impl HireDwarfType {
     pub fn cost(&self) -> u64 {
         match self {
-            HireDwarfType::Standard => 5000,
+            HireDwarfType::Standard => 10000,
         }
     }
 }
@@ -308,14 +344,13 @@ pub struct State {
     pub event: Option<WorldEvent>,
     pub trade_deals: CustomMap<TradeId, TradeDeal>,
     pub tribes: CustomMap<TribeId, Tribe>,
-    #[serde(default)]
     pub settings: WorldSettings,
     #[serde(default)]
     pub start_countdown: u64,
     #[serde(default)]
     pub eldest: Option<(UserId, DwarfId)>,
 }
-
+/*
 impl Default for State {
     fn default() -> Self {
         let mut tribes = CustomMap::default();
@@ -323,7 +358,7 @@ impl Default for State {
         tribes.insert(1, Tribe::default());
         tribes.insert(2, Tribe::default());
 
-        let settings = WorldSettings { start_countdown: ONE_HOUR, world_speed: 1 };
+        let settings = WorldSettings { start_countdown: if cfg!(debug_assertions) { 0 } else { ONE_HOUR * 8 }, world_speed: 1 };
 
 
         Self {
@@ -344,8 +379,36 @@ impl Default for State {
         }
     }
 }
+*/
 
 impl State {
+    pub fn new(gamemode: GameMode) -> Self {
+        let mut tribes = CustomMap::default();
+        tribes.insert(0, Tribe::default());
+        tribes.insert(1, Tribe::default());
+        tribes.insert(2, Tribe::default());
+
+        let settings = WorldSettings::from(gamemode);   
+
+
+        Self {
+            players: CustomMap::default(),
+            next_dwarf_id: 0,
+            chat: Chat::default(),
+            next_quest_id: 0,
+            next_trade_id: 0,
+            quests: CustomMap::default(),
+            time: 0,
+            king: None,
+            event: None,
+            trade_deals: CustomMap::default(),
+            tribes,
+            start_countdown: settings.start_countdown,
+            settings,
+            eldest: None,
+        }
+    }
+
     fn add_to_food_storage(player: &mut Player, item: Item, qty: u64) {
         if let Some(food) = item.nutritional_value() {
             if player
@@ -401,6 +464,10 @@ impl State {
     }
 
     pub fn winner(&self) -> Option<UserId> {
+        if self.settings.infinite {
+            return None;
+        }
+
         for (user_id, player) in &self.players {
             if player.base.curr_level == 100 && self.king == Some(*user_id) {
                 return Some(*user_id);
@@ -433,10 +500,13 @@ impl engine_shared::State for State {
     type ClientEvent = ClientEvent;
     type UserId = UserId;
     type UserData = UserData;
+    type Settings = GameMode;
 
     const DURATION_PER_TICK: std::time::Duration = std::time::Duration::from_millis(1000 / SPEED);
 
-   
+    fn settings(&self) -> Self::Settings {
+        self.settings.game_mode
+    }
 
     fn closed(&self) -> bool {
         self.winner().is_some()
@@ -581,12 +651,24 @@ impl engine_shared::State for State {
                             for dwarf_id in &dwarf_ids {
                                 let dwarf = player.dwarfs.get_mut(dwarf_id)?;
                                 if dwarf.can_be_managed() || to_optimize_dwarf_id.is_some() {
-                                    for (_, item) in dwarf.equipment.drain(..) {
+                                    for item_type in enum_iterator::all::<ItemType>() {
+                                        if item_type.equippable() && item_type != ItemType::Consumable {
+                                            if let Some(item) = dwarf.equipment.swap_remove(&item_type) {
+                                                player
+                                                    .inventory
+                                                    .items
+                                                    .add_checked(Bundle::new().add(item, 1));
+                                            }
+                                        }
+   
+
+                                    }
+                                    /*for (_, item) in dwarf.equipment.drain(..) {
                                         player
                                             .inventory
                                             .items
                                             .add_checked(Bundle::new().add(item, 1));
-                                    }
+                                    }*/
                                 }
                             }
 
@@ -723,13 +805,13 @@ impl engine_shared::State for State {
                                 }
                             }
                         }
-                        ClientEvent::HireDwarf(_dwarf_type) => {
-                            /*if player.money >= dwarf_type.cost()
+                        ClientEvent::HireDwarf(dwarf_type) => {
+                            if player.money >= dwarf_type.cost()
                                 && player.dwarfs.len() < player.base.max_dwarfs()
                             {
                                 player.money -= dwarf_type.cost();
-                                player.new_dwarf(rng, &mut self.next_dwarf_id, self.time, false);
-                            }*/
+                                player.new_dwarf(rng, &mut self.next_dwarf_id, self.time, Some(Stats::default()));
+                            }
                         }
                         ClientEvent::ToggleAutoCraft(item) => {
                             if is_premium {
@@ -806,7 +888,7 @@ impl engine_shared::State for State {
                         ClientEvent::UpgradeBase => {
                             if let Some(requires) = player.base.upgrade_cost() {
                                 if player.inventory.items.remove_checked(requires) {
-                                    player.base.upgrade();
+                                    player.base.upgrade(&self.settings);
                                 }
                             }
                         }
@@ -833,17 +915,17 @@ impl engine_shared::State for State {
                                 } else {
                                     None
                                 }
-                            } else if item_type != ItemType::Consumable {
-                                equipment.swap_remove(&item_type)
                             } else {
-                                None
+                                equipment.swap_remove(&item_type)
                             };
 
                             if let Some(old_item) = old_item {
-                                player
-                                    .inventory
-                                    .items
-                                    .add_checked(Bundle::new().add(old_item, 1));
+                                if old_item.item_type() != Some(ItemType::Consumable) {
+                                    player
+                                        .inventory
+                                        .items
+                                        .add_checked(Bundle::new().add(old_item, 1));
+                                }
                             }
                         }
                         ClientEvent::OpenLootCrate => {
@@ -922,7 +1004,7 @@ impl engine_shared::State for State {
                                 }
                                 
                                 if let Some(trade_deal) =
-                                    TradeDeal::from_player(user_id, player, item, qty)
+                                    TradeDeal::from_player(user_id, player, item, qty, self.next_trade_id)
                                 {
                                     self.trade_deals.insert(self.next_trade_id, trade_deal);
                                     self.next_trade_id += 1;
@@ -968,34 +1050,25 @@ impl engine_shared::State for State {
                             }
 
                             // Find the dwarfen eldest.
+                            let mut eldest = None;
+                            let mut age = 0;
+                            for (user_id, player) in &self.players {
+                                for (dwarf_id, dwarf) in &player.dwarfs {
+                                    if dwarf.age_seconds >= age {
+                                        age = dwarf.age_seconds;
+                                        eldest = Some((*user_id, *dwarf_id));
+                                    }
+                                }
+                            }
+                            self.eldest = eldest;
                             if let Some((user_id, dwarf_id)) = self.eldest {
-                                let mut exists = false;
                                 if let Some(player) = self.players.get_mut(&user_id) {
                                     if let Some(_dwarf) = player.dwarfs.get_mut(&dwarf_id) {
-                                        exists = true;
-                                    }
-
-                                    if exists {
-                                        if rng.gen_ratio(1, ONE_DAY as u32) {
+                                        if gen_ratio_valid(rng, self.settings.world_speed as u32, ONE_DAY as u32) {
                                             player.inventory.add(Bundle::new().add(Item::KnowledgeOfTheEldest, 1), self.time);
                                         }
                                     }
                                 }
-                                if !exists {
-                                    self.eldest = None;
-                                }
-                            } else {
-                                let mut eldest = None;
-                                let mut age = 0;
-                                for (user_id, player) in &self.players {
-                                    for (dwarf_id, dwarf) in &player.dwarfs {
-                                        if dwarf.age_seconds >= age {
-                                            age = dwarf.age_seconds;
-                                            eldest = Some((*user_id, *dwarf_id));
-                                        }
-                                    }
-                                }
-                                self.eldest = eldest;
                             }
 
                             if matches!(self.event, Some(WorldEvent::Revolution)) {
@@ -1003,10 +1076,10 @@ impl engine_shared::State for State {
                             };
 
                             if self.event.is_some() {
-                                if rng.gen_ratio(1, ONE_DAY as u32 / 4) {
+                                if gen_ratio_valid(rng, self.settings.world_speed as u32, ONE_DAY as u32 / 4) {
                                     self.event = None;
                                 }
-                            } else if rng.gen_ratio(1, ONE_DAY as u32 / 2) {
+                            } else if gen_ratio_valid(rng, self.settings.world_speed as u32, ONE_DAY as u32 / 2) {
                                 self.event = Some(enum_iterator::all().choose(rng).unwrap());
                             }
 
@@ -1021,6 +1094,35 @@ impl engine_shared::State for State {
                                 .filter_map(|(user_id, player)| player.tribe.map(|tribe_id| (*user_id, tribe_id)))
                                 .collect::<CustomMap<_, _>>();
 
+
+                            /*
+                            let king_tribe = if let Some(king) = self.king {
+                                self.players.get(&king).and_then(|player| player.tribe)
+                            } else {
+                                None
+                            };
+                            */
+                            let king_tribe = self.tribes.iter()
+                                .max_by_key(|(_, t)| t.territories.values().sum::<u64>())
+                                .map(|(t_id, _)| *t_id);
+
+                            let territory_scores =  enum_iterator::all::<Territory>()
+                                .flat_map(|territory| {
+                                    self.tribes.iter().map(|(tribe_id, _)| {
+                                        let score = if king_tribe.is_none() || Some(*tribe_id) == king_tribe {
+                                            self.tribes.get(tribe_id).unwrap().territories.get(&territory).copied().unwrap_or(0)
+                                        } else {
+                                            self.tribes.iter()
+                                                .filter(|(t_id, _)| **t_id != king_tribe.unwrap())
+                                                .map(|(_, t)| t.territories.get(&territory).copied().unwrap_or(0))
+                                                .sum()
+                                        };
+                                    
+                                        ((territory, *tribe_id), score)
+                                    }).collect::<Vec<_>>()
+                                })
+                                .collect::<CustomMap<_, _>>();
+
                             for (user_id, player) in self.players.iter_mut() {
                                 let is_premium = user_data
                                     .get(user_id)
@@ -1028,7 +1130,7 @@ impl engine_shared::State for State {
                                     .unwrap_or(false);
 
                                 // Build the base.
-                                if let Some(JOIN_TRIBE_LEVEL) = player.base.build() {
+                                if let Some(JOIN_TRIBE_LEVEL) = player.base.build(&self.settings) {
                                     let referrer_tribe = user_data.get(user_id).and_then(|user_data| {
                                         user_data.referrer
                                     }).and_then(|referrer_id| {
@@ -1044,8 +1146,8 @@ impl engine_shared::State for State {
                                 
                                 // Revolutionary spirit drops.
                                 if Some(*user_id) != self.king {
-                                    if rng.gen_ratio(
-                                        1,
+                                    if gen_ratio_valid(rng, 
+                                        self.settings.world_speed as u32,
                                         ONE_DAY as u32 * 3,
                                     ) {
                                         player.inventory.add(Bundle::new().add(Item::RevolutionarySpirit, 1), self.time);
@@ -1056,12 +1158,11 @@ impl engine_shared::State for State {
                                 let controlled_territories = enum_iterator::all::<Territory>()
                                     .filter(|territory| {
                                         if let Some(tribe_id) = player.tribe {
-                                            let score = self.tribes.get(&tribe_id).unwrap().territories.get(territory).copied().unwrap_or(0);
-                                            let scores = self.tribes
-                                                .values()
-                                                .map(|tribe| {
-                                                    tribe.territories.get(territory).copied().unwrap_or_default()
-                                                })
+                                            let score = territory_scores.get(&(*territory, tribe_id)).copied().unwrap_or_default();
+                                            let scores = territory_scores
+                                                .iter()
+                                                .filter(|((t,t_id), _)| *t == *territory && (king_tribe.is_none() || Some(*t_id) == king_tribe || *t_id == tribe_id))
+                                                .map(|(_, s)| *s)
                                                 .collect::<Vec<_>>();
 
                                             let under_control = scores
@@ -1079,8 +1180,8 @@ impl engine_shared::State for State {
                                     
                                 // Drops for territories.
                                 if !controlled_territories.is_empty() {
-                                    if rng.gen_ratio(
-                                        1,
+                                    if gen_ratio_valid(rng, 
+                                        self.settings.world_speed as u32,
                                             ONE_DAY as u32 * 3 / (controlled_territories.len() as u32 + 1)
                                     ) {
                                         let t = controlled_territories
@@ -1093,10 +1194,10 @@ impl engine_shared::State for State {
                                     }
                                 }
 
-                                if rng.gen_ratio(
+                                if gen_ratio_valid(rng, 
                                     self.event
                                         .map(|event| event.new_dwarfs_multiplier())
-                                        .unwrap_or(1),
+                                        .unwrap_or(1) * self.settings.world_speed as u32,
                                         ONE_DAY as u32 * 5 / (controlled_territories.len() as u32 + 1)
                                 ) {
                                     let added_stats = controlled_territories.iter()
@@ -1156,9 +1257,9 @@ impl engine_shared::State for State {
                                         _ => 1,
                                     });
 
-                                if rng.gen_ratio(
+                                if gen_ratio_valid(rng, 
                                     pairs as u32
-                                        * baby_dwarf_multiplier_event * baby_dwarf_multiplier_consumable,
+                                        * baby_dwarf_multiplier_event * baby_dwarf_multiplier_consumable * self.settings.world_speed as u32,
                                     ONE_HOUR as u32 * 4,
                                 ) {
                                     player.new_dwarf(rng, &mut self.next_dwarf_id, self.time, None);
@@ -1178,7 +1279,7 @@ impl engine_shared::State for State {
                                 sorted_by_health.sort_by_key(|(_, dwarf)| dwarf.health);
                                 for (dwarf_id, dwarf) in sorted_by_health {
                                     if dwarf.consumable_timer > 0 {
-                                        dwarf.consumable_timer -= 1;
+                                        dwarf.consumable_timer = dwarf.consumable_timer.saturating_sub(self.settings.world_speed);
                                     } else {
                                         dwarf.equipment.swap_remove(&ItemType::Consumable);
                                     }
@@ -1194,10 +1295,11 @@ impl engine_shared::State for State {
                                     }
                                     
                                     if dwarf.actual_occupation() == Occupation::Idling {
-                                        if player.base.food > 0 {
-                                            if dwarf.health <= MAX_HEALTH - MAX_HEALTH / 1000 {
-                                                player.base.food -= 1;
-                                                dwarf.incr_health(MAX_HEALTH / 1000);
+                                        let substract_food = self.settings.world_speed.min(player.base.food);
+                                        if substract_food > 0 {
+                                            if dwarf.health <= MAX_HEALTH - (MAX_HEALTH / 1000) * substract_food {
+                                                player.base.food = player.base.food.saturating_sub(substract_food);
+                                                dwarf.incr_health((MAX_HEALTH / 1000) * substract_food);
                                             } else if player.auto_functions.auto_idle {
                                                 dwarf.auto_idle = false;
                                             }
@@ -1218,11 +1320,11 @@ impl engine_shared::State for State {
                                         match dwarf.equipment.get(&ItemType::Consumable) {
                                             Some(&Item::TigerFangPowder) => {},
                                             _ => {
-                                                dwarf.age_seconds += AGE_SECONDS_PER_TICK;
+                                                dwarf.age_seconds += AGE_SECONDS_PER_TICK * self.settings.world_speed;
                                             },
                                         }
 
-                                        if dwarf.age_years() > 200 && rng.gen_ratio(1, ONE_DAY as u32 * 5) {
+                                        if dwarf.age_years() > 200 && gen_ratio_valid(rng, self.settings.world_speed as u32, ONE_DAY as u32 * 5) {
                                             dwarf.health = 0;
                                         }
                                         if !is_adult_before && dwarf.is_adult() {
@@ -1265,9 +1367,10 @@ impl engine_shared::State for State {
                                     let dwarf = player.dwarfs.get_mut(&dwarf_id)?;
 
                                     if !dwarf.dead() {
-                                        if rng.gen_ratio(
+                                        if gen_ratio_valid(rng, 
                                             improvement_occupation.requires_stats().agility as u32
-                                                * improvement_multiplier as u32,
+                                                * improvement_multiplier as u32
+                                                * self.settings.world_speed as u32,
                                             IMPROVEMENT_DURATION,
                                         ) && dwarf.stats.agility < 10
                                         {
@@ -1280,9 +1383,9 @@ impl engine_shared::State for State {
                                                 ),
                                             );
                                         }
-                                        if rng.gen_ratio(
+                                        if gen_ratio_valid(rng, 
                                             improvement_occupation.requires_stats().endurance
-                                                as u32
+                                                as u32 * self.settings.world_speed as u32
                                                 * improvement_multiplier as u32,
                                             IMPROVEMENT_DURATION,
                                         ) && dwarf.stats.endurance < 10
@@ -1296,9 +1399,9 @@ impl engine_shared::State for State {
                                                 ),
                                             );
                                         }
-                                        if rng.gen_ratio(
+                                        if gen_ratio_valid(rng, 
                                             improvement_occupation.requires_stats().strength as u32
-                                                * improvement_multiplier as u32,
+                                                * improvement_multiplier as u32 * self.settings.world_speed as u32,
                                             IMPROVEMENT_DURATION,
                                         ) && dwarf.stats.strength < 10
                                         {
@@ -1311,7 +1414,7 @@ impl engine_shared::State for State {
                                                 ),
                                             );
                                         }
-                                        if rng.gen_ratio(
+                                        if gen_ratio_valid(rng, 
                                             improvement_occupation.requires_stats().intelligence
                                                 as u32
                                                 * improvement_multiplier as u32,
@@ -1327,7 +1430,7 @@ impl engine_shared::State for State {
                                                 ),
                                             );
                                         }
-                                        if rng.gen_ratio(
+                                        if gen_ratio_valid(rng, 
                                             improvement_occupation.requires_stats().perception
                                                 as u32
                                                 * improvement_multiplier as u32,
@@ -1357,6 +1460,7 @@ impl engine_shared::State for State {
                                                 item.item_probability(dwarf.actual_occupation())
                                             {
                                                 if dwarf.gen_ratio_effectiveness(
+                                                    &self.settings,
                                                     &player.dwarfs,
                                                     rng,
                                                     expected_ticks_per_drop
@@ -1441,7 +1545,7 @@ impl engine_shared::State for State {
 
                             // Continue the active quests.
                             for quest in self.quests.values_mut() {
-                                quest.run(&self.players)?;
+                                quest.run(&self.settings, &self.players)?;
 
                                 if quest.done() {
                                     match quest.quest_type.reward_mode() {
@@ -1649,12 +1753,15 @@ impl engine_shared::State for State {
                                                             Some(*num_dwarfs),
                                                         ),
                                                     );
-                                                    player.new_dwarf(
-                                                        rng,
-                                                        &mut self.next_dwarf_id,
-                                                        self.time,
-                                                        Some(Stats::default()),
-                                                    );
+                                                    for _ in 0..*num_dwarfs {
+                                                        player.new_dwarf(
+                                                            rng,
+                                                            &mut self.next_dwarf_id,
+                                                            self.time,
+                                                            Some(Stats::default()),
+                                                        );
+                                                    }
+       
                                                 }
                                             }
                                             for contestant_id in quest.contestants.keys() {
@@ -1825,7 +1932,7 @@ impl engine_shared::State for State {
 
                             // Add trades.
                             for trade in self.trade_deals.values_mut() {
-                                trade.update(&mut self.players, self.time)?;
+                                trade.update(&self.settings, &mut self.players, self.time)?;
                             }
 
                             self.trade_deals.retain(|_, trade| !trade.done());
@@ -1845,9 +1952,12 @@ impl engine_shared::State for State {
                                 .count()
                                 < num_trades
                             {
-                                self.trade_deals.insert(self.next_trade_id, TradeDeal::new(rng, max_player_level));
+                                self.trade_deals.insert(self.next_trade_id, TradeDeal::new(rng, max_player_level, self.next_trade_id));
                                 self.next_trade_id += 1;
                             }
+
+                            // Only keep players that were recently active or have any dwarfs left.
+                            self.players.retain(|_, player| player.dwarfs.len() > 0 || player.is_active(self.time));
                         }
                     }
                 }
@@ -2089,6 +2199,8 @@ pub struct AutoFunctions {
     pub auto_sell: CustomSet<Item>,
     #[serde(default = "CustomSet::new")]
     pub auto_dismantle: CustomSet<Item>,
+    #[serde(default = "CustomMap::new")]
+    pub auto_bid: CustomMap<TradeId, Money>,
 }
 
 impl Default for AutoFunctions {
@@ -2099,6 +2211,7 @@ impl Default for AutoFunctions {
             auto_store: CustomSet::new(),
             auto_sell: CustomSet::new(),
             auto_dismantle: CustomSet::new(),
+            auto_bid: CustomMap::new(),
         }
     }
 }
@@ -2158,7 +2271,7 @@ impl Player {
        
         for dwarf in self.dwarfs.values() {
             health_cost_per_tick +=
-                dwarf.actual_occupation().health_cost_per_tick() * health_cost_multiplier;
+                dwarf.actual_occupation().health_cost_per_tick() * health_cost_multiplier * state.settings.world_speed;
         }
 
         if health_cost_per_tick == 0 {
@@ -2663,13 +2776,14 @@ impl Dwarf {
 
     pub fn gen_ratio_effectiveness(
         &self,
+        settings: &WorldSettings,
         dwarfs: &CustomMap<DwarfId, Dwarf>,
         rng: &mut impl Rng,
         denominator_mul: u64,
     ) -> bool {
         let denominator = (MAX_EFFECTIVENESS / (MIN_MAX_DWARF_DIFFERENCE - 1)) * denominator_mul;
-        rng.gen_ratio(
-            (self.numerator_effectiveness(dwarfs) / 100) as u32,
+        gen_ratio_valid(rng, 
+            (self.numerator_effectiveness(dwarfs) / 100) as u32 * settings.world_speed as u32,
             (denominator / 100) as u32,
         )
     }
@@ -2868,9 +2982,9 @@ impl Base {
         self.curr_level * (self.curr_level / 10 + 1) * 15
     }
 
-    pub fn build(&mut self) -> Option<u64> {
+    pub fn build(&mut self, settings: &WorldSettings) -> Option<u64> {
         if self.build_time > 0 {
-            self.build_time -= 1;
+            self.build_time = self.build_time.saturating_sub(settings.world_speed);
             if self.build_time == 0 {
                 self.curr_level += 1;
                 return Some(self.curr_level);
@@ -2879,8 +2993,8 @@ impl Base {
         None
     }
 
-    pub fn upgrade(&mut self) {
-        if self.curr_level < MAX_LEVEL && self.build_time == 0 {
+    pub fn upgrade(&mut self, settings: &WorldSettings) {
+        if (self.curr_level < MAX_LEVEL || settings.infinite) && self.build_time == 0 {
             self.build_time = self.build_time_ticks();
         }
     }
@@ -2998,19 +3112,12 @@ pub struct Quest {
     pub contestants: CustomMap<UserId, Contestant>,
     pub time_left: u64,
     pub quest_type: QuestType,
-    #[serde(default = "min_level")]
     pub min_level: u64,
-    #[serde(default = "max_level")]
     pub max_level: u64,
+    #[serde(default)]
+    pub preparation_time: u64,
 }
 
-const fn max_level() -> u64 {
-    100
-}
-
-const fn min_level() -> u64 {
-    100
-}
 
 impl Quest {
     pub fn new(quest_type: QuestType, min_level: u64, max_level: u64) -> Self {
@@ -3020,6 +3127,7 @@ impl Quest {
             quest_type,
             min_level,
             max_level,
+            preparation_time: QUEST_PREPARATION_TIME,
         }
     }
 
@@ -3037,9 +3145,10 @@ impl Quest {
 
     pub fn split_by_score(&self, num: u64) -> Vec<(UserId, u64)> {
         let total_score: u64 = self.contestants.values().map(|c| c.achieved_score).sum();
+
         self.contestants
             .iter()
-            .map(|(user_id, c)| (*user_id, num * c.achieved_score / total_score))
+            .map(|(user_id, c)| if total_score == 0 { (*user_id, 0) } else { (*user_id, num * c.achieved_score / total_score) })
             .collect()
     }
 
@@ -3064,9 +3173,14 @@ impl Quest {
         );
     }
 
-    pub fn run(&mut self, players: &CustomMap<UserId, Player>) -> Option<()> {
+    pub fn run(&mut self, settings: &WorldSettings, players: &CustomMap<UserId, Player>) -> Option<()> {
+        if self.preparation_time > 0 {
+            self.preparation_time = self.preparation_time.saturating_sub(settings.world_speed);
+            return Some(());
+        }
+
         if self.time_left > 0 {
-            self.time_left -= 1;
+            self.time_left = self.time_left.saturating_sub(settings.world_speed);
             for (user_id, contestant) in self.contestants.iter_mut() {
                 for dwarf_id in contestant.dwarfs.values() {
                     let player = players.get(user_id)?;
@@ -3400,10 +3514,10 @@ impl QuestType {
             QuestType::MinersLuck => 100,
             */
             QuestType::FeastForAGuest => Some(10),
-            QuestType::FreeTheVillage => Some(15),
-            QuestType::ADwarfGotLost => Some(20),
-            QuestType::ADwarfInDanger => Some(25),
-            QuestType::AttackTheOrks => Some(30),
+            QuestType::FreeTheVillage => Some(40),
+            QuestType::ADwarfGotLost => Some(30),
+            QuestType::ADwarfInDanger => Some(30),
+            QuestType::AttackTheOrks => Some(40),
             QuestType::FreeTheDwarf => Some(40),
             QuestType::CrystalsForTheElves => Some(50),
             QuestType::TheElvenMagician => Some(60),
@@ -3425,6 +3539,7 @@ pub struct TradeDeal {
     pub user_trade_type: TradeType,
     #[serde(default)]
     pub creator: Option<UserId>,
+    pub trade_id: TradeId,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -3434,7 +3549,7 @@ pub enum TradeType {
 }
 
 impl TradeDeal {
-    pub fn new(rng: &mut impl Rng, max_player_level: u64) -> Self {
+    pub fn new(rng: &mut impl Rng, max_player_level: u64, trade_id: TradeId) -> Self {
         let item = enum_iterator::all::<Item>()
             .filter(|item| {
                 (if let Some((level, _)) = item.requires() {
@@ -3463,10 +3578,11 @@ impl TradeDeal {
             highest_bidder: None,
             creator: None,
             user_trade_type: TradeType::Buy,
+            trade_id,
         }
     }
 
-    pub fn from_player(user_id: UserId, player: &mut Player, item: Item, qty: u64) -> Option<Self> {
+    pub fn from_player(user_id: UserId, player: &mut Player, item: Item, qty: u64, trade_id: TradeId) -> Option<Self> {
         let qty = qty.min(player.inventory.items.get(&item).copied().unwrap_or(0));
         let time_left = ((qty * item.item_rarity_num()) / 10)
             .max(ONE_MINUTE * 20)
@@ -3493,13 +3609,18 @@ impl TradeDeal {
             highest_bidder: None,
             creator: Some(user_id),
             user_trade_type: TradeType::Buy,
+            trade_id,
         })
     }
 
-    pub fn update(&mut self, players: &mut CustomMap<UserId, Player>, time: Time) -> Option<()> {
+    pub fn update(&mut self, settings: &WorldSettings, players: &mut CustomMap<UserId, Player>, time: Time) -> Option<()> {
         if self.time_left > 0 {
-            self.time_left -= 1;
+            self.time_left = self.time_left.saturating_sub(settings.world_speed);
             if self.time_left == 0 || self.next_bid <= 1 {
+                for player in players.values_mut() {
+                    player.auto_functions.auto_bid.swap_remove(&self.trade_id);
+                }
+
                 if let Some((best_bidder_user_id, best_bidder_money)) = self.highest_bidder {
                     let p = players.get_mut(&best_bidder_user_id)?;
                     p.inventory.add(self.items.clone(), time);
@@ -3517,10 +3638,18 @@ impl TradeDeal {
                         );
                     }
                 } else if let Some(creator) = self.creator {
+                    /*
                     let c = players.get_mut(&creator)?;
                     c.inventory.add(self.items.clone(), time);
                     c.log
                         .add(time, LogMsg::ItemNotSold(self.items.clone(), self.next_bid));
+                    */
+                    let c = players.get_mut(&creator)?;
+                    c.money += self.next_bid;
+                    c.log.add(
+                        time,
+                        LogMsg::ItemSold(self.items.clone(), self.next_bid),
+                    );
                 }
             }
         }
@@ -3558,7 +3687,28 @@ impl TradeDeal {
                 }
             }
         }
-
+        
+        // Auto bidding.
+        loop {
+            let mut max_bid_user_id = None;
+            for (player_user_id, player) in players.iter() {
+                if self.creator != Some(*player_user_id) {
+                    if let Some(max_bid) = player.auto_functions.auto_bid.get(&self.trade_id) {
+                        if *max_bid >= self.next_bid {
+                            max_bid_user_id = Some(*player_user_id);
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            if let Some(max_bid_user_id) = max_bid_user_id {
+                self.bid(players, max_bid_user_id, time);
+            } else {
+                break;
+            }
+        }
+        
         Some(())
     }
 }
@@ -3629,4 +3779,17 @@ impl Territory {
             Territory::Desert => Item::DesertArtifact,
         }
     }
+}
+
+fn gen_ratio_valid(rng: &mut impl Rng, numerator: u32, denominator: u32) -> bool {
+    if numerator == 0 {
+        return false;
+    }
+    if denominator == 0 {
+        return true;
+    }
+    if numerator > denominator {
+        return true;
+    }
+    rng.gen_ratio(numerator, denominator)
 }

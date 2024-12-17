@@ -10,8 +10,13 @@
           <p>Visit the hall of our heroes to find our top players so far.</p>
           <a href="/valhalla" class="button">Visit Valhalla</a>
         {% else %}
-        {% for id in current_worlds %}
-          <a href="/game/{{id}}" class="button">World {{id}}</a>
+        <ul>
+          <li><strong>Ranked</strong> worlds reward you with free premium hours when you win.</li>
+          <li><strong>Speed</strong> worlds run much faster than ranked worlds. They do not reward any free premium hours.</li>
+          <li><strong>Infinite</strong> worlds run at the same speed as ranked worlds, but they never end.</li>
+        </ul>
+        {% for (id, game_mode) in current_worlds %}
+          <a href="/game/{{id}}" class="button">World {{id}} ({{game_mode}})</a>
         {% endfor %}
         {% endif %}
 

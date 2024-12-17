@@ -616,6 +616,7 @@ impl Item {
             Item::PlainsArtifact => Some(ONE_DAY),
             Item::MountainsArtifact => Some(ONE_DAY),
             Item::SwampArtifact => Some(ONE_DAY),
+            Item::KnowledgeOfTheEldest => Some(ONE_HOUR),
             _ => None,
         }
     }

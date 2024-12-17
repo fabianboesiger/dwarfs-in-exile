@@ -38,6 +38,7 @@ pub async fn setup() -> Result<SqlitePool, Box<dyn std::error::Error>> {
             data BLOB,
             closed INTEGER NOT NULL DEFAULT 0,
             winner INTEGER,
+            game_mode TEXT,
             FOREIGN KEY(winner) REFERENCES users(user_id) ON DELETE SET NULL
         )
     "#,

@@ -8,7 +8,7 @@ use rand::RngCore;
 use rustrict::CensorStr;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, Health, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, RewardType, Stats, Territory, Time, TradeType, TribeId, TutorialRequirement, TutorialReward, TutorialStep, UserId, WorldEvent, DISMANTLING_DIVIDER, JOIN_TRIBE_LEVEL, MAX_EFFECTIVENESS, MAX_HEALTH, MAX_NUM_TRADES, MIN_TRADE_VALUE, SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS, WINNER_TRIBE_NUM_PREMIUM_DAYS
+    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, GameMode, Health, HireDwarfType, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, RewardType, Stats, Territory, Time, TradeType, TribeId, TutorialRequirement, TutorialReward, TutorialStep, UserId, WorldEvent, DISMANTLING_DIVIDER, JOIN_TRIBE_LEVEL, MAX_EFFECTIVENESS, MAX_HEALTH, MAX_NUM_TRADES, MIN_TRADE_VALUE, SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS, WINNER_TRIBE_NUM_PREMIUM_DAYS
 };
 use std::str::FromStr;
 use strum::Display;
@@ -1216,7 +1216,11 @@ fn ranking(
     
 
         h2!["Ranking"],
-        p![format!("To win this game, you need to meet two conditions. First, expand your settlement until you reach level 100. Second, become the king of this world. If both conditions are met, the game will be over and you will be the winner. As a reward, you get gifted a free premium account for {} days.", WINNER_NUM_PREMIUM_DAYS)],
+        match state.settings.game_mode {
+            GameMode::Ranked => p![format!("To win this game, you need to meet two conditions. First, expand your settlement until you reach level 100. Second, become the king of this world. If both conditions are met, the game will be over and you will be the winner. As a reward, you get gifted a free premium account for {} days.", WINNER_NUM_PREMIUM_DAYS)],
+            GameMode::Speed => p![format!("To win this game, you need to meet two conditions. First, expand your settlement until you reach level 100. Second, become the king of this world. If both conditions are met, the game will be over and you will be the winner.")],
+            GameMode::Infinite => p![format!("You are playing in the infinite world. There is no limit on the maximum level.")],
+        },
         
         div![
             C!["table-wrapper"],
@@ -2104,26 +2108,49 @@ fn dwarf(
                                         Vec::new()
                                     }
                                 ],
-                                td![C!["list-item-content"],
-                                    button![
-                                        ev(Ev::Click, move |_| Msg::ChangePage(Page::Inventory(
-                                            InventoryMode::Select(InventorySelect::Equipment(
-                                                dwarf_id, item_type
-                                            ))
-                                        ))),
-                                        "Change"
-                                    ],
-                                    if equipment.is_some() {
+                                if item_type == ItemType::Consumable {
+                                    td![C!["list-item-content"],
                                         button![
-                                            ev(Ev::Click, move |_| Msg::ChangeEquipment(
-                                                dwarf_id, item_type, None
-                                            )),
-                                            "Unequip"
-                                        ]
-                                    } else {
-                                        Node::Empty
-                                    }
-                                ]
+                                            ev(Ev::Click, move |_| Msg::ChangePage(Page::Inventory(
+                                                InventoryMode::Select(InventorySelect::Equipment(
+                                                    dwarf_id, item_type
+                                                ))
+                                            ))),
+                                            "Use"
+                                        ],
+                                        if equipment.is_some() {
+                                            button![
+                                                ev(Ev::Click, move |_| Msg::ChangeEquipment(
+                                                    dwarf_id, item_type, None
+                                                )),
+                                                "Discard"
+                                            ]
+                                        } else {
+                                            Node::Empty
+                                        }
+                                    ]
+                                } else {
+                                    td![C!["list-item-content"],
+                                        button![
+                                            ev(Ev::Click, move |_| Msg::ChangePage(Page::Inventory(
+                                                InventoryMode::Select(InventorySelect::Equipment(
+                                                    dwarf_id, item_type
+                                                ))
+                                            ))),
+                                            "Change"
+                                        ],
+                                        if equipment.is_some() {
+                                            button![
+                                                ev(Ev::Click, move |_| Msg::ChangeEquipment(
+                                                    dwarf_id, item_type, None
+                                                )),
+                                                "Unequip"
+                                            ]
+                                        } else {
+                                            Node::Empty
+                                        }
+                                    ]
+                                }
                             ]
                         })
                     ]
@@ -2345,7 +2372,7 @@ fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                     quest.contestants.is_empty()
                 } else {
                     true
-                }) && ((player.base.curr_level <= quest.max_level && player.base.curr_level >= quest.min_level) || quest.contestants.contains_key(user_id))
+                }) && ((player.base.curr_level <= quest.max_level && player.base.curr_level >= quest.min_level && player.base.curr_level >= quest.quest_type.occupation().unlocked_at_level()) || quest.contestants.contains_key(user_id))
             }).map(|(quest_id, quest)| {
                 tr![
                     C!["list-item-row", match quest.quest_type.reward_mode().reward_type() {
@@ -2362,7 +2389,12 @@ fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                         h3![C!["title"], format!("{}", quest.quest_type)],
                         p![
                             C!["subtitle"],
-                            format!("{} remaining |  Requires {} | Level {} - {}", fmt_time(quest.time_left, true), quest.quest_type.occupation(), quest.min_level, quest.max_level)
+                            if quest.preparation_time > 0 {
+                                format!("Starts in {}", fmt_time(quest.preparation_time, true))
+                            } else {
+                                format!("Ends in {}", fmt_time(quest.time_left, true))
+                            },
+                            format!(" | Requires {} | Level {} - {}", quest.quest_type.occupation(), quest.min_level, quest.max_level)
                         ],
                         if let Some(contestant) = quest.contestants.get(user_id) {
                             let rank = quest
@@ -2414,7 +2446,11 @@ fn quest(
                 div![C!["image-aside"],
                     img![attrs! {At::Src => Image::from(quest.quest_type).as_at_value()}],
                     div![
-                        p![C!["subtitle"], format!("{} remaining.", fmt_time(quest.time_left, true))],
+                        p![C!["subtitle"], if quest.preparation_time > 0 {
+                            format!("Starts in {}.", fmt_time(quest.preparation_time, true))
+                        } else {
+                            format!("Ends in {}.", fmt_time(quest.time_left, true))
+                        }],
                         if let Some(contestant) = quest.contestants.get(user_id) {
                             let rank = quest.contestants.values().filter(|c| c.achieved_score >= contestant.achieved_score).count();
                             let mut contestants = quest.contestants.values().map(|c| c.achieved_score).collect::<Vec<_>>();
@@ -2751,7 +2787,7 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                                 WorldEvent::Tornado => p!["Tornadoes sweep accross the forbidden lands. The tornadoes makes it harder to log, gather and farm. Be aware of your resource production! There is also a higher chance that new dwarfs arrive in your settlement during this event."],
                                 WorldEvent::Carnival => p!["The carnival is in town! During the carnival, the dwarfs are in a festive mood and have less time to work. The carnival also increases the chance of new dwarfs arriving in your settlement."],
                                 WorldEvent::FullMoon => p!["The full moon is shining bright. During the full moon, the dwarfs can't sleep and thus work less efficiently. As they won't sleep well anyway, there is a chance for more children being born."],
-                                WorldEvent::Revolution => p!["The dwarfs are revolting! During a revolution, the dwarfs work less efficiently and any king is overthown immediately."],
+                                WorldEvent::Revolution => p!["The dwarfs are revolting! During a revolution, the dwarfs work less efficiently and any king is overthrown immediately."],
                             }
                         ]
                     ]
@@ -2855,6 +2891,7 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                     ]
                 ]
             ],
+            */
             div![
                 h3!["Hire Dwarf"],
                 div![C!["image-aside", "small"],
@@ -2876,7 +2913,6 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                     ],
                 ]
             ],
-            */
         ]
     } else {
         Node::Empty
@@ -3564,6 +3600,51 @@ fn tribe(model: &Model, client_state: &ClientState<shared::State>, state: &share
             //let tribe = state.tribes.get(&tribe_id).unwrap();
             let username = username(client_state, user_id);
 
+
+            /*
+            let king_tribe = if let Some(king) = state.king {
+                state.players.get(&king).and_then(|player| player.tribe)
+            } else {
+                None
+            };
+            */
+            let king_tribe = state.tribes.iter()
+                    .max_by_key(|(_, t)| t.territories.values().sum::<u64>())
+                    .map(|(t_id, _)| *t_id);
+
+            let alliance_message = if let Some(king_tribe) = king_tribe {
+                if king_tribe == tribe_id {
+                    span!["Your tribe is the leading tribe and fights against all the other tribes."]
+                } else {
+                    span![
+                        "Your tribe is allied with the ",
+                        state.tribes.iter().filter(|(id, _)| **id != tribe_id && **id != king_tribe).map(|(id, _)| tribe_name(*id, model.game_id)),
+                        " against ",
+                        tribe_name(king_tribe, model.game_id),
+                        "."
+                    ]
+                }
+            } else {
+                span!["There is currently no alliance between any tribes."]
+            };
+
+            let territory_scores =  enum_iterator::all::<Territory>()
+                .flat_map(|territory| {
+                    state.tribes.iter().map(|(tribe_id, _)| {
+                        let score = if king_tribe.is_none() || Some(*tribe_id) == king_tribe {
+                            state.tribes.get(tribe_id).unwrap().territories.get(&territory).copied().unwrap_or(0)
+                        } else {
+                            state.tribes.iter()
+                                .filter(|(t_id, _)| **t_id != king_tribe.unwrap())
+                                .map(|(_, t)| t.territories.get(&territory).copied().unwrap_or(0))
+                                .sum()
+                        };
+                    
+                        ((territory, *tribe_id), score)
+                    }).collect::<Vec<_>>()
+                })
+                .collect::<CustomMap<_, _>>();
+
             div![C!["content"],
                 div![C!["important"],
                     strong!["Invite Players"],
@@ -3621,25 +3702,37 @@ fn tribe(model: &Model, client_state: &ClientState<shared::State>, state: &share
             
                 h2!["Your Tribe"],
                 p!["Spend your fame points for your tribe to conquer territories. Controlling territories rewards you with powerful dwarfs that join your settlement more frequently. You can earn tribe points by winning quests that have a single winner with the most XP collected (red quests)."],
-                p![format!("If the winner of this world is from your tribe, you will earn a free premium account for {} days, so make sure to support your tribe members.", WINNER_TRIBE_NUM_PREMIUM_DAYS)],
+                
+                match state.settings.game_mode {
+                    GameMode::Ranked => p![format!("If the winner of this world is from your tribe, you will earn a free premium account for {} days, so make sure to support your tribe members.", WINNER_TRIBE_NUM_PREMIUM_DAYS)],
+                    GameMode::Speed => p![],
+                    GameMode::Infinite => p![],
+                },
+                
+                
                 p![strong!["You are member of the ", tribe_name(
                     tribe_id,
                     model.game_id
                 ), "."]],
+                p![strong![alliance_message]],
                 p![strong![format!("Your Fame Points: {} FP", player.tribe_points)]],
                 table![C!["list"],
+
                 enum_iterator::all::<Territory>()
                     .map(|territory| {
-                        let scores =state.tribes
-                            .values()
-                            .map(|tribe| {
-                                tribe.territories.get(&territory).copied().unwrap_or_default()
-                            })
+                        let scores = territory_scores
+                            .iter()
+                            .filter(|((t, t_id), _)| *t == territory && (
+                                king_tribe.is_none()
+                                || Some(*t_id) == king_tribe
+                                || *t_id == tribe_id
+                                || (if let Some(king_tribe) = king_tribe { tribe_id == king_tribe && state.tribes.iter().find(|(t_id, _)| **t_id != king_tribe).map(|(t_id, _)| t_id) == Some(t_id) } else { false }) ))
+                            .map(|(_, s)| *s)
                             .collect::<Vec<_>>();
 
                         let max = scores.iter().max().copied().unwrap_or_default(); 
 
-                        let curr = state.tribes.get(&tribe_id).unwrap().territories.get(&territory).copied().unwrap_or_default();
+                        let curr = territory_scores.get(&(territory, tribe_id)).copied().unwrap_or(0);
 
                         let rank = scores
                             .iter()
