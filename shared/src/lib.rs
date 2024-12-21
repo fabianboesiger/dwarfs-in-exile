@@ -896,7 +896,7 @@ impl engine_shared::State for State {
                             Self::dismantle(player, item, qty);
                         }
                         ClientEvent::UpgradeBase => {
-                            if let Some(requires) = player.base.upgrade_cost() {
+                            if let Some(requires) = player.base.upgrade_cost(&self.settings) {
                                 if player.inventory.items.remove_checked(requires) {
                                     player.base.upgrade(&self.settings);
                                 }
@@ -1924,8 +1924,8 @@ impl engine_shared::State for State {
                                             .map(|(_, player)| player.base.curr_level)
                                             .unwrap_or(1);
 
-                                        let mut min_level = (selected_level.saturating_sub(rng.gen_range(5..=15))).max(1);
-                                        let mut max_level = (selected_level + rng.gen_range(5..=15)).min(100);
+                                        let mut min_level = (selected_level.saturating_sub(rng.gen_range(10..=20))).max(1);
+                                        let mut max_level = (selected_level + rng.gen_range(10..=20)).min(100);
                                         
                                         if min_level < selected_quest.occupation().unlocked_at_level() {
                                             let diff = selected_quest.occupation().unlocked_at_level() - min_level;
@@ -2975,8 +2975,8 @@ impl Base {
         (level as usize + 1) / 2
     }
 
-    pub fn upgrade_cost(&self) -> Option<Bundle<Item>> {
-        if self.curr_level < MAX_LEVEL {
+    pub fn upgrade_cost(&self, settings: &WorldSettings) -> Option<Bundle<Item>> {
+        if self.curr_level < MAX_LEVEL || settings.infinite {
             let multiplier = |unlocked_after_level: u64| {
                 self.curr_level.saturating_sub(unlocked_after_level)
                     * (self.curr_level.saturating_sub(unlocked_after_level) / 10 + 1)
