@@ -3394,11 +3394,11 @@ impl QuestType {
             Self::HuntingTrip => RewardMode::ItemsByChance(Bundle::new()
                     .add(Item::RawMeat, 300)
             ),
-            Self::BearHunting => RewardMode::ItemsByChance(Bundle::new()
+            Self::BearHunting => RewardMode::BestGetsItems(Bundle::new()
                     .add(Item::BearClaw, 4)
                     .add(Item::RawMeat, 100)
             ),
-            Self::MysticFields => RewardMode::ItemsByChance(Bundle::new()
+            Self::MysticFields => RewardMode::BestGetsItems(Bundle::new()
                     .add(Item::Pegasus, 1)
             ),
         }
