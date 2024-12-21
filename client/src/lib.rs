@@ -8,7 +8,7 @@ use rand::RngCore;
 use rustrict::CensorStr;
 use seed::{prelude::*, *};
 use shared::{
-    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, GameMode, Health, HireDwarfType, Item, ItemRarity, ItemType, LogMsg, Occupation, Player, Popup, QuestId, QuestType, RewardMode, RewardType, Stats, Territory, Time, TradeType, TribeId, TutorialRequirement, TutorialReward, TutorialStep, UserId, WorldEvent, DISMANTLING_DIVIDER, JOIN_TRIBE_LEVEL, MAX_EFFECTIVENESS, MAX_HEALTH, MAX_NUM_TRADES, MIN_TRADE_VALUE, SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS, WINNER_TRIBE_NUM_PREMIUM_DAYS
+    Bundle, ClientEvent, Craftable, Dwarf, DwarfId, GameMode, Health, HireDwarfType, Item, ItemRarity, ItemType, LogMsg, Money, Occupation, Player, Popup, QuestId, QuestType, RewardMode, RewardType, Stats, Territory, Time, TradeId, TradeType, TribeId, TutorialRequirement, TutorialReward, TutorialStep, UserId, WorldEvent, DISMANTLING_DIVIDER, JOIN_TRIBE_LEVEL, MAX_EFFECTIVENESS, MAX_HEALTH, MAX_NUM_TRADES, MIN_TRADE_VALUE, SPEED, TRADE_MONEY_MULTIPLIER, WINNER_NUM_PREMIUM_DAYS, WINNER_TRIBE_NUM_PREMIUM_DAYS
 };
 use std::str::FromStr;
 use strum::Display;
@@ -276,6 +276,7 @@ pub struct Model {
     ad_loaded: bool,
     confirm: Option<ClientEvent>,
     slider: CustomMap<(Item, SliderType), u64>,
+    bid_max: CustomMap<TradeId, Money>,
 }
 
 impl Model {
@@ -337,6 +338,7 @@ fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
         ad_loaded: false,
         confirm: None,
         slider: CustomMap::new(),
+        bid_max: CustomMap::new(),
     }
 }
 
@@ -378,6 +380,7 @@ pub enum Msg {
     ConfirmYes,
     ConfirmNo,
     SetSlider(Item, SliderType, u64),
+    SetBidMax(TradeId, Money),
 }
 
 impl EngineMsg<shared::State> for Msg {}
@@ -602,6 +605,9 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
             orders.notify(subs::UrlRequested::new(
                 Url::from_str(&format!("{}/inventory", model.base_path())).unwrap(),
             ));
+        }
+        Msg::SetBidMax(trade_id, money) => {
+            model.bid_max.insert(trade_id, money);
         }
     }
 }
@@ -2394,7 +2400,11 @@ fn quests(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                             } else {
                                 format!("Ends in {}", fmt_time(quest.time_left, true))
                             },
-                            format!(" | Requires {} | Level {} - {}", quest.quest_type.occupation(), quest.min_level, quest.max_level)
+                            if quest.max_level == u64::MAX {
+                                format!(" | Requires {} | Min. Level {}", quest.quest_type.occupation(), quest.min_level)
+                            } else {
+                                format!(" | Requires {} | Level {} - {}", quest.quest_type.occupation(), quest.min_level, quest.max_level)
+                            }
                         ],
                         if let Some(contestant) = quest.contestants.get(user_id) {
                             let rank = quest
@@ -2506,6 +2516,8 @@ fn quest(
                                 QuestType::HuntingTrip => p!["Go hunting and earn a reward."],
                                 QuestType::LoggingContest => p!["Participate in the logging contest and earn a reward."],
                                 QuestType::GodsBlessing => p!["Build a temple and god may bless you with some nice bling."],
+                                QuestType::BearHunting => p!["A bear has been spotted near the settlement. Go hunting and earn a reward."],
+                                QuestType::MysticFields => p!["It is said that a mystic creature lives in the fields near your settlement."],
                             },
                         ],
                         h3!["Rewards"],
@@ -3455,6 +3467,11 @@ fn inventory(
 fn trades(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<Msg> {
     if let Some(player) = state.players.get(user_id) {
         let mut trades = state.trade_deals.iter().map(|(trade_id, trade)| (*trade_id, trade)).collect::<Vec<_>>();
+        let is_premium = model
+            .state
+            .get_user_data(user_id)
+            .map(|user_data| user_data.premium > 0)
+            .unwrap_or(false);
 
         trades.sort_by_key(|(_, trade_deal)| trade_deal.time_left);
 
@@ -3539,6 +3556,7 @@ fn trades(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                         false
                     };
                     let can_afford = player.money >= trade_deal.next_bid;
+                    let max_bid = model.bid_max.get(&trade_id).copied().unwrap_or_default();
 
                     tr![
 
@@ -3574,11 +3592,32 @@ fn trades(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Nod
                                     }
                                 } else {
                                     Node::Empty
-                                },                                                 
+                                },                               
                                 button![
                                     attrs! { At::Disabled => (highest_bidder_is_you || !can_afford).as_at_value() },
                                     ev(Ev::Click, move |_| Msg::send_event(ClientEvent::Bid(trade_id))),
                                     format!("Bid {} coins", trade_deal.next_bid)
+                                ],
+                                h4![C!["title"], "Auto Bidding"],
+                                div![C!["button-row"],
+                                    input![
+                                        attrs! { At::Type => "number", At::Min => "0", At::Value => format!("{}",max_bid) },
+                                        input_ev(Ev::Input, move |str| Msg::SetBidMax(trade_id, str.parse().unwrap_or(0)))
+                                    ],
+                                    if is_premium {
+                                        button![
+                                            attrs! { At::Disabled => (player.auto_functions.auto_bid.get(&trade_id).copied().unwrap_or_default() == model.bid_max.get(&trade_id).copied().unwrap_or_default()).as_at_value() },
+                                            ev(Ev::Click, move |_| Msg::send_event(ClientEvent::AutoBid(trade_id, max_bid))),
+                                            format!("Set Auto Bid")
+                                        ]
+                                    } else {
+                                        a![
+                                            C!["premium-feature", "button"],
+                                            format!("Set Auto Bid"),
+                                            attrs! { At::Href => format!("/store") },
+                                        ]
+                                    },
+                                    
                                 ]
                             ]
                             

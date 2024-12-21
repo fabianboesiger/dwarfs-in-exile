@@ -552,6 +552,16 @@ impl engine_shared::State for State {
                                 trade.bid(&mut self.players, user_id, self.time)?;
                             }
                         }
+                        ClientEvent::AutoBid(trade_id, bid) => {
+                            if is_premium {
+                                if let Some(trade) = self.trade_deals.get_mut(&trade_id) {
+                                    player.auto_functions.auto_bid.insert(trade_id, bid);
+                                    if bid >= trade.next_bid {
+                                        trade.bid(&mut self.players, user_id, self.time)?;
+                                    }
+                                }
+                            }
+                        }
                         ClientEvent::SetMentor(apprentice_id, mentor_id) => {
                             if let Some(mentor_id) = mentor_id {
                                 let apprentice = player.dwarfs.get(&apprentice_id)?;
@@ -1270,7 +1280,7 @@ impl engine_shared::State for State {
                                 // Let the dwarfs eat!
                                 let health_cost_multiplier = match self.event {
                                     Some(WorldEvent::Plague) => {
-                                        (1 + player.dwarfs.len() as u64 / 10).min(5)
+                                        (1 + player.dwarfs.len() as u64 / 15).min(3)
                                     }
                                     _ => 1,
                                 };
@@ -1894,7 +1904,7 @@ impl engine_shared::State for State {
                                     if let Some(level) = selected_quest.max_level() {
                                         (1, level)
                                     } else if selected_quest.one_at_a_time() {
-                                        (1, 100)
+                                        (1, u64::MAX)
                                     } else {
                                         let selected_level = self
                                             .players
@@ -1914,8 +1924,15 @@ impl engine_shared::State for State {
                                             .map(|(_, player)| player.base.curr_level)
                                             .unwrap_or(1);
 
-                                        let min_level = (selected_level.saturating_sub(rng.gen_range(5..=15))).max(1);
-                                        let max_level = (selected_level + rng.gen_range(5..=15)).min(100);
+                                        let mut min_level = (selected_level.saturating_sub(rng.gen_range(5..=15))).max(1);
+                                        let mut max_level = (selected_level + rng.gen_range(5..=15)).min(100);
+                                        
+                                        if min_level < selected_quest.occupation().unlocked_at_level() {
+                                            let diff = selected_quest.occupation().unlocked_at_level() - min_level;
+                                            min_level += diff;
+                                            max_level += diff;
+                                        }
+
                                         (min_level, max_level)
                                     };
 
@@ -2262,7 +2279,7 @@ impl Player {
         let mut health_cost_per_tick = 0;
 
         let health_cost_multiplier = match state.event {
-            Some(WorldEvent::Plague) => (1 + self.dwarfs.len() as u64 / 10).min(5),
+            Some(WorldEvent::Plague) => (1 + self.dwarfs.len() as u64 / 15).min(3),
             _ => 1,
         };
 
@@ -2848,7 +2865,7 @@ impl Occupation {
             Occupation::Idling => 1,
             Occupation::Mining => 3,
             Occupation::Logging => 3,
-            Occupation::Hunting => 3,
+            Occupation::Hunting => 2,
             Occupation::Gathering => 2,
             Occupation::Fishing => 2,
             Occupation::Fighting => 8,
@@ -3061,6 +3078,7 @@ pub enum ClientEvent {
     ToggleManualManagement(DwarfId),
     SetMentor(DwarfId, Option<DwarfId>),
     Bid(TradeId),
+    AutoBid(TradeId, Money),
     ReleaseDwarf(DwarfId),
     ReadLog,
     ReadChat,
@@ -3278,6 +3296,8 @@ pub enum QuestType {
     GodsBlessing,
     LoggingContest,
     HuntingTrip,
+    BearHunting,
+    MysticFields,
 }
 
 impl std::fmt::Display for QuestType {
@@ -3315,6 +3335,8 @@ impl std::fmt::Display for QuestType {
             QuestType::GodsBlessing => write!(f, "In the Light of the Gods"),
             QuestType::LoggingContest => write!(f, "Logging Contest"),
             QuestType::HuntingTrip => write!(f, "Hunting Trip"),
+            QuestType::BearHunting => write!(f, "Bear Hunting"),
+            QuestType::MysticFields => write!(f, "Mystic Fields"),
         }
     }
 }
@@ -3372,6 +3394,13 @@ impl QuestType {
             Self::HuntingTrip => RewardMode::ItemsByChance(Bundle::new()
                     .add(Item::RawMeat, 300)
             ),
+            Self::BearHunting => RewardMode::ItemsByChance(Bundle::new()
+                    .add(Item::BearClaw, 4)
+                    .add(Item::RawMeat, 100)
+            ),
+            Self::MysticFields => RewardMode::ItemsByChance(Bundle::new()
+                    .add(Item::Pegasus, 1)
+            ),
         }
     }
 
@@ -3413,6 +3442,8 @@ impl QuestType {
             Self::GodsBlessing => ONE_HOUR * 2,
             Self::LoggingContest => ONE_HOUR * 2,
             Self::HuntingTrip => ONE_HOUR * 4,
+            Self::BearHunting => ONE_HOUR * 4,
+            Self::MysticFields => ONE_HOUR * 4,
         }
     }
 
@@ -3450,6 +3481,8 @@ impl QuestType {
             Self::GodsBlessing => Occupation::Mining,
             Self::LoggingContest => Occupation::Logging,
             Self::HuntingTrip => Occupation::Hunting,
+            Self::BearHunting => Occupation::Hunting,
+            Self::MysticFields => Occupation::Gathering,
         }
     }
 
@@ -3487,6 +3520,8 @@ impl QuestType {
             Self::GodsBlessing => 3,
             Self::LoggingContest => 1,
             Self::HuntingTrip => 1,
+            Self::BearHunting => 1,
+            Self::MysticFields => 3,
         }
     }
 
@@ -3660,53 +3695,63 @@ impl TradeDeal {
         self.time_left == 0
     }
 
+    fn bid_to(
+        &mut self,
+        players: &mut CustomMap<UserId, Player>,
+        user_id: UserId,
+        time: Time,
+        money: Money,
+    ) -> Option<()> {
+        if self.user_trade_type == TradeType::Buy {
+            if self.creator == Some(user_id) || self.highest_bidder.map(|(id, _)| id) == Some(user_id) {
+                return None;
+            }
+            if players.get_mut(&user_id)?.money >= money {
+                if let Some((best_bidder_user_id, best_bidder_money)) = self.highest_bidder {
+                    let p = players.get_mut(&best_bidder_user_id)?;
+                    p.money += best_bidder_money;
+                    p.log.add(
+                        time,
+                        LogMsg::Overbid(self.items.clone(), money, self.user_trade_type),
+                    );
+                }
+                players.get_mut(&user_id)?.money -= money;
+                self.highest_bidder = Some((user_id, money));
+                self.next_bid = money + (money / 10).max(1);
+                if self.time_left < ONE_MINUTE * SPEED {
+                    self.time_left += ONE_MINUTE * SPEED;
+                }
+            }
+        }
+
+        Some(())
+    }
+
     pub fn bid(
         &mut self,
         players: &mut CustomMap<UserId, Player>,
         user_id: UserId,
         time: Time,
     ) -> Option<()> {
-        if self.user_trade_type == TradeType::Buy {
-            if self.creator == Some(user_id) {
-                return None;
+        self.bid_to(players, user_id, time, self.next_bid)?;
+        
+        // Auto bidding.
+        let mut max_bid_user_id = None;
+        for (player_user_id, player) in players.iter() {
+            if player_user_id == &user_id {
+                continue;
             }
-            if players.get_mut(&user_id)?.money >= self.next_bid {
-                if let Some((best_bidder_user_id, best_bidder_money)) = self.highest_bidder {
-                    let p = players.get_mut(&best_bidder_user_id)?;
-                    p.money += best_bidder_money;
-                    p.log.add(
-                        time,
-                        LogMsg::Overbid(self.items.clone(), self.next_bid, self.user_trade_type),
-                    );
-                }
-                players.get_mut(&user_id)?.money -= self.next_bid;
-                self.highest_bidder = Some((user_id, self.next_bid));
-                self.next_bid += (self.next_bid / 10).max(1);
-                if self.time_left < ONE_MINUTE * SPEED {
-                    self.time_left += ONE_MINUTE * SPEED;
+            if let Some(max_bid) = player.auto_functions.auto_bid.get(&self.trade_id) {
+                if *max_bid >= self.next_bid {
+                    max_bid_user_id = Some(*player_user_id);
                 }
             }
         }
+
+        log::warn!("max_bid_user_id: {:?}", max_bid_user_id);
         
-        // Auto bidding.
-        loop {
-            let mut max_bid_user_id = None;
-            for (player_user_id, player) in players.iter() {
-                if self.creator != Some(*player_user_id) {
-                    if let Some(max_bid) = player.auto_functions.auto_bid.get(&self.trade_id) {
-                        if *max_bid >= self.next_bid {
-                            max_bid_user_id = Some(*player_user_id);
-                            break;
-                        }
-                    }
-                }
-            }
-            
-            if let Some(max_bid_user_id) = max_bid_user_id {
-                self.bid(players, max_bid_user_id, time);
-            } else {
-                break;
-            }
+        if let Some(max_bid_user_id) = max_bid_user_id {
+            self.bid(players, max_bid_user_id, time)?;
         }
         
         Some(())

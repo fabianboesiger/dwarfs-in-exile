@@ -157,6 +157,7 @@ pub enum Item {
     MountainsArtifact,
     SwampArtifact,
     RevolutionarySpirit,
+    Pegasus,
 }
 
 impl Craftable for Item {
@@ -574,7 +575,8 @@ impl Item {
             | Item::Fairy
             | Item::Dog
             | Item::Rat
-            | Item::Wildcat => Some(ItemType::Pet),
+            | Item::Wildcat
+            | Item::Pegasus => Some(ItemType::Pet),
 
             Item::Apple
             | Item::Blueberry
@@ -823,6 +825,7 @@ impl Item {
             (Item::BoneHelmet, Occupation::Fighting) => 8,
             (Item::Horse, Occupation::Fighting | Occupation::Exploring | Occupation::Farming) => 4,
             (Item::Horse, Occupation::Logging) => 10,
+            (Item::Pegasus, Occupation::Exploring) => 10,
             (Item::Ox, Occupation::Farming) => 10,
             (Item::Ox, Occupation::Logging) => 4,
             (Item::HotAirBalloon, Occupation::Exploring) => 10,
@@ -853,7 +856,7 @@ impl Item {
             (Item::KnightsArmor, Occupation::Fighting) => 10,
             (Item::MiningGear, Occupation::Mining) => 10,
             (Item::LoggingGear, Occupation::Logging) => 10,
-            (Item::Fairy, Occupation::Exploring) => 10,
+            (Item::Fairy, Occupation::Exploring) => 8,
             (Item::ForestArtifact, Occupation::Logging | Occupation::Hunting) => 5,
             (Item::MountainsArtifact, Occupation::Mining | Occupation::Rockhounding) => 5,
             (Item::PlainsArtifact, Occupation::Farming | Occupation::Fighting) => 5,

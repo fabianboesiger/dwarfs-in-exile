@@ -211,6 +211,9 @@ pub enum Image {
     MountainsArtifact,
     PlainsArtifact,
     HireDwarf,
+    Pegasus,
+    MysticFields,
+    BearHunting,
 }
 
 impl AsAtValue for Image {
@@ -408,6 +411,7 @@ impl From<Item> for Image {
             Item::SwampArtifact => Image::SwampArtifact,
             Item::MountainsArtifact => Image::MountainsArtifact,
             Item::PlainsArtifact => Image::PlainsArtifact,
+            Item::Pegasus => Image::Pegasus,
         }
     }
 }
@@ -447,7 +451,8 @@ impl From<QuestType> for Image {
             QuestType::GodsBlessing => Image::GodsBlessing,
             QuestType::LoggingContest => Image::LoggingContest,
             QuestType::HuntingTrip => Image::HuntingTrip,
-            
+            QuestType::BearHunting => Image::BearHunting,
+            QuestType::MysticFields => Image::MysticFields,
         }
     }
 }
