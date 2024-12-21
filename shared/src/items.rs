@@ -158,6 +158,8 @@ pub enum Item {
     SwampArtifact,
     RevolutionarySpirit,
     Pegasus,
+    Mole,
+    DivingSuit,
 }
 
 impl Craftable for Item {
@@ -433,7 +435,14 @@ impl Craftable for Item {
                     .add(Item::Fabric, 50)
                     .add(Item::String, 50),
             )),
-
+            Item::DivingSuit => Some((
+                95,
+                Bundle::new()
+                    .add(Item::Iron, 100)
+                    .add(Item::Leather, 50)
+                    .add(Item::Fabric, 50)
+                    .add(Item::Nail, 100),
+            )),
             Item::BearClawPowder => Some((
                 24,
                 Bundle::new()
@@ -522,7 +531,8 @@ impl Item {
             | Item::Vest
             | Item::KnightsArmor
             | Item::MiningGear
-            | Item::LoggingGear => Some(ItemType::Clothing),
+            | Item::LoggingGear
+            | Item::DivingSuit => Some(ItemType::Clothing),
 
             Item::RingOfIntelligence
             | Item::RingOfStrength
@@ -576,7 +586,8 @@ impl Item {
             | Item::Dog
             | Item::Rat
             | Item::Wildcat
-            | Item::Pegasus => Some(ItemType::Pet),
+            | Item::Pegasus
+            | Item::Mole => Some(ItemType::Pet),
 
             Item::Apple
             | Item::Blueberry
@@ -807,7 +818,8 @@ impl Item {
             (Item::LeatherArmor, Occupation::Fighting) => 4,
             (Item::RhinoHornPants, Occupation::Fighting) => 2,
             (Item::Bird, Occupation::Mining | Occupation::Rockhounding) => 3,
-            (Item::Kobold, Occupation::Mining | Occupation::Rockhounding) => 10,
+            (Item::Kobold, Occupation::Rockhounding) => 10,
+            (Item::Mole, Occupation::Mining) => 10,
             (Item::Parrot, Occupation::Exploring) => 5,
             (Item::Musket, Occupation::Hunting) => 10,
             (Item::Musket, Occupation::Fighting) => 6,
@@ -857,12 +869,13 @@ impl Item {
             (Item::MiningGear, Occupation::Mining) => 10,
             (Item::LoggingGear, Occupation::Logging) => 10,
             (Item::Fairy, Occupation::Exploring) => 8,
-            (Item::ForestArtifact, Occupation::Logging | Occupation::Hunting) => 8,
-            (Item::MountainsArtifact, Occupation::Mining | Occupation::Rockhounding) => 8,
-            (Item::PlainsArtifact, Occupation::Farming | Occupation::Fighting) => 8,
-            (Item::SwampArtifact, Occupation::Fishing | Occupation::Gathering) => 8,
-            (Item::DesertArtifact, Occupation::Exploring) => 8,
+            (Item::ForestArtifact, Occupation::Logging | Occupation::Hunting) => 6,
+            (Item::MountainsArtifact, Occupation::Mining | Occupation::Rockhounding) => 6,
+            (Item::PlainsArtifact, Occupation::Farming | Occupation::Fighting) => 6,
+            (Item::SwampArtifact, Occupation::Fishing | Occupation::Gathering) => 6,
+            (Item::DesertArtifact, Occupation::Exploring) => 6,
             (Item::RevolutionarySpirit, Occupation::Fighting) => 10,
+            (Item::DivingSuit, Occupation::Fishing) => 10,
             _ => 0,
         }
     }
@@ -1023,7 +1036,7 @@ impl Item {
                 Item::Dragon => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_DAY * 7,
                 }),
-                Item::Kobold => Some(ItemProbability {
+                Item::Mole => Some(ItemProbability {
                     expected_ticks_per_drop: ONE_DAY * 7,
                 }),
                 Item::Fairy => Some(ItemProbability {

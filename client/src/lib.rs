@@ -2680,6 +2680,10 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
             .unwrap_or(0);
         */
 
+        let android = web_sys::window()
+            .and_then(|window| Some(window.navigator().user_agent().ok()?.to_lowercase().contains("android")))
+            .unwrap_or(false);
+
         let guest = model
             .state
             .get_user_data(user_id)
@@ -2731,6 +2735,27 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                                 C!["button"],
                                 attrs! { At::Href => format!("/change-password") },
                                 "Set Password"
+                            ]
+                        ]
+                    ]
+                ]
+            } else {
+                Node::Empty
+            },
+
+            if android {
+                div![
+                    C!["important"],
+                    strong![format!("Try the Android App!")],
+                    div![
+                        C!["image-aside", "small"],
+                        img![attrs! {At::Src => "/app.jpg"}],
+                        div![
+                            p!["We need testers for the Dwarfs in Exile Android App. If you want to help us test the app, you can sign up as a tester by joining the Google Group and then download the app from the Google Play Store."],
+                            a![
+                                C!["button"],
+                                attrs! { At::Href => format!("https://groups.google.com/g/dwarfs-in-exile/c/wdcYAF3njMM/m/5tZ9wuhNAAAJ") },
+                                "Join the Google Group"
                             ]
                         ]
                     ]

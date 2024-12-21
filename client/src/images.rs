@@ -214,6 +214,8 @@ pub enum Image {
     Pegasus,
     MysticFields,
     BearHunting,
+    Mole,
+    DivingSuit,
 }
 
 impl AsAtValue for Image {
@@ -412,6 +414,8 @@ impl From<Item> for Image {
             Item::MountainsArtifact => Image::MountainsArtifact,
             Item::PlainsArtifact => Image::PlainsArtifact,
             Item::Pegasus => Image::Pegasus,
+            Item::Mole => Image::Mole,
+            Item::DivingSuit => Image::DivingSuit,
         }
     }
 }
