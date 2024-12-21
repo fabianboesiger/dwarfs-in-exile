@@ -3747,8 +3747,6 @@ impl TradeDeal {
                 }
             }
         }
-
-        log::warn!("max_bid_user_id: {:?}", max_bid_user_id);
         
         if let Some(max_bid_user_id) = max_bid_user_id {
             self.bid(players, max_bid_user_id, time)?;
