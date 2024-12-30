@@ -25,13 +25,6 @@ pub struct StoreEntry {
 
 #[cfg(not(debug_assertions))]
 static STORE_ENTRIES: &[StoreEntry] = &[
-    /*StoreEntry {
-        buy_button_id: "buy_btn_1PfOoiCJSYyq6ul4DXYS01wg",
-        publishable_key: "pk_live_51PclDhCJSYyq6ul4z8Wmuf3h9PVDP9vXOyGhZqc4dy3JvkltdKYUt51oeD2x1K23XxEy1qeU6D80GBx3TpEE9VNN00osxE1rXe",
-        product_id: "prod_QWRhg5DjHRbafp",
-        name: "Premium Account (One Week)",
-        product: Product::Premium(7),
-    },*/
     StoreEntry {
         buy_button_id: "buy_btn_1PfOogCJSYyq6ul4UGNJGWVk",
         publishable_key: "pk_live_51PclDhCJSYyq6ul4z8Wmuf3h9PVDP9vXOyGhZqc4dy3JvkltdKYUt51oeD2x1K23XxEy1qeU6D80GBx3TpEE9VNN00osxE1rXe",
@@ -46,17 +39,24 @@ static STORE_ENTRIES: &[StoreEntry] = &[
         name: "Premium Account (One Year)",
         product: Product::Premium(365),
     },
+    StoreEntry {
+        buy_button_id: "buy_btn_1QbfkBCJSYyq6ul4yRy1WjRU",
+        publishable_key: "pk_test_51PclDhCJSYyq6ul4shd76Uo28pNWY617Ae8OTV0NXhxZoKCIKEhLkiZRKNnLG635zpSIKJS8eGLPNaKqFtatiZLA00KocaOW8X",
+        product_id: "prod_RUf3L63wF6ToQK",
+        name: "The Mountain Princess",
+        product: Product::DwarfSkin(shared::SpecialDwarf::TheMountainPrincess),
+    },
+    StoreEntry {
+        buy_button_id: "buy_btn_1Qbfk7CJSYyq6ul4U04SdXuG",
+        publishable_key: "pk_test_51PclDhCJSYyq6ul4shd76Uo28pNWY617Ae8OTV0NXhxZoKCIKEhLkiZRKNnLG635zpSIKJS8eGLPNaKqFtatiZLA00KocaOW8X",
+        product_id: "prod_RUf4YY59UGpzEb",
+        name: "The Defector",
+        product: Product::DwarfSkin(shared::SpecialDwarf::TheDefector),
+    },
 ];
 
 #[cfg(debug_assertions)]
 static STORE_ENTRIES: &[StoreEntry] = &[
-    /*StoreEntry {
-        buy_button_id: "buy_btn_1Pcq8OCJSYyq6ul45QglYe5M",
-        publishable_key: "pk_test_51PclDhCJSYyq6ul4shd76Uo28pNWY617Ae8OTV0NXhxZoKCIKEhLkiZRKNnLG635zpSIKJS8eGLPNaKqFtatiZLA00KocaOW8X",
-        product_id: "prod_QTnWStL89MpI6m",
-        name: "Premium Account (One Week)",
-        product: Product::Premium(7),
-    },*/
     StoreEntry {
         buy_button_id: "buy_btn_1Pcq8tCJSYyq6ul4f4jhctou",
         publishable_key: "pk_test_51PclDhCJSYyq6ul4shd76Uo28pNWY617Ae8OTV0NXhxZoKCIKEhLkiZRKNnLG635zpSIKJS8eGLPNaKqFtatiZLA00KocaOW8X",
@@ -70,6 +70,20 @@ static STORE_ENTRIES: &[StoreEntry] = &[
         product_id: "prod_QTnZFHdzJE4dQ5",
         name: "Premium Account (One Year)",
         product: Product::Premium(365),
+    },
+    StoreEntry {
+        buy_button_id: "buy_btn_1QYunICJSYyq6ul4f767cA0q",
+        publishable_key: "pk_test_51PclDhCJSYyq6ul4shd76Uo28pNWY617Ae8OTV0NXhxZoKCIKEhLkiZRKNnLG635zpSIKJS8eGLPNaKqFtatiZLA00KocaOW8X",
+        product_id: "prod_RRoOjS1jYZI7ia",
+        name: "The Mountain Princess",
+        product: Product::DwarfSkin(shared::SpecialDwarf::TheMountainPrincess),
+    },
+    StoreEntry {
+        buy_button_id: "buy_btn_1QYurBCJSYyq6ul4ZG32TJRp",
+        publishable_key: "pk_test_51PclDhCJSYyq6ul4shd76Uo28pNWY617Ae8OTV0NXhxZoKCIKEhLkiZRKNnLG635zpSIKJS8eGLPNaKqFtatiZLA00KocaOW8X",
+        product_id: "prod_RRoTdPdwxzZ4cx",
+        name: "The Defector",
+        product: Product::DwarfSkin(shared::SpecialDwarf::TheDefector),
     },
 ];
 
@@ -159,7 +173,7 @@ where
 #[derive(Debug, Clone, Copy)]
 enum Product {
     Premium(i64),
-    Skin(i64),
+    DwarfSkin(shared::SpecialDwarf),
 }
 
 #[axum::debug_handler]
@@ -264,7 +278,7 @@ pub async fn handle_webhook(
                             user_id
                         );
                     },
-                    Product::Skin(skin) => {
+                    Product::DwarfSkin(skin) => {
                         let quantity = line_item
                                 .quantity
                                 .ok_or(ServerError::StripeErrorMissingData(format!(
@@ -275,11 +289,11 @@ pub async fn handle_webhook(
                             sqlx::query(
                                 r#"
                                     UPDATE users
-                                    SET skins = json_insert(skins, '$[#]', $1)
+                                    SET dwarf_skins = CASE WHEN dwarf_skins IS NULL THEN $1 ELSE dwarf_skins || ',' || $1 END
                                     WHERE user_id = $2
                                 "#,
                                 )
-                                .bind(skin)
+                                .bind(skin.to_string())
                                 .bind(user_id)
                                 .execute(&pool)
                                 .await

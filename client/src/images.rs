@@ -4,7 +4,7 @@ use rand::Rng;
 use rand_chacha::{rand_core::SeedableRng, ChaCha8Rng};
 use seed::virtual_dom::{AsAtValue, AtValue};
 use sha2::{Digest, Sha256};
-use shared::{Dwarf, Item, Occupation, QuestType, Territory, VillageType, WorldEvent, FEMALE_PROBABILITY};
+use shared::{Dwarf, Item, Occupation, QuestType, SpecialDwarf, Territory, VillageType, WorldEvent, FEMALE_PROBABILITY};
 use strum::Display;
 
 #[derive(Display)]
@@ -216,6 +216,8 @@ pub enum Image {
     BearHunting,
     Mole,
     DivingSuit,
+    TheMountainPrincess,
+    TheDefector,
 }
 
 impl AsAtValue for Image {
@@ -235,6 +237,9 @@ impl AsAtValue for Image {
 
 impl Image {
     pub fn from_dwarf(dwarf: &Dwarf) -> Image {
+        if let Some(special_skin) = dwarf.special_skin {
+            return Image::from(special_skin);
+        }
         let mut rng = Self::rng_from_str(&dwarf.name);
         if dwarf.is_adult() {
             if dwarf.is_female {
@@ -474,6 +479,16 @@ impl From<Occupation> for Image {
             Occupation::Gathering => Image::Gathering,
             Occupation::Fighting => Image::Fighting,
             Occupation::Exploring => Image::Exploring,
+        }
+    }
+}
+
+
+impl From<SpecialDwarf> for Image {
+    fn from(dwarf: SpecialDwarf) -> Self {
+        match dwarf {
+            SpecialDwarf::TheMountainPrincess => Image::TheMountainPrincess,
+            SpecialDwarf::TheDefector => Image::TheDefector,
         }
     }
 }

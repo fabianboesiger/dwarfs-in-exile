@@ -13,7 +13,7 @@ use rand::{
 };
 use serde::{Deserialize, Serialize};
 use std::{collections::VecDeque, hash::Hash, ops::Deref};
-use strum::Display;
+use strum::{Display, EnumString};
 
 #[cfg(not(debug_assertions))]
 pub const SPEED: u64 = 1;
@@ -311,7 +311,7 @@ pub struct UserData {
     pub guest: bool,
     pub joined: time::PrimitiveDateTime,
     pub referrer: Option<UserId>,
-    pub skins: Vec<i64>,
+    pub dwarf_skins: Vec<SpecialDwarf>,
 }
 
 impl engine_shared::UserData for UserData {}
@@ -821,6 +821,19 @@ impl engine_shared::State for State {
                             {
                                 player.money -= dwarf_type.cost();
                                 player.new_dwarf(rng, &mut self.next_dwarf_id, self.time, Some(Stats::default()));
+                            }
+                        }
+                        ClientEvent::HireSpecialDwarf(special_dwarf) => {
+                            if player.money >= special_dwarf.cost()
+                                && player.dwarfs.len() < player.base.max_dwarfs()
+                                && player.dwarfs.values().all(|dwarf| dwarf.special_skin != Some(special_dwarf))
+                            {
+                                player.money -= special_dwarf.cost();
+                                player.new_special_dwarf(
+                                    &mut self.next_dwarf_id,
+                                    self.time,
+                                    special_dwarf,
+                                );
                             }
                         }
                         ClientEvent::ToggleAutoCraft(item) => {
@@ -2399,6 +2412,25 @@ impl Player {
         }
     }
 
+    pub fn new_special_dwarf(
+        &mut self,
+        next_dwarf_id: &mut DwarfId,
+        time: Time,
+        special: SpecialDwarf,
+    ) {
+        if self.dwarfs.len() < self.base.max_dwarfs() {
+            let dwarf = Dwarf::new_special(special);
+            self.log
+                .add(time, LogMsg::NewDwarf(dwarf.actual_name().to_owned()));
+            self.add_popup(Popup::NewDwarf(dwarf.clone()));
+            self.dwarfs.insert(*next_dwarf_id, dwarf);
+            *next_dwarf_id += 1;
+        } else {
+            self.log.add(time, LogMsg::NotEnoughSpaceForDwarf);
+        }
+    }
+
+
     pub fn open_loot_crate(&mut self, rng: &mut impl Rng, time: Time) {
         let possible_items: Vec<Item> = enum_iterator::all::<Item>()
             /*.filter(|item| {
@@ -2614,6 +2646,8 @@ pub struct Dwarf {
     pub released: bool,
     #[serde(default)]
     pub consumable_timer: u64,
+    #[serde(default)]
+    pub special_skin: Option<SpecialDwarf>,
 }
 
 impl Dwarf {
@@ -2718,6 +2752,7 @@ impl Dwarf {
             apprentice: None,
             released: false,
             consumable_timer: 0,
+            special_skin: None,
         }
     }
 
@@ -2741,6 +2776,28 @@ impl Dwarf {
             apprentice: None,
             released: false,
             consumable_timer: 0,
+            special_skin: None,
+        }
+    }
+
+    fn new_special(special_dwarf: SpecialDwarf) -> Self {
+        Dwarf {
+            name: special_dwarf.name().to_string(),
+            occupation: Occupation::Idling,
+            auto_idle: false,
+            stats: special_dwarf.stats(),
+            equipment: CustomMap::new(),
+            health: MAX_HEALTH,
+            participates_in_quest: None,
+            is_female: special_dwarf.is_female(),
+            age_seconds: special_dwarf.age_years() * 365 * 24 * 60 * 60,
+            custom_name: None,
+            manual_management: false,
+            mentor: None,
+            apprentice: None,
+            released: false,
+            consumable_timer: 0,
+            special_skin: Some(special_dwarf),
         }
     }
 
@@ -3070,6 +3127,7 @@ pub enum ClientEvent {
     ToggleAutoDismantle(Item),
     ToggleAutoIdle,
     HireDwarf(HireDwarfType),
+    HireSpecialDwarf(SpecialDwarf),
     NextTutorialStep,
     ConfirmPopup,
     SetManagerOccupation(Occupation, u64),
@@ -3835,4 +3893,67 @@ fn gen_ratio_valid(rng: &mut impl Rng, numerator: u32, denominator: u32) -> bool
         return true;
     }
     rng.gen_ratio(numerator, denominator)
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash, PartialEq, Eq, EnumString, Display, Sequence)]
+pub enum SpecialDwarf {
+    TheMountainPrincess,
+    TheDefector,
+}
+
+impl SpecialDwarf {
+    pub fn stats(&self) -> Stats {
+        match self {
+            // Sum: 25
+            SpecialDwarf::TheMountainPrincess => Stats {
+                strength: 5,
+                agility: 7,
+                perception: 3,
+                endurance: 6,
+                intelligence: 4,
+            },
+            // Sum: 25
+            SpecialDwarf::TheDefector => Stats {
+                strength: 8,
+                agility: 4,
+                perception: 4,
+                endurance: 6,
+                intelligence: 3,
+            },
+        }
+    }
+
+    pub fn cost(&self) -> Money {
+        match self {
+            _ => 10000,
+        }
+    }
+
+    pub fn age_years(&self) -> u64 {
+        match self {
+            SpecialDwarf::TheMountainPrincess => 21,
+            SpecialDwarf::TheDefector => 35,
+        }
+    }
+
+    pub fn is_female(&self) -> bool {
+        match self {
+            SpecialDwarf::TheMountainPrincess => true,
+            SpecialDwarf::TheDefector => false,
+        }
+    }
+
+    pub fn name(&self) -> &'static str {
+        match self {
+            SpecialDwarf::TheMountainPrincess => "The Mountain Princess",
+            SpecialDwarf::TheDefector => "The Defector",
+        }
+    }
+
+    pub fn description(&self) -> &'static str {
+        match self {
+            SpecialDwarf::TheMountainPrincess => "She is as strong as she is beautiful.",
+            SpecialDwarf::TheDefector => "He left his people behind to find a new home and fight side by side with the dwarfs.",
+        }
+    }
 }

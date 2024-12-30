@@ -126,10 +126,10 @@ impl engine_server::BackendStore<shared::State> for GameStore {
     }
 
     async fn load_user_data(&self) -> Result<CustomMap<UserId, UserData>, Self::Error> {
-        let users: Vec<(i64, String, i64, i64, i64, i64, time::PrimitiveDateTime, Option<i64>/*, sqlx::types::Json<Vec<i64>>*/)> =
+        let users: Vec<(i64, String, i64, i64, i64, i64, time::PrimitiveDateTime, Option<i64>, String)> =
             sqlx::query_as(
                 r#"
-                        SELECT user_id, username, premium, admin, COUNT(winner), guest, joined, referrer
+                        SELECT user_id, username, premium, admin, COUNT(winner), guest, joined, referrer, dwarf_skins
                         FROM users
                         LEFT JOIN games ON winner = user_id
                         GROUP BY user_id, username, premium, admin, guest, joined, referrer
@@ -141,7 +141,7 @@ impl engine_server::BackendStore<shared::State> for GameStore {
 
         let users = users
             .into_iter()
-            .map(|(id, username, premium, admin, games_won, guest, joined, referrer)| {
+            .map(|(id, username, premium, admin, games_won, guest, joined, referrer, dwarf_skins)| {
                 (
                     id.into(),
                     UserData {
@@ -152,7 +152,10 @@ impl engine_server::BackendStore<shared::State> for GameStore {
                         guest: guest != 0,
                         joined,
                         referrer: referrer.map(|id| UserId(id)),
-                        skins: Vec::new(),
+                        dwarf_skins: dwarf_skins
+                            .split(',')
+                            .filter_map(|s| shared::SpecialDwarf::from_str(s).ok())
+                            .collect(),
                     },
                 )
             })

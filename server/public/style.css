@@ -1114,3 +1114,11 @@ button.inline, .button.inline {
 /*.ranking td {
     max-width: 128px;
 }*/
+
+.hire-dwarf-scrollable {
+    max-height: 386px;
+    overflow-y: auto;
+    /*background: rgba(255, 255, 255, 0.5);
+    padding-left: 16px;
+    padding-right: 16px;*/
+}

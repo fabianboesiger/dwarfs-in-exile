@@ -436,7 +436,7 @@ impl Craftable for Item {
                     .add(Item::String, 50),
             )),
             Item::DivingSuit => Some((
-                95,
+                90,
                 Bundle::new()
                     .add(Item::Iron, 100)
                     .add(Item::Leather, 50)
