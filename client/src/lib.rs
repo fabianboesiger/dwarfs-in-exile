@@ -2690,12 +2690,6 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
             .map(|user_data| user_data.guest)
             .unwrap_or(false);
 
-        let dwarf_skins_bought = model
-            .state
-            .get_user_data(user_id)
-            .map(|user_data| user_data.dwarf_skins.clone())
-            .unwrap_or_default();
-
         let mut unlocks = (1..100)
             .filter_map(|curr_level| {
                 let prev_level = curr_level - 1;
@@ -2940,66 +2934,7 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                 ]
             ],
             */
-            div![
-                h3!["Hire Dwarf"],
-                p![
-                    "Here you can hire dwarfs with money. You can also hire special dwarfs that can be unlocked in the store. They are purely cosmetic and still need to be hired with ingame money."
-                ],
-                div![C!["hire-dwarf-scrollable"],
-                    div![C!["image-aside", "small"],
-                        img![attrs! {At::Src => Image::HireDwarf.as_at_value()}],
-                        div![
-                            h4!["Random Dwarf"],
-                            p!["Hire a dwarf to work for you in exchange for money."],
-                            enum_iterator::all::<HireDwarfType>()
-                            .map(|dwarf_type| {
-                                button![
-                                    if player.money >= dwarf_type.cost() && player.dwarfs.len() < player.base.max_dwarfs() {
-                                        attrs! {}
-                                    } else {
-                                        attrs! {At::Disabled => "true"}
-                                    },
-                                    ev(Ev::Click, move |_| Msg::send_event(ClientEvent::HireDwarf(dwarf_type))),
-                                    format!("Hire ({} coins)", dwarf_type.cost()),
-                                ]
-                            })
-                        ],
-                    ],
-                    enum_iterator::all::<SpecialDwarf>()
-                        .into_iter()
-                        .map(|special_dwarf| {
-                            div![C!["image-aside", "small"],
-                                img![attrs! {At::Src => Image::from(special_dwarf).as_at_value()}],
-                                div![
-                                    h4![C!["title"], special_dwarf.name()],
-                                    p![C!["subtitle"], format!("{}, {} years old", if special_dwarf.is_female() { "Female" } else { "Male" }, special_dwarf.age_years())],
-                                    p![special_dwarf.description()],
-                                    stats(&special_dwarf.stats()),
-                                    if dwarf_skins_bought.contains(&special_dwarf) {
-                                        button![
-                                            if player.money >= special_dwarf.cost()
-                                                && player.dwarfs.len() < player.base.max_dwarfs()
-                                                && player.dwarfs.values().all(|dwarf| dwarf.special_skin != Some(special_dwarf))
-                                            {
-                                                attrs! {}
-                                            } else {
-                                                attrs! {At::Disabled => "true"}
-                                            },
-                                            ev(Ev::Click, move |_| Msg::send_event(ClientEvent::HireSpecialDwarf(special_dwarf))),
-                                            format!("Hire ({} coins)", special_dwarf.cost()),
-                                        ]
-                                    } else {
-                                        a![
-                                            C!["premium-feature", "button"],
-                                            format!("Unlock"),
-                                            attrs! { At::Href => format!("/store") },
-                                        ]
-                                    }
-                                ],
-                            ]
-                        }),
-                ],
-            ]
+            
                 
         ]
     } else {
@@ -3020,6 +2955,14 @@ fn manager(model: &Model, state: &shared::State, user_id: &shared::UserId) -> No
             .get_user_data(user_id)
             .map(|user_data| user_data.premium)
             .unwrap_or(0);
+
+
+        let dwarf_skins_bought = model
+            .state
+            .get_user_data(user_id)
+            .map(|user_data| user_data.dwarf_skins.clone())
+            .unwrap_or_default();
+
 
         let mut unlocks = (1..100)
             .filter_map(|curr_level| {
@@ -3069,13 +3012,16 @@ fn manager(model: &Model, state: &shared::State, user_id: &shared::UserId) -> No
                 Node::Empty
             },
 
+            h2!["Dwarfen Manager"],
+
             div![
-                h2!["Dwarfen Manager"],
+                h3!["Auto Idling"],
                 div![C!["image-aside"],
                     img![attrs! {At::Src => Image::Manager.as_at_value()}],
                     div![
-                        p!["The dwarfen manager can optimally assign dwarfs to carry out the occupations that are best suited for them. Furthermore, the manager can also assign the optimal equipment to each dwarf to further increase their effectiveness in their occupation."],
-                        p!["The dwarfen manager ignores children and dwarfs that are on quests, as well as dwarfs that have manual magement enabled."],
+                        p![
+                            "Auto-Idling lets your dwarfs automatically idle when their health is below 20%. This can be useful to prevent your dwarfs from dying of starvation."
+                        ],
                         p![
                             strong![if player.auto_functions.auto_idle {
                                 "Auto-Idling is enabled."
@@ -3091,49 +3037,117 @@ fn manager(model: &Model, state: &shared::State, user_id: &shared::UserId) -> No
                                 if player.auto_functions.auto_idle && is_premium { "Disable Auto Idling for all Dwarfs" } else { "Enable Auto Idling for all Dwarfs" },
                             ]
                         ],
-                        p![
-                            strong![format!("Average Efficiency: {}%", player.average_efficiency().unwrap_or(0))]
-                        ],
-                        table![
-                            tr![
-                                th!["Occupation"],
-                                th!["Number of Dwarfs to Assign"],
-                            ],
-                            enum_iterator::all::<Occupation>()
-                                .filter(|occupation| player.base.curr_level >= occupation.unlocked_at_level())
-                                .map(|occupation| {
-                                    tr![
-                                        td![format!("{}", occupation)],
-                                        td![input![
-                                            attrs! {
-                                                At::Type => "number",
-                                                At::Min => "0",
-                                                At::Step => "1",
-                                                At::Value => format!("{}", player.manager.get(&occupation).copied().unwrap_or(0)),
-                                                At::Disabled => (matches!(occupation, Occupation::Idling) || !is_premium).as_at_value(),
-                                            },
-                                            input_ev(Ev::Input, move |str| {
-                                                Msg::send_event(ClientEvent::SetManagerOccupation(occupation, str.parse().unwrap_or(0)))
-                                            })
-                                        ]],
-                                    ]
-                                }),
-                        ],
-                        if is_premium {
-                            button![
-                                ev(Ev::Click, move |_| Msg::send_event(ClientEvent::Optimize(None))),
-                                format!("Reassign Occupations and Equipment"),
-                                ]
-                        } else {
-                            a![
-                                C!["premium-feature", "button"],
-                                format!("Reassign Occupations and Equipment"),
-                                attrs! { At::Href => format!("/store") },
-                            ]
-                        },
                     ]
                 ],
+
             ],
+
+            div![
+                h3!["Occupation Management"],
+                p!["The dwarfen manager can optimally assign dwarfs to carry out the occupations that are best suited for them. Furthermore, the manager can also assign the optimal equipment to each dwarf to further increase their effectiveness in their occupation."],
+                p!["The dwarfen manager ignores children and dwarfs that are on quests, as well as dwarfs that have manual magement enabled."],
+                p![
+                    strong![format!("Average Efficiency: {}%", player.average_efficiency().unwrap_or(0))]
+                ],
+                table![
+                    tr![
+                        th!["Occupation"],
+                        th!["Number of Dwarfs to Assign"],
+                    ],
+                    enum_iterator::all::<Occupation>()
+                        .filter(|occupation| player.base.curr_level >= occupation.unlocked_at_level())
+                        .map(|occupation| {
+                            tr![
+                                td![format!("{}", occupation)],
+                                td![input![
+                                    attrs! {
+                                        At::Type => "number",
+                                        At::Min => "0",
+                                        At::Step => "1",
+                                        At::Value => format!("{}", player.manager.get(&occupation).copied().unwrap_or(0)),
+                                        At::Disabled => (matches!(occupation, Occupation::Idling) || !is_premium).as_at_value(),
+                                    },
+                                    input_ev(Ev::Input, move |str| {
+                                        Msg::send_event(ClientEvent::SetManagerOccupation(occupation, str.parse().unwrap_or(0)))
+                                    })
+                                ]],
+                            ]
+                        }),
+                ],
+                if is_premium {
+                    button![
+                        ev(Ev::Click, move |_| Msg::send_event(ClientEvent::Optimize(None))),
+                        format!("Reassign Occupations and Equipment"),
+                        ]
+                } else {
+                    a![
+                        C!["premium-feature", "button"],
+                        format!("Reassign Occupations and Equipment"),
+                        attrs! { At::Href => format!("/store") },
+                    ]
+                },
+            ],
+
+            div![
+                h3!["Hire Dwarf"],
+                p![
+                    "Here you can hire dwarfs with money. You can also hire special dwarfs that can be unlocked in the store. Special dwarfs still need to be hired with ingame money. You can only have the same special dwarf once at the time. After the special dwarf dies, you can hire them again."
+                ],
+                div![C!["hire-dwarf-scrollable"],
+                    div![C!["image-aside", "small"],
+                        img![attrs! {At::Src => Image::HireDwarf.as_at_value()}],
+                        div![
+                            h4!["Random Dwarf"],
+                            p!["Hire a dwarf to work for you in exchange for money."],
+                            enum_iterator::all::<HireDwarfType>()
+                            .map(|dwarf_type| {
+                                button![
+                                    if player.money >= dwarf_type.cost() && player.dwarfs.len() < player.base.max_dwarfs() {
+                                        attrs! {}
+                                    } else {
+                                        attrs! {At::Disabled => "true"}
+                                    },
+                                    ev(Ev::Click, move |_| Msg::send_event(ClientEvent::HireDwarf(dwarf_type))),
+                                    format!("Hire ({} coins)", dwarf_type.cost()),
+                                ]
+                            })
+                        ],
+                    ],
+                    enum_iterator::all::<SpecialDwarf>()
+                        .into_iter()
+                        .map(|special_dwarf| {
+                            div![C!["image-aside", "small"],
+                                img![attrs! {At::Src => Image::from(special_dwarf).as_at_value()}],
+                                div![
+                                    h4![C!["title"], special_dwarf.name()],
+                                    p![C!["subtitle"], format!("{}, {} years old, hiring cost {} coins", if special_dwarf.is_female() { "Female" } else { "Male" }, special_dwarf.age_years(), special_dwarf.cost())],
+                                    p![special_dwarf.description()],
+                                    stats(&special_dwarf.stats()),
+                                    if dwarf_skins_bought.contains(&special_dwarf) {
+                                        button![
+                                            if player.money >= special_dwarf.cost()
+                                                && player.dwarfs.len() < player.base.max_dwarfs()
+                                                && player.dwarfs.values().all(|dwarf| dwarf.special_skin != Some(special_dwarf))
+                                            {
+                                                attrs! {}
+                                            } else {
+                                                attrs! {At::Disabled => "true"}
+                                            },
+                                            ev(Ev::Click, move |_| Msg::send_event(ClientEvent::HireSpecialDwarf(special_dwarf))),
+                                            format!("Hire ({} coins)", special_dwarf.cost()),
+                                        ]
+                                    } else {
+                                        a![
+                                            C!["premium-feature", "button"],
+                                            format!("Unlock"),
+                                            attrs! { At::Href => format!("/store") },
+                                        ]
+                                    }
+                                ],
+                            ]
+                        }),
+                ],
+            ]
         ]
     } else {
         Node::Empty

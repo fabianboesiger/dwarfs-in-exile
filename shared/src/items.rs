@@ -191,9 +191,9 @@ impl Craftable for Item {
             Item::FishingRod => Some((
                 7,
                 Bundle::new()
-                    .add(Item::Wood, 3)
-                    .add(Item::String, 3)
-                    .add(Item::Iron, 1),
+                    .add(Item::Wood, 5)
+                    .add(Item::String, 5)
+                    .add(Item::Iron, 3),
             )),
             Item::Bow => Some((7, Bundle::new().add(Item::Wood, 3).add(Item::String, 1))),
             Item::Fabric => Some((8, Bundle::new().add(Item::String, 3))),
@@ -205,9 +205,9 @@ impl Craftable for Item {
             Item::Helmet => Some((
                 7,
                 Bundle::new()
-                    .add(Item::Iron, 3)
-                    .add(Item::Leather, 1)
-                    .add(Item::String, 1),
+                    .add(Item::Iron, 5)
+                    .add(Item::Leather, 5)
+                    .add(Item::String, 5),
             )),
             Item::Lantern => Some((12, Bundle::new().add(Item::Iron, 3).add(Item::String, 1))),
             Item::Headlamp => Some((13, Bundle::new().add(Item::Helmet, 1).add(Item::Lantern, 1))),
@@ -259,15 +259,15 @@ impl Craftable for Item {
             Item::Musket => Some((
                 29,
                 Bundle::new()
-                    .add(Item::Wood, 10)
-                    .add(Item::Iron, 20)
-                    .add(Item::BlackPowder, 5),
+                    .add(Item::Wood, 50)
+                    .add(Item::Iron, 100)
+                    .add(Item::BlackPowder, 20),
             )),
             Item::Dynamite => Some((
                 30,
                 Bundle::new()
-                    .add(Item::BlackPowder, 10)
-                    .add(Item::Fabric, 1),
+                    .add(Item::BlackPowder, 50)
+                    .add(Item::Fabric, 10),
             )),
             Item::DynamiteCrossbow => Some((
                 32,
@@ -277,25 +277,26 @@ impl Craftable for Item {
             Item::Wheel => Some((
                 36,
                 Bundle::new()
-                    .add(Item::Iron, 3)
-                    .add(Item::Wood, 5)
-                    .add(Item::Nail, 5),
+                    .add(Item::Iron, 50)
+                    .add(Item::Wood, 50)
+                    .add(Item::Nail, 20),
             )),
             Item::Wheelbarrow => Some((
                 38,
                 Bundle::new()
                     .add(Item::Wheel, 1)
-                    .add(Item::Iron, 2)
-                    .add(Item::Nail, 5),
+                    .add(Item::Iron, 10)
+                    .add(Item::Nail, 20)
+                    .add(Item::Wood, 50),
             )),
             Item::Plough => Some((
                 40,
                 Bundle::new()
                     .add(Item::Wheel, 2)
-                    .add(Item::Iron, 20)
-                    .add(Item::Nail, 20)
-                    .add(Item::Wood, 50)
-                    .add(Item::Chain, 5),
+                    .add(Item::Iron, 200)
+                    .add(Item::Nail, 200)
+                    .add(Item::Wood, 500)
+                    .add(Item::Chain, 20),
             )),
             Item::BoneNecklace => Some((42, Bundle::new().add(Item::String, 5).add(Item::Bone, 5))),
             Item::BoneHelmet => Some((44, Bundle::new().add(Item::Helmet, 1).add(Item::Bone, 5))),
@@ -339,7 +340,7 @@ impl Craftable for Item {
             Item::CrystalNecklace => Some((
                 60,
                 Bundle::new()
-                    .add(Item::String, 5)
+                    .add(Item::String, 10)
                     .add(Item::Fluorite, 1)
                     .add(Item::Agate, 1)
                     .add(Item::Sodalite, 1)
@@ -378,40 +379,40 @@ impl Craftable for Item {
                 76,
                 Bundle::new()
                     .add(Item::Wheel, 4)
-                    .add(Item::Iron, 40)
-                    .add(Item::Nail, 40)
-                    .add(Item::Wood, 100)
-                    .add(Item::Chain, 5),
+                    .add(Item::Iron, 200)
+                    .add(Item::Nail, 200)
+                    .add(Item::Wood, 500)
+                    .add(Item::Chain, 20),
             )),
             Item::HotAirBalloon => Some((
                 78,
                 Bundle::new()
-                    .add(Item::Fabric, 100)
-                    .add(Item::String, 100)
-                    .add(Item::Nail, 10)
-                    .add(Item::Wood, 100),
+                    .add(Item::Fabric, 1000)
+                    .add(Item::String, 1000)
+                    .add(Item::Nail, 100)
+                    .add(Item::Wood, 200),
             )),
             Item::Vest => Some((
                 47,
                 Bundle::new()
-                    .add(Item::Fabric, 10)
-                    .add(Item::String, 10)
+                    .add(Item::Fabric, 50)
+                    .add(Item::String, 50)
                     .add(Item::Leather, 5),
             )),
             Item::Boat => Some((
                 80,
                 Bundle::new()
-                    .add(Item::Wood, 200)
-                    .add(Item::Fabric, 50)
-                    .add(Item::Nail, 100),
+                    .add(Item::Wood, 2000)
+                    .add(Item::Fabric, 500)
+                    .add(Item::Nail, 500),
             )),
             Item::KnightsArmor => Some((
                 82,
                 Bundle::new()
                     .add(Item::Helmet, 1)
                     .add(Item::ChainMail, 1)
-                    .add(Item::Nail, 50)
-                    .add(Item::Iron, 100)
+                    .add(Item::Nail, 100)
+                    .add(Item::Iron, 200)
                     .add(Item::Leather, 100),
             )),
             Item::MiningGear => Some((
@@ -421,8 +422,8 @@ impl Craftable for Item {
                     .add(Item::Headlamp, 1)
                     .add(Item::Boots, 1)
                     .add(Item::Gloves, 1)
-                    .add(Item::Fabric, 50)
-                    .add(Item::String, 50),
+                    .add(Item::Fabric, 100)
+                    .add(Item::String, 100),
             )),
             Item::LoggingGear => Some((
                 86,
@@ -432,14 +433,14 @@ impl Craftable for Item {
                     .add(Item::Bag, 1)
                     .add(Item::Boots, 1)
                     .add(Item::Gloves, 1)
-                    .add(Item::Fabric, 50)
-                    .add(Item::String, 50),
+                    .add(Item::Fabric, 100)
+                    .add(Item::String, 100),
             )),
             Item::DivingSuit => Some((
                 90,
                 Bundle::new()
-                    .add(Item::Iron, 100)
-                    .add(Item::Leather, 50)
+                    .add(Item::Iron, 200)
+                    .add(Item::Leather, 100)
                     .add(Item::Fabric, 50)
                     .add(Item::Nail, 100),
             )),
@@ -447,19 +448,19 @@ impl Craftable for Item {
                 24,
                 Bundle::new()
                     .add(Item::BearClaw, 1)
-                    .add(Item::Bone, 20)
+                    .add(Item::Bone, 50)
             )),
             Item::RhinoHornPowder => Some((
                 26,
                 Bundle::new()
                     .add(Item::RhinoHorn, 1)
-                    .add(Item::Bone, 20)
+                    .add(Item::Bone, 50)
             )),
             Item::TigerFangPowder => Some((
                 28,
                 Bundle::new()
                     .add(Item::TigerFang, 1)
-                    .add(Item::Bone, 20)
+                    .add(Item::Bone, 50)
             )),
 
             _ => None,
@@ -1101,7 +1102,7 @@ impl Item {
             )
         }
 
-        rarity.unwrap_or(100000)
+        rarity.unwrap_or(160000)
     }
 
     pub fn crafting_depth(self) -> u64 {

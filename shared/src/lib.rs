@@ -1870,9 +1870,8 @@ impl engine_shared::State for State {
                             let num_quests = if cfg!(debug_assertions) {
                                 30
                             } else {
-                                (active_players / (2 * NEW_PLAYER_DIVIDER as usize) + active_not_new_players / 2)
+                                (active_players / (2 * NEW_PLAYER_DIVIDER as usize) + active_not_new_players * 2)
                                     .max(10)
-                                    .min(100)
                             };
 
                             let max_player_level = self
@@ -1936,9 +1935,11 @@ impl engine_shared::State for State {
                                             })
                                             .map(|(_, player)| player.base.curr_level)
                                             .unwrap_or(1);
-
-                                        let mut min_level = (selected_level.saturating_sub(rng.gen_range(10..=20))).max(1);
-                                        let mut max_level = (selected_level + rng.gen_range(10..=20)).min(100);
+                                        
+                                        let bracket_low = selected_level / 10 + 5;
+                                        let bracket_high = selected_level / 5 + 10;
+                                        let mut min_level = (selected_level.saturating_sub(rng.gen_range(bracket_low..=bracket_high))).max(1);
+                                        let mut max_level = selected_level + rng.gen_range(bracket_low..=bracket_high);
                                         
                                         if min_level < selected_quest.occupation().unlocked_at_level() {
                                             let diff = selected_quest.occupation().unlocked_at_level() - min_level;
@@ -3956,4 +3957,17 @@ impl SpecialDwarf {
             SpecialDwarf::TheDefector => "He left his people behind to find a new home and fight side by side with the dwarfs.",
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash)]
+pub enum Building {
+    Cabin, // Lumberjack
+    Dock, // Fisher
+    Outpost, // Explorer
+    Watchtower, // Hunter
+    Mine, // Miner
+    Farm, // Farmer
+    Barracks, // Fighter
+    Museum, // Rockhounding
+    Shed, // Gathering
 }
