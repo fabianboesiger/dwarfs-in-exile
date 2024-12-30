@@ -41,14 +41,14 @@ static STORE_ENTRIES: &[StoreEntry] = &[
     },
     StoreEntry {
         buy_button_id: "buy_btn_1QbfkBCJSYyq6ul4yRy1WjRU",
-        publishable_key: "pk_test_51PclDhCJSYyq6ul4shd76Uo28pNWY617Ae8OTV0NXhxZoKCIKEhLkiZRKNnLG635zpSIKJS8eGLPNaKqFtatiZLA00KocaOW8X",
+        publishable_key: "pk_live_51PclDhCJSYyq6ul4z8Wmuf3h9PVDP9vXOyGhZqc4dy3JvkltdKYUt51oeD2x1K23XxEy1qeU6D80GBx3TpEE9VNN00osxE1rXe",
         product_id: "prod_RUf3L63wF6ToQK",
         name: "The Mountain Princess",
         product: Product::DwarfSkin(shared::SpecialDwarf::TheMountainPrincess),
     },
     StoreEntry {
         buy_button_id: "buy_btn_1Qbfk7CJSYyq6ul4U04SdXuG",
-        publishable_key: "pk_test_51PclDhCJSYyq6ul4shd76Uo28pNWY617Ae8OTV0NXhxZoKCIKEhLkiZRKNnLG635zpSIKJS8eGLPNaKqFtatiZLA00KocaOW8X",
+        publishable_key: "pk_live_51PclDhCJSYyq6ul4z8Wmuf3h9PVDP9vXOyGhZqc4dy3JvkltdKYUt51oeD2x1K23XxEy1qeU6D80GBx3TpEE9VNN00osxE1rXe",
         product_id: "prod_RUf4YY59UGpzEb",
         name: "The Defector",
         product: Product::DwarfSkin(shared::SpecialDwarf::TheDefector),
