@@ -174,7 +174,7 @@ impl Craftable for Item {
             Item::Dagger => Some((3, Bundle::new().add(Item::Iron, 3))),
             Item::Spear => Some((4, Bundle::new().add(Item::Wood, 3).add(Item::Iron, 2))),
             Item::Sword => Some((9, Bundle::new().add(Item::Wood, 1).add(Item::Iron, 5))),
-            Item::Pitchfork => Some((25, Bundle::new().add(Item::Wood, 5).add(Item::Iron, 10))),
+            Item::Pitchfork => Some((40, Bundle::new().add(Item::Wood, 5).add(Item::Iron, 10))),
 
             Item::Nail => Some((4, Bundle::new().add(Item::Iron, 1).add(Item::Coal, 1))),
 
@@ -290,7 +290,7 @@ impl Craftable for Item {
                     .add(Item::Wood, 50),
             )),
             Item::Plough => Some((
-                40,
+                55,
                 Bundle::new()
                     .add(Item::Wheel, 2)
                     .add(Item::Iron, 200)

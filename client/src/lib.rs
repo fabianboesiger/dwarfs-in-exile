@@ -2680,10 +2680,6 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
             .unwrap_or(0);
         */
 
-        let android = web_sys::window()
-            .and_then(|window| Some(window.navigator().user_agent().ok()?.to_lowercase().contains("android")))
-            .unwrap_or(false);
-
         let guest = model
             .state
             .get_user_data(user_id)
@@ -2743,31 +2739,6 @@ fn base(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node<
                 Node::Empty
             },
 
-            if android {
-                div![
-                    C!["important"],
-                    strong![format!("Try the Android App!")],
-                    div![
-                        C!["image-aside", "small"],
-                        img![attrs! {At::Src => "/app.jpg"}],
-                        div![
-                            p!["We need testers for the Dwarfs in Exile Android App. If you want to help us test the app, you can sign up as a tester by joining the Google Group and then download the app from the Google Play Store."],
-                            a![
-                                C!["button"],
-                                attrs! { At::Href => "https://groups.google.com/g/dwarfs-in-exile" },
-                                "Join the Google Group"
-                            ],
-                            a![
-                                C!["button"],
-                                attrs! { At::Href => "https://play.google.com/store/apps/details?id=com.fabianboesiger.dwarfsinexile" },
-                                "Download the App"
-                            ]
-                        ]
-                    ]
-                ]
-            } else {
-                Node::Empty
-            },
             /*
             if premium_hours <= 24 {
                 div![

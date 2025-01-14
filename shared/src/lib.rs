@@ -1312,7 +1312,7 @@ impl engine_shared::State for State {
                                         _ => {
                                             dwarf.decr_health(
                                                 dwarf.actual_occupation().health_cost_per_tick()
-                                                    * health_cost_multiplier,
+                                                    * health_cost_multiplier * self.settings.world_speed,
                                             );
                                         },
                                     }
@@ -3900,6 +3900,7 @@ fn gen_ratio_valid(rng: &mut impl Rng, numerator: u32, denominator: u32) -> bool
 pub enum SpecialDwarf {
     TheMountainPrincess,
     TheDefector,
+    TheOldFriend,
 }
 
 impl SpecialDwarf {
@@ -3921,6 +3922,13 @@ impl SpecialDwarf {
                 endurance: 6,
                 intelligence: 3,
             },
+            SpecialDwarf::TheOldFriend => Stats {
+                strength: 7,
+                agility: 3,
+                perception: 5,
+                endurance: 6,
+                intelligence: 5,
+            },
         }
     }
 
@@ -3934,6 +3942,7 @@ impl SpecialDwarf {
         match self {
             SpecialDwarf::TheMountainPrincess => 21,
             SpecialDwarf::TheDefector => 35,
+            SpecialDwarf::TheOldFriend => 47,
         }
     }
 
@@ -3941,6 +3950,7 @@ impl SpecialDwarf {
         match self {
             SpecialDwarf::TheMountainPrincess => true,
             SpecialDwarf::TheDefector => false,
+            SpecialDwarf::TheOldFriend => false,
         }
     }
 
@@ -3948,6 +3958,7 @@ impl SpecialDwarf {
         match self {
             SpecialDwarf::TheMountainPrincess => "The Mountain Princess",
             SpecialDwarf::TheDefector => "The Defector",
+            SpecialDwarf::TheOldFriend => "The Old Friend",
         }
     }
 
@@ -3955,19 +3966,24 @@ impl SpecialDwarf {
         match self {
             SpecialDwarf::TheMountainPrincess => "She is as strong as she is beautiful.",
             SpecialDwarf::TheDefector => "He left his people behind to find a new home and fight side by side with the dwarfs.",
+            SpecialDwarf::TheOldFriend => "The one friend that never left your side.",
         }
     }
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Hash)]
 pub enum Building {
-    Cabin, // Lumberjack
-    Dock, // Fisher
-    Outpost, // Explorer
-    Watchtower, // Hunter
-    Mine, // Miner
-    Farm, // Farmer
-    Barracks, // Fighter
+    Headquarters, // Levelling up
+    Huts, // Icrease Number of dwarfs
+    Workshop, // Building
+    Cabin, // Lumbering
+    Dock, // Fishing
+    Outpost, // Exploring
+    Watchtower, // Hunting
+    Mine, // Mining
+    Farm, // Farming
+    Barracks, // Fighting
     Museum, // Rockhounding
     Shed, // Gathering
+    Tavern, // Idling (More children)
 }

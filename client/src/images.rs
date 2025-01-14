@@ -218,6 +218,7 @@ pub enum Image {
     DivingSuit,
     TheMountainPrincess,
     TheDefector,
+    TheOldFriend,
 }
 
 impl AsAtValue for Image {
@@ -489,6 +490,7 @@ impl From<SpecialDwarf> for Image {
         match dwarf {
             SpecialDwarf::TheMountainPrincess => Image::TheMountainPrincess,
             SpecialDwarf::TheDefector => Image::TheDefector,
+            SpecialDwarf::TheOldFriend => Image::TheOldFriend,
         }
     }
 }
