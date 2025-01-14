@@ -47,6 +47,8 @@
             <div>
                 <label for="add-premium">Add Premium for all Users</label>
                 <input id="add-premium" type="number" name="add_premium" value="0">
+                <label for="add-skin">Add a Skin for all Users</label>
+                <input id="add-skin" type="text" name="add_skin" value="">
             </div>
             <input type="submit" value="Submit">
         </form>
@@ -74,6 +76,10 @@
                             <div>
                                 <label for="premium-{{ user.user_id }}">Add Premium Hours</label>
                                 <input id="premium-{{ user.user_id }}" type="number" name="add_premium" value="0">
+                            </div>
+                            <div>
+                                <label for="skin-{{ user.user_id }}">Add a Skin</label>
+                                <input id="skin-{{ user.user_id }}" type="text" name="add_skin" value="">
                             </div>
                             <div>
                                 <label>Delete User</label><br>

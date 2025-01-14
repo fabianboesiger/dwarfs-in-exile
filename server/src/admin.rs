@@ -19,6 +19,7 @@ pub struct ManageUser {
     password: Option<String>,
     add_premium: Option<i64>,
     delete: Option<bool>,
+    add_skin: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -54,7 +55,8 @@ pub struct AdminTemplate {
 
 #[derive(Debug, Deserialize)]
 pub struct AddPremium {
-    add_premium: i64,
+    add_premium: Option<i64>,
+    add_skin: Option<String>,
 }
 
 pub async fn get_admin(
@@ -209,6 +211,38 @@ pub async fn post_manage_user(
                 .await?;
             }
         }
+
+        if let Some(add_premium) = manage_user.add_premium {
+            if add_premium > 0 {
+                sqlx::query(
+                    r#"
+                            UPDATE users
+                            SET premium = premium + $2
+                            WHERE user_id = $1
+                        "#,
+                )
+                .bind(manage_user.user_id)
+                .bind(add_premium)
+                .execute(&mut *tx)
+                .await?;
+            }
+        }
+
+        if let Some(add_skin) = manage_user.add_skin {
+            if !add_skin.is_empty() {
+                sqlx::query(
+                    r#"
+                            UPDATE users
+                            SET dwarf_skins = CASE WHEN dwarf_skins IS NULL THEN $2 ELSE dwarf_skins || ',' || $2 END
+                            WHERE user_id = $1
+                        "#,
+                )
+                .bind(manage_user.user_id)
+                .bind(add_skin)
+                .execute(&mut *tx)
+                .await?;
+            }
+        }
     }
 
     tx.commit().await?;
@@ -246,16 +280,32 @@ pub async fn post_add_premium(
         return Err(ServerError::NoAdminPermissions);
     }
 
-    if add_premium.add_premium > 0 {
-        sqlx::query(
-            r#"
-                    UPDATE users
-                    SET premium = premium + $1
-                "#,
-        )
-        .bind(add_premium.add_premium)
-        .execute(&pool)
-        .await?;
+    if let Some(add_premium) = add_premium.add_premium {
+        if add_premium > 0 {
+            sqlx::query(
+                r#"
+                        UPDATE users
+                        SET premium = premium + $1
+                    "#,
+            )
+            .bind(add_premium)
+            .execute(&pool)
+            .await?;
+        }
+    }
+  
+    if let Some(add_skin) = add_premium.add_skin {
+        if !add_skin.is_empty() {
+            sqlx::query(
+                r#"
+                        UPDATE users
+                        SET dwarf_skins = CASE WHEN dwarf_skins IS NULL THEN $1 ELSE dwarf_skins || ',' || $1 END
+                    "#,
+            )
+            .bind(add_skin)
+            .execute(&pool)
+            .await?;
+        }
     }
 
     game_state.new_server_connection().await.updated_user_data();

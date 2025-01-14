@@ -3966,7 +3966,7 @@ impl SpecialDwarf {
         match self {
             SpecialDwarf::TheMountainPrincess => "She is as strong as she is beautiful.",
             SpecialDwarf::TheDefector => "He left his people behind to find a new home and fight side by side with the dwarfs.",
-            SpecialDwarf::TheOldFriend => "The one friend that never left your side.",
+            SpecialDwarf::TheOldFriend => "The one friend that never left your side. This special dwarf is a gift to all players that played before the Play Store release.",
         }
     }
 }
