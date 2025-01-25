@@ -1316,6 +1316,10 @@ impl engine_shared::State for State {
                                             );
                                         },
                                     }
+
+                                    if *user_id == UserId(6867) {
+                                        println!("{}: {}", dwarf.actual_name(), dwarf.health);
+                                    }
                                     
                                     if dwarf.actual_occupation() == Occupation::Idling {
                                         let substract_food = self.settings.world_speed.min(player.base.food);
@@ -1323,7 +1327,7 @@ impl engine_shared::State for State {
                                             if dwarf.health <= MAX_HEALTH - (MAX_HEALTH / 1000) * substract_food {
                                                 player.base.food = player.base.food.saturating_sub(substract_food);
                                                 dwarf.incr_health((MAX_HEALTH / 1000) * substract_food);
-                                            } else if player.auto_functions.auto_idle {
+                                            } else if dwarf.auto_idle {
                                                 dwarf.auto_idle = false;
                                             }
                                         } else if dwarf.auto_idle {
