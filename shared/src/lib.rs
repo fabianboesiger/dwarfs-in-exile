@@ -1316,10 +1316,6 @@ impl engine_shared::State for State {
                                             );
                                         },
                                     }
-
-                                    if *user_id == UserId(6867) {
-                                        println!("{}: {}", dwarf.actual_name(), dwarf.health);
-                                    }
                                     
                                     if dwarf.actual_occupation() == Occupation::Idling {
                                         let substract_food = self.settings.world_speed.min(player.base.food);
