@@ -32,6 +32,7 @@ sha2 = "0.10"
 rand = { version = "0.8" }
 rustrict = "0.7.26"
 time = "0.3"
+uuid = { version = "1", features = ["v4", "js"] }
 
 [profile.release]
 lto = true
