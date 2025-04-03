@@ -790,6 +790,9 @@ impl engine_shared::State for State {
                         ClientEvent::ConfirmPopup => {
                             player.popups.pop_front();
                         }
+                        ClientEvent::SkipAllPopups => {
+                            player.popups.clear();
+                        }
                         ClientEvent::NextTutorialStep => {
                             if let Some(step) = player.tutorial_step {
                                 if step.requires().complete(player) {
@@ -3142,6 +3145,7 @@ pub enum ClientEvent {
     ReadLog,
     ReadChat,
     SpendTribePoint(Territory),
+    SkipAllPopups,
 }
 
 impl engine_shared::ClientEvent for ClientEvent {
