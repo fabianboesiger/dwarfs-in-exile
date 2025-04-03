@@ -821,6 +821,12 @@ fn popup(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node
                                         )),
                                         "Confirm"
                                     ],
+                                    button![
+                                        ev(Ev::Click, move |_| Msg::send_event(
+                                            ClientEvent::SkipAllPopups
+                                        )),
+                                        "Skip All"
+                                    ],
                                 ]
                             ]
                         }
