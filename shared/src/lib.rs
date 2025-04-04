@@ -1071,7 +1071,7 @@ impl engine_shared::State for State {
                         ServerEvent::Tick => {
                             self.time += 1;
 
-                            //self.players.retain(|_user_id, player| player.last_online > self.time - 60 * 60 * 24 * 30 * self.settings.world_speed as u64);
+                            self.players.retain(|_user_id, player| !player.is_inactive(self.time, &self.settings));
 
                             if self.start_countdown > 0 {
                                 self.start_countdown -= 1;
