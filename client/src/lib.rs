@@ -743,6 +743,12 @@ fn popup(model: &Model, state: &shared::State, user_id: &shared::UserId) -> Node
                                         )),
                                         "Confirm"
                                     ],
+                                    button![
+                                        ev(Ev::Click, move |_| Msg::send_event(
+                                            ClientEvent::SkipAllPopups
+                                        )),
+                                        "Skip All"
+                                    ],
                                 ]
                             ]
                         }
@@ -1133,7 +1139,7 @@ fn name(model: &Model, user_id: &shared::UserId, include_online_status: bool) ->
                 Node::Empty
             },
             if include_online_status {
-                if player.is_online(state.time) {
+                if player.is_online(state.time, &state.settings) {
                     span![C!["online"], "●"]
                 } else {
                     Node::Empty
@@ -1175,7 +1181,7 @@ fn ranking(
         .players
         .iter()
         .filter(|(user_id, player)| {
-            player.is_active(state.time) && client_state.get_user_data(user_id).is_some()
+            player.is_active(state.time, &state.settings) && client_state.get_user_data(user_id).is_some()
         })
         .collect();
     players.sort_by_key(|(_, p)| -(p.base.curr_level as i64));

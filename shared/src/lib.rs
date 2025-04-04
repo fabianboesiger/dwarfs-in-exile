@@ -1071,6 +1071,8 @@ impl engine_shared::State for State {
                         ServerEvent::Tick => {
                             self.time += 1;
 
+                            //self.players.retain(|_user_id, player| player.last_online > self.time - 60 * 60 * 24 * 30 * self.settings.world_speed as u64);
+
                             if self.start_countdown > 0 {
                                 self.start_countdown -= 1;
                             }
@@ -1112,7 +1114,7 @@ impl engine_shared::State for State {
                             let fewest_members_tribe_id = *self
                                         .tribes
                                         .keys()
-                                        .map(|tribe_id| (tribe_id, self.players.values().filter(|player| player.is_active(self.time) && player.tribe == Some(*tribe_id)).count()))
+                                        .map(|tribe_id| (tribe_id, self.players.values().filter(|player| player.is_active(self.time, &self.settings) && player.tribe == Some(*tribe_id)).count()))
                                         .min_by_key(|(_, count)| *count)
                                         .unwrap().0;
 
@@ -1859,14 +1861,14 @@ impl engine_shared::State for State {
                             let active_players = self
                                 .players
                                 .iter()
-                                .filter(|(_, player)| player.is_active(self.time))
+                                .filter(|(_, player)| player.is_active(self.time, &self.settings))
                                 .count();
 
                             let active_not_new_players = self
                                 .players
                                 .iter()
                                 .filter(|(_, player)| {
-                                    player.is_active(self.time) && !player.is_new(self.time)
+                                    player.is_active(self.time, &self.settings) && !player.is_new(self.time, &self.settings)
                                 })
                                 .count();
 
@@ -1926,8 +1928,8 @@ impl engine_shared::State for State {
                                             .iter()
                                             .collect::<Vec<_>>()
                                             .choose_weighted(rng, |(_, player)| {
-                                                if player.is_active(self.time) {
-                                                    if player.is_new(self.time) {
+                                                if player.is_active(self.time, &self.settings) {
+                                                    if player.is_new(self.time, &self.settings) {
                                                         1
                                                     } else {
                                                         NEW_PLAYER_DIVIDER
@@ -1991,7 +1993,7 @@ impl engine_shared::State for State {
                             }
 
                             // Only keep players that were recently active or have any dwarfs left.
-                            self.players.retain(|_, player| player.dwarfs.len() > 0 || player.is_active(self.time));
+                            self.players.retain(|_, player| player.dwarfs.len() > 0 || player.is_active(self.time, &self.settings));
                         }
                     }
                 }
@@ -2381,16 +2383,20 @@ impl Player {
         self.popups.push_back(popup);
     }
 
-    pub fn is_online(&self, time: Time) -> bool {
-        (time - self.last_online) / SPEED < ONE_MINUTE * 5
+    pub fn is_online(&self, time: Time, settings: &WorldSettings) -> bool {
+        (time - self.last_online) / settings.world_speed / SPEED < ONE_MINUTE * 5
     }
 
-    pub fn is_active(&self, time: Time) -> bool {
-        (time - self.last_online) / SPEED < ONE_DAY && !self.dwarfs.is_empty()
+    pub fn is_active(&self, time: Time, settings: &WorldSettings) -> bool {
+        (time - self.last_online) / settings.world_speed / SPEED < ONE_DAY && !self.dwarfs.is_empty()
     }
 
-    pub fn is_new(&self, time: Time) -> bool {
-        (time - self.start_time) / SPEED < ONE_DAY || self.base.curr_level == 1
+    pub fn is_inactive(&self, time: Time, settings: &WorldSettings) -> bool {
+        (time - self.last_online) / settings.world_speed / SPEED > ONE_DAY * 30
+    }
+
+    pub fn is_new(&self, time: Time, settings: &WorldSettings) -> bool {
+        (time - self.start_time) / settings.world_speed / SPEED < ONE_DAY || self.base.curr_level == 1
     }
 
     pub fn new_dwarf(
