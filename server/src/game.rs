@@ -131,7 +131,7 @@ impl engine_server::BackendStore<shared::State> for GameStore {
                 r#"
                         SELECT user_id, username, premium, admin, COUNT(winner), guest, joined, referrer, dwarf_skins
                         FROM users
-                        LEFT JOIN games ON winner = user_id AND game_mode = 'Ranked'
+                        LEFT JOIN games ON winner = user_id AND (game_mode IS NULL OR game_mode = 'Ranked')
                         GROUP BY user_id, username, premium, admin, guest, joined, referrer
                     "#,
             )
